@@ -1,0 +1,312 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #F8FAFC;
+  --foreground: #0F172A;
+  --primary: #2563EB;
+  --primary-foreground: #FFFFFF;
+  --secondary: #F1F5F9;
+  --secondary-foreground: #334155;
+  --accent: #F59E0B;
+  --accent-foreground: #FFFFFF;
+  --muted: #E2E8F0;
+  --muted-foreground: #64748B;
+  --card: #FFFFFF;
+  --card-foreground: #0F172A;
+  --border: #E2E8F0;
+  --input: #F1F5F9;
+  --ring: #2563EB;
+  --radius: 8px;
+  --font-sans: var(--font-dm-sans), sans-serif;
+  --font-mono: var(--font-ibm-plex-mono), monospace;
+
+  --status-draft: #64748B;
+  --status-draft-bg: #F1F5F9;
+  --status-pending: #D97706;
+  --status-pending-bg: #FEF3C7;
+  --status-submitted: #2563EB;
+  --status-submitted-bg: #DBEAFE;
+  --status-approved: #16A34A;
+  --status-approved-bg: #DCFCE7;
+  --status-rejected: #DC2626;
+  --status-rejected-bg: #FEE2E2;
+
+  --sidebar-width: 240px;
+  --sidebar-collapsed: 64px;
+  --topbar-height: 64px;
+}
+
+.dark {
+  --background: #0F172A;
+  --foreground: #F1F5F9;
+  --primary: #3B82F6;
+  --primary-foreground: #FFFFFF;
+  --secondary: #1E293B;
+  --secondary-foreground: #CBD5E1;
+  --accent: #F59E0B;
+  --accent-foreground: #0F172A;
+  --muted: #1E293B;
+  --muted-foreground: #94A3B8;
+  --card: #1E293B;
+  --card-foreground: #F1F5F9;
+  --border: #334155;
+  --input: #1E293B;
+  --ring: #3B82F6;
+
+  --status-draft: #94A3B8;
+  --status-draft-bg: #1E293B;
+  --status-pending: #FCD34D;
+  --status-pending-bg: #451A03;
+  --status-submitted: #60A5FA;
+  --status-submitted-bg: #1E3A5F;
+  --status-approved: #4ADE80;
+  --status-approved-bg: #052E16;
+  --status-rejected: #F87171;
+  --status-rejected-bg: #450A0A;
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    border-color: var(--border);
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  h1, h2, h3, h4, h5, h6, p {
+    margin: 0;
+  }
+}
+
+@layer utilities {
+  .font-tabular {
+    font-variant-numeric: tabular-nums;
+    font-family: var(--font-mono);
+  }
+
+  .sidebar-transition {
+    transition: width 300ms ease, transform 300ms ease;
+  }
+
+  .fade-in {
+    animation: fadeIn 150ms ease-in-out;
+  }
+
+  .slide-up {
+    animation: slideUp 200ms ease-out;
+  }
+
+  .scale-press {
+    transition: transform 150ms ease, box-shadow 150ms ease;
+  }
+
+  .scale-press:active {
+    transform: scale(0.97);
+  }
+
+  .row-delete {
+    transition: opacity 200ms ease, max-height 200ms ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes pulse-highlight {
+    0%, 100% { background-color: transparent; }
+    50% { background-color: var(--accent); opacity: 0.15; }
+  }
+
+  .value-update {
+    animation: pulse-highlight 600ms ease;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: var(--border);
+    border-radius: 4px;
+  }
+}
+
+/* ============================================================
+   PRINT STYLES — A4 Portrait, pixel-accurate paper replication
+   ============================================================ */
+@media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body {
+    background: #fff !important;
+    color: #000 !important;
+    font-family: Arial, Helvetica, sans-serif !important;
+    font-size: 10pt !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .no-print,
+  .no-print * {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  nav, header, aside, footer,
+  [data-sidebar], [data-topbar] {
+    display: none !important;
+  }
+
+  .print-page {
+    width: 210mm;
+    min-height: 297mm;
+    padding: 12mm 14mm;
+    margin: 0 auto;
+    background: #fff !important;
+    page-break-after: always;
+    box-shadow: none !important;
+    border: none !important;
+    box-sizing: border-box;
+  }
+
+  body {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+  }
+
+  .print-page:last-child {
+    page-break-after: avoid;
+  }
+
+  .print-title {
+    font-size: 14pt !important;
+    font-weight: bold !important;
+    text-align: center !important;
+    letter-spacing: 2px !important;
+    border: 2px solid #000 !important;
+    padding: 4pt 0 !important;
+    margin-bottom: 6pt !important;
+  }
+
+  .print-header-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 6pt;
+  }
+
+  .print-header-table td {
+    border: 1px solid #000;
+    padding: 3pt 5pt;
+    font-size: 9pt;
+    vertical-align: top;
+  }
+
+  .print-section-header {
+    font-size: 10pt !important;
+    font-weight: bold !important;
+    border: 1px solid #000 !important;
+    padding: 3pt 5pt !important;
+    background: #f0f0f0 !important;
+    margin-bottom: 0 !important;
+  }
+
+  .print-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9pt;
+  }
+
+  .print-table th {
+    border: 1px solid #000;
+    padding: 3pt 4pt;
+    font-weight: bold;
+    text-align: center;
+    background: #f0f0f0 !important;
+    font-size: 8.5pt;
+  }
+
+  .print-table td {
+    border: 1px solid #000;
+    padding: 2pt 4pt;
+    font-size: 9pt;
+    vertical-align: middle;
+  }
+
+  .print-table td.text-right,
+  .print-table th.text-right {
+    text-align: right;
+  }
+
+  .print-table td.text-center,
+  .print-table th.text-center {
+    text-align: center;
+  }
+
+  .print-total-row td {
+    font-weight: bold;
+    border-top: 2px solid #000;
+  }
+
+  .print-signature-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12pt;
+  }
+
+  .print-signature-table td {
+    border: 1px solid #000;
+    padding: 4pt;
+    width: 20%;
+    vertical-align: top;
+    height: 60pt;
+  }
+
+  .print-signature-label {
+    font-size: 8pt;
+    font-weight: bold;
+    text-align: center;
+    border-bottom: 1px solid #000;
+    padding-bottom: 2pt;
+    margin-bottom: 30pt;
+  }
+
+  .print-signature-field {
+    font-size: 8pt;
+    margin-top: 4pt;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 10mm auto;
+  }
+}
