@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Plus, Trash2, Save, Loader2, Upload, Database, Search, Edit2, ArrowLeft, Eye } from 'lucide-react';
+import { Plus, Trash2, Save, Loader2, Upload, Database, Search, Edit2, ArrowLeft, Eye, ArrowUpDown } from 'lucide-react';
 import { dbService } from '@/services/db';
 import type { ArcItem } from '@/types';
 import { generateId } from '@/utils/helpers';
@@ -21,6 +21,7 @@ function defaultArcItem(): ArcItem {
 }
 
 type ViewState = 'list' | 'add' | 'edit' | 'view';
+type SortOrder = 'asc' | 'desc' | 'none';
 
 export default function ArcClient() {
   const { toasts, addToast, removeToast } = useToast();
@@ -32,6 +33,7 @@ export default function ArcClient() {
   const [view, setView] = useState<ViewState>('list');
   const [selectedItem, setSelectedItem] = useState<ArcItem | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
 
   // Form states
   const [formItem, setFormItem] = useState<ArcItem>(defaultArcItem());
@@ -53,17 +55,34 @@ export default function ArcClient() {
     loadItems();
   }, [loadItems]);
 
-  // Filtered items for list view
-  const filteredItems = useMemo(() => {
-    if (!searchQuery.trim()) return items;
-    const q = searchQuery.toLowerCase();
-    return items.filter(
-      (item) =>
-        item.arc_no.toLowerCase().includes(q) ||
-        item.description.toLowerCase().includes(q) ||
-        item.job_type.toLowerCase().includes(q)
-    );
-  }, [items, searchQuery]);
+  // Filtered and sorted items for list view
+  const processedItems = useMemo(() => {
+    let result = [...items];
+    
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (item) =>
+          item.arc_no.toLowerCase().includes(q) ||
+          item.description.toLowerCase().includes(q) ||
+          item.job_type.toLowerCase().includes(q)
+      );
+    }
+
+    // Apply natural alphanumeric sorting by ARC No (e.g., 1a, 1b, 1c, 2, 10)
+    if (sortOrder !== 'none') {
+      result.sort((a, b) => {
+        const comparison = a.arc_no.localeCompare(b.arc_no, undefined, {
+          numeric: true,
+          sensitivity: 'base',
+        });
+        return sortOrder === 'asc' ? comparison : -comparison;
+      });
+    }
+
+    return result;
+  }, [items, searchQuery, sortOrder]);
 
   const handleAddClick = () => {
     setFormItem(defaultArcItem());
@@ -83,6 +102,14 @@ export default function ArcClient() {
   const handleBackToList = () => {
     setView('list');
     setSelectedItem(null);
+  };
+
+  const toggleSortOrder = () => {
+    setSortOrder((prev) => {
+      if (prev === 'none') return 'asc';
+      if (prev === 'asc') return 'desc';
+      return 'none';
+    });
   };
 
   const handleSaveForm = async (e: React.FormEvent) => {
@@ -226,16 +253,32 @@ export default function ArcClient() {
           {/* LIST VIEW */}
           {view === 'list' && (
             <div className="flex flex-col gap-4">
-              {/* Search Bar */}
-              <div className="relative">
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Search by ARC No, Job Type, or Description..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-md border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring transition"
-                />
+              {/* Search & Sort Bar */}
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="Search by ARC No, Job Type, or Description..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 rounded-md border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring transition"
+                  />
+                </div>
+                <button
+                  onClick={toggleSortOrder}
+                  className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-md border border-border text-sm font-medium transition-colors scale-press ${
+                    sortOrder !== 'none'
+                      ? 'bg-primary/10 text-primary border-primary/30'
+                      : 'bg-card text-muted-foreground hover:text-foreground hover:bg-secondary'
+                  }`}
+                  title="Toggle natural alphanumeric sorting by ARC No."
+                >
+                  <ArrowUpDown size={16} />
+                  <span>
+                    Sort: {sortOrder === 'asc' ? 'ARC No (Asc)' : sortOrder === 'desc' ? 'ARC No (Desc)' : 'None'}
+                  </span>
+                </button>
               </div>
 
               {/* Table */}
@@ -255,7 +298,7 @@ export default function ArcClient() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredItems.map((item, idx) => (
+                      {processedItems.map((item, idx) => (
                         <tr key={item.id} className="border-b border-border hover:bg-secondary/20 transition-colors group">
                           <td className="px-4 py-3 text-xs text-muted-foreground font-tabular text-center">{idx + 1}</td>
                           <td className="px-4 py-3 font-medium text-foreground">{item.arc_no}</td>
@@ -306,7 +349,7 @@ export default function ArcClient() {
                     </tbody>
                   </table>
                 </div>
-                {filteredItems.length === 0 && (
+                {processedItems.length === 0 && (
                   <div className="flex flex-col items-center justify-center py-16 text-center px-4">
                     <Database size={32} className="text-muted-foreground mb-3" />
                     <h3 className="font-semibold text-foreground mb-1">No ARC items found</h3>
