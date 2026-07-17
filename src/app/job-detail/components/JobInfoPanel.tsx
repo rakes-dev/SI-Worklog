@@ -36,10 +36,15 @@ export default function JobInfoPanel({ job, onSaved }: JobInfoPanelProps) {
 
   const onSubmit = async (values: FormValues) => {
     setSaving(true);
-    await updateJob({ ...job, ...values, updatedAt: new Date().toISOString() });
-    setSaving(false);
-    setEditing(false);
-    onSaved();
+    try {
+      await updateJob({ ...job, ...values, updatedAt: new Date().toISOString() });
+      setEditing(false);
+      onSaved();
+    } catch (error) {
+      console.error('Failed to update job:', error);
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (!editing) {

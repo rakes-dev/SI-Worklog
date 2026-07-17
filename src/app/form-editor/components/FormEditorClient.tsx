@@ -121,27 +121,36 @@ export default function FormEditorClient() {
       } else {
         await addForm(jobId, formData);
       }
-      await loadJobs();
       setSaveState('saved');
       addToast('success', 'Form saved', 'All changes saved successfully.');
       setTimeout(() => setSaveState('idle'), 3000);
-    } catch {
+    } catch (error) {
+      console.error('Save failed:', error);
       setSaveState('error');
-      addToast('error', 'Save failed', 'Could not save form. Please try again.');
+      addToast('error', 'Save failed', 'Could not save form. Please check your connection and try again.');
     }
   };
 
   const handlePrint = async (values: PaintForm) => {
     if (!job || !signatures) return;
-    // Save first, then print
-    const formData = buildFormData(values);
-    if (existingForm) {
-      await updateForm(jobId, formData);
-    } else {
-      await addForm(jobId, formData);
+    setSaveState('saving');
+    try {
+      // Save first, then print
+      const formData = buildFormData(values);
+      if (existingForm) {
+        await updateForm(jobId, formData);
+      } else {
+        await addForm(jobId, formData);
+      }
+      setSaveState('saved');
+      addToast('success', 'Form saved', 'Saved before printing.');
+      setTimeout(() => setSaveState('idle'), 2000);
+      window.print();
+    } catch (error) {
+      console.error('Save before print failed:', error);
+      setSaveState('error');
+      addToast('error', 'Save failed', 'Could not save before printing. Please try again.');
     }
-    await loadJobs();
-    window.print();
   };
 
   if (!job) {

@@ -25,6 +25,24 @@ A modern Next.js 15 application built with TypeScript and Tailwind CSS.
   ```
 3. Open [http://localhost:4028](http://localhost:4028) with your browser to see the result.
 
+## 🔥 Firebase Firestore
+
+This app now uses **Firebase Firestore** for job storage.
+
+Set these environment variables before running the app:
+
+```bash
+NEXT_PUBLIC_FIREBASE_API_KEY=
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
+NEXT_PUBLIC_FIREBASE_APP_ID=
+NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=
+```
+
+Jobs are stored in the `jobs` collection as full `Job` documents, including nested forms, summary rows, measurement rows, and signatures.
+
 ## 📁 Project Structure
 
 ```

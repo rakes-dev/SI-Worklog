@@ -41,24 +41,42 @@ export const useAppStore = create<AppStore>()(
       isLoaded: false,
 
       loadJobs: async () => {
-        const jobs = await dbService.getAllJobs();
-        set({ jobs, isLoaded: true });
+        // Always mark as loaded immediately so UI doesn't hang
+        // Local persisted data is already available from zustand persist middleware
+        set({ isLoaded: true });
+
+        // Try Firestore sync in background (best-effort, non-blocking)
+        dbService.getAllJobs()
+          .then((jobs) => {
+            if (jobs.length > 0) set({ jobs });
+          })
+          .catch((error) => {
+            console.warn('Firestore sync unavailable, using local data.', error);
+          });
       },
 
       addJob: async (job) => {
-        await dbService.saveJob(job);
+        // Update local state immediately (persisted to localStorage via persist middleware)
         set((s) => ({ jobs: [job, ...s.jobs] }));
+        // Try Firestore sync in background (non-blocking, best-effort)
+        dbService.saveJob(job).catch((error) => {
+          console.warn('Firestore sync failed for new job (local save preserved):', error);
+        });
       },
 
       updateJob: async (job) => {
         const updated = recalcJobTotal(job);
-        await dbService.saveJob(updated);
         set((s) => ({ jobs: s.jobs.map((j) => (j.id === updated.id ? updated : j)) }));
+        dbService.saveJob(updated).catch((error) => {
+          console.warn('Firestore sync failed for job update (local save preserved):', error);
+        });
       },
 
       deleteJob: async (id) => {
-        await dbService.deleteJob(id);
         set((s) => ({ jobs: s.jobs.filter((j) => j.id !== id) }));
+        dbService.deleteJob(id).catch((error) => {
+          console.warn('Firestore sync failed for job deletion:', error);
+        });
       },
 
       duplicateJob: async (id) => {
@@ -78,8 +96,10 @@ export const useAppStore = create<AppStore>()(
             updatedAt: new Date().toISOString(),
           })),
         };
-        await dbService.saveJob(newJob);
         set((s) => ({ jobs: [newJob, ...s.jobs] }));
+        dbService.saveJob(newJob).catch((error) => {
+          console.warn('Firestore sync failed for duplicateJob (local save preserved):', error);
+        });
         return newJob;
       },
 
@@ -87,16 +107,20 @@ export const useAppStore = create<AppStore>()(
         const job = get().jobs.find((j) => j.id === id);
         if (!job) return;
         const updated = { ...job, status, updatedAt: new Date().toISOString() };
-        await dbService.saveJob(updated);
         set((s) => ({ jobs: s.jobs.map((j) => (j.id === id ? updated : j)) }));
+        dbService.saveJob(updated).catch((error) => {
+          console.warn('Firestore sync failed for status update (local save preserved):', error);
+        });
       },
 
       addForm: async (jobId, form) => {
         const job = get().jobs.find((j) => j.id === jobId);
         if (!job) return;
         const updated = recalcJobTotal({ ...job, forms: [...job.forms, form] });
-        await dbService.saveJob(updated);
         set((s) => ({ jobs: s.jobs.map((j) => (j.id === jobId ? updated : j)) }));
+        dbService.saveJob(updated).catch((error) => {
+          console.warn('Firestore sync failed for addForm (local save preserved):', error);
+        });
       },
 
       updateForm: async (jobId, form) => {
@@ -106,8 +130,10 @@ export const useAppStore = create<AppStore>()(
           ...job,
           forms: job.forms.map((f) => (f.id === form.id ? form : f)),
         });
-        await dbService.saveJob(updated);
         set((s) => ({ jobs: s.jobs.map((j) => (j.id === jobId ? updated : j)) }));
+        dbService.saveJob(updated).catch((error) => {
+          console.warn('Firestore sync failed for updateForm (local save preserved):', error);
+        });
       },
 
       deleteForm: async (jobId, formId) => {
@@ -117,8 +143,10 @@ export const useAppStore = create<AppStore>()(
           ...job,
           forms: job.forms.filter((f) => f.id !== formId),
         });
-        await dbService.saveJob(updated);
         set((s) => ({ jobs: s.jobs.map((j) => (j.id === jobId ? updated : j)) }));
+        dbService.saveJob(updated).catch((error) => {
+          console.warn('Firestore sync failed for deleteForm (local save preserved):', error);
+        });
       },
 
       duplicateForm: async (jobId, formId) => {
@@ -134,8 +162,10 @@ export const useAppStore = create<AppStore>()(
           updatedAt: new Date().toISOString(),
         };
         const updated = recalcJobTotal({ ...job, forms: [...job.forms, newForm] });
-        await dbService.saveJob(updated);
         set((s) => ({ jobs: s.jobs.map((j) => (j.id === jobId ? updated : j)) }));
+        dbService.saveJob(updated).catch((error) => {
+          console.warn('Firestore sync failed for duplicateForm (local save preserved):', error);
+        });
       },
 
       toggleTheme: () =>
@@ -147,8 +177,12 @@ export const useAppStore = create<AppStore>()(
       setSidebarCollapsed: (v) => set({ sidebarCollapsed: v }),
     }),
     {
-      name: 'paintpro-ui-prefs',
-      partialize: (s) => ({ theme: s.theme, sidebarCollapsed: s.sidebarCollapsed }),
+      name: 'paintpro-storage',
+      partialize: (s) => ({
+        theme: s.theme,
+        sidebarCollapsed: s.sidebarCollapsed,
+        jobs: s.jobs, // Also persist jobs to localStorage so app works offline
+      }),
     }
   )
 );

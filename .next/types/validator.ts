@@ -36,6 +36,15 @@ type LayoutConfig<Route extends LayoutRoutes = LayoutRoutes> = {
 }
 
 
+// Validate ../../src/app/arc/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/arc">> = Specific
+  const handler = {} as typeof import("../../src/app/arc/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
 // Validate ../../src/app/form-editor/page.tsx
 {
   type __IsExpected<Specific extends AppPageConfig<"/form-editor">> = Specific

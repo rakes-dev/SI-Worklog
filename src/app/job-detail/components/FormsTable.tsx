@@ -20,10 +20,15 @@ export default function FormsTable({ job, onToast }: FormsTableProps) {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
 
   const handleAddForm = async () => {
-    const form = defaultForm(job.jobName, job.forms.length + 1);
-    await addForm(job.id, form);
-    onToast('success', 'Form added', `"${form.formName}" created.`);
-    router.push(`/form-editor?jobId=${job.id}&formId=${form.id}`);
+    try {
+      const form = defaultForm(job.jobName, job.forms.length + 1);
+      await addForm(job.id, form);
+      onToast('success', 'Form added', `"${form.formName}" created.`);
+      router.push(`/form-editor?jobId=${job.id}&formId=${form.id}`);
+    } catch (error) {
+      console.error('Failed to add form:', error);
+      onToast('error', 'Failed to add form', 'Please check your connection and try again.');
+    }
   };
 
   const handleOpenForm = (form: PaintForm) => {
@@ -31,16 +36,28 @@ export default function FormsTable({ job, onToast }: FormsTableProps) {
   };
 
   const handleDuplicate = async (formId: string) => {
-    await duplicateForm(job.id, formId);
-    onToast('success', 'Form duplicated', 'Copy created successfully.');
-    setOpenMenu(null);
+    try {
+      await duplicateForm(job.id, formId);
+      onToast('success', 'Form duplicated', 'Copy created successfully.');
+    } catch (error) {
+      console.error('Failed to duplicate form:', error);
+      onToast('error', 'Duplicate failed', 'Could not duplicate this form.');
+    } finally {
+      setOpenMenu(null);
+    }
   };
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
-    await deleteForm(job.id, deleteTarget);
-    onToast('success', 'Form deleted', 'Form removed from this job.');
-    setDeleteTarget(null);
+    try {
+      await deleteForm(job.id, deleteTarget);
+      onToast('success', 'Form deleted', 'Form removed from this job.');
+    } catch (error) {
+      console.error('Failed to delete form:', error);
+      onToast('error', 'Delete failed', 'Could not delete this form.');
+    } finally {
+      setDeleteTarget(null);
+    }
   };
 
   const handlePrint = (form: PaintForm) => {

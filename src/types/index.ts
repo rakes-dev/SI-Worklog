@@ -78,6 +78,16 @@ export interface Job {
   updatedAt: string;
 }
 
+export interface ArcItem {
+  id: string;
+  arc_no: string;
+  coat: number | '';
+  description: string;
+  final_rate: number | '';
+  uom: string;
+  job_type: string;
+}
+
 export interface AppState {
   jobs: Job[];
   theme: 'light' | 'dark';
