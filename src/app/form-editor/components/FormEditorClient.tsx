@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import {
@@ -20,6 +20,7 @@ import {
   calcTotalArea,
   defaultForm,
   generateId,
+  syncSummaryRowsWithMeasurements,
 } from '@/utils/helpers';
 import FormTopFields from './FormTopFields';
 import SummaryTable from './SummaryTable';
@@ -51,6 +52,10 @@ export default function FormEditorClient() {
   const [totalArea, setTotalArea] = useState(0);
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [initialized, setInitialized] = useState(false);
+  const syncedSummaryRows = useMemo(
+    () => syncSummaryRowsWithMeasurements(summaryRows, measurementRows),
+    [summaryRows, measurementRows]
+  );
 
   const {
     register,
@@ -77,8 +82,8 @@ export default function FormEditorClient() {
 
   // Recalculate totals when rows change
   useEffect(() => {
-    setGrandTotal(calcGrandTotal(summaryRows));
-  }, [summaryRows]);
+    setGrandTotal(calcGrandTotal(syncedSummaryRows));
+  }, [syncedSummaryRows]);
 
   useEffect(() => {
     setTotalArea(calcTotalArea(measurementRows));
@@ -95,15 +100,15 @@ export default function FormEditorClient() {
     (values: PaintForm): PaintForm => ({
       ...values,
       id: existingForm?.id ?? generateId('form'),
-      summaryRows,
+      summaryRows: syncedSummaryRows,
       measurementRows,
       signatures: signatures!,
-      grandTotal: calcGrandTotal(summaryRows),
+      grandTotal: calcGrandTotal(syncedSummaryRows),
       totalArea: calcTotalArea(measurementRows),
       updatedAt: new Date().toISOString(),
       createdAt: existingForm?.createdAt ?? new Date().toISOString(),
     }),
-    [summaryRows, measurementRows, signatures, existingForm]
+    [syncedSummaryRows, measurementRows, signatures, existingForm]
   );
 
   const onSubmit = async (values: PaintForm) => {
@@ -173,10 +178,10 @@ export default function FormEditorClient() {
   const currentFormForPrint: PaintForm = {
     ...(existingForm ?? defaultForm(job.jobName, 1)),
     suitPublicAreaName: '',
-    summaryRows,
+    summaryRows: syncedSummaryRows,
     measurementRows,
     signatures,
-    grandTotal,
+    grandTotal: calcGrandTotal(syncedSummaryRows),
     totalArea,
   };
 
@@ -266,7 +271,7 @@ export default function FormEditorClient() {
 
           {/* Section A — Summary */}
           <SummaryTable
-            rows={summaryRows}
+            rows={syncedSummaryRows}
             onChange={(rows) => setSummaryRows(rows)}
             grandTotal={grandTotal}
           />

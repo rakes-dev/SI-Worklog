@@ -116,18 +116,20 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
         <thead>
           <tr>
             <th className="text-center" style={{ width: '4%' }}>Sl. No.</th>
-            <th className="text-left" style={{ width: '28%' }}>Location</th>
+            <th className="text-left" style={{ width: '18%' }}>Job Type</th>
+            <th className="text-left" style={{ width: '22%' }}>Location</th>
             <th className="text-center" style={{ width: '8%' }}>Coat</th>
-            <th className="text-right" style={{ width: '12%' }}>Length (m)</th>
-            <th className="text-right" style={{ width: '12%' }}>Width (m)</th>
+            <th className="text-right" style={{ width: '10%' }}>Length (m)</th>
+            <th className="text-right" style={{ width: '10%' }}>Width (m)</th>
             <th className="text-right" style={{ width: '8%' }}>No.</th>
-            <th className="text-right" style={{ width: '16%' }}>Total Area (m²)</th>
+            <th className="text-right" style={{ width: '14%' }}>Total Area (m²)</th>
           </tr>
         </thead>
         <tbody>
           {form.measurementRows.map((row) => (
             <tr key={`print-mr-${row.id}`}>
               <td className="text-center">{row.slNo}</td>
+              <td>{row.jobType ?? ''}</td>
               <td>{row.location}</td>
               <td className="text-center">{row.coat}</td>
               <td className="text-right">{typeof row.length === 'number' ? row.length : ''}</td>
@@ -146,12 +148,13 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                 <td />
                 <td />
                 <td />
+                <td />
               </tr>
             ))}
         </tbody>
         <tfoot>
           <tr className="print-total-row">
-            <td colSpan={6} className="text-right" style={{ fontWeight: 'bold' }}>
+            <td colSpan={7} className="text-right" style={{ fontWeight: 'bold' }}>
               TOTAL AREA
             </td>
             <td className="text-right" style={{ fontWeight: 'bold' }}>

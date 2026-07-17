@@ -42,6 +42,93 @@ export function calcTotalArea(rows: MeasurementRow[]): number {
   return parseFloat(rows.reduce((s, r) => s + r.totalArea, 0).toFixed(2));
 }
 
+function normalizeText(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function isBlankSummaryRow(row: SummaryRow): boolean {
+  return (
+    !row.complaintSource.trim() &&
+    !row.paintType.trim() &&
+    !row.coat.trim() &&
+    !row.arcNo.trim() &&
+    row.qty === '' &&
+    row.rate === '' &&
+    row.amount === 0
+  );
+}
+
+export function syncSummaryRowsWithMeasurements(
+  summaryRows: SummaryRow[],
+  measurementRows: MeasurementRow[]
+): SummaryRow[] {
+  const groupedRows = new Map<string, { jobType: string; totalArea: number }>();
+  const jobTypeOrder: string[] = [];
+
+  measurementRows.forEach((row) => {
+    const jobType = (row.jobType ?? '').trim();
+    if (!jobType) return;
+
+    const key = normalizeText(jobType);
+    const totalArea = row.totalArea || 0;
+    const existing = groupedRows.get(key);
+
+    if (existing) {
+      existing.totalArea = parseFloat((existing.totalArea + totalArea).toFixed(2));
+      return;
+    }
+
+    groupedRows.set(key, { jobType, totalArea: parseFloat(totalArea.toFixed(2)) });
+    jobTypeOrder.push(key);
+  });
+
+  const availableRows = summaryRows.map((row) => ({ ...row }));
+  const usedRowIds = new Set<string>();
+  const syncedRows: SummaryRow[] = [];
+
+  const takeRowForJobType = (jobType: string): SummaryRow | undefined => {
+    const normalized = normalizeText(jobType);
+    return availableRows.find(
+      (row) => !usedRowIds.has(row.id) && normalizeText(row.paintType) === normalized
+    );
+  };
+
+  const takeBlankRow = (): SummaryRow | undefined =>
+    availableRows.find((row) => !usedRowIds.has(row.id) && isBlankSummaryRow(row));
+
+  jobTypeOrder.forEach((groupKey) => {
+    const group = groupedRows.get(groupKey);
+    if (!group) return;
+
+    const matchedRow = takeRowForJobType(group.jobType) ?? takeBlankRow();
+    if (matchedRow) {
+      usedRowIds.add(matchedRow.id);
+    }
+
+    const baseRow = matchedRow ?? defaultSummaryRow(syncedRows.length + 1);
+    const row: SummaryRow = {
+      ...baseRow,
+      complaintSource: baseRow.complaintSource.trim() ? baseRow.complaintSource : 'Engineer Dept.',
+      paintType: group.jobType,
+      qty: group.totalArea,
+      amount: 0,
+    };
+    row.amount = calcSummaryRow(row);
+    syncedRows.push(row);
+  });
+
+  availableRows.forEach((row) => {
+    if (usedRowIds.has(row.id)) return;
+    syncedRows.push({ ...row, amount: calcSummaryRow(row) });
+  });
+
+  return syncedRows.map((row, index) => ({
+    ...row,
+    slNo: index + 1,
+    amount: calcSummaryRow(row),
+  }));
+}
+
 const defaultSig = (): import('@/types').SignatureEntry => ({
   signature: '',
   name: '',
@@ -62,7 +149,7 @@ export function defaultSummaryRow(slNo: number): SummaryRow {
   return {
     id: generateId('sr'),
     slNo,
-    complaintSource: '',
+    complaintSource: 'Engineer Dept.',
     paintType: '',
     coat: '',
     arcNo: '',
@@ -76,6 +163,7 @@ export function defaultMeasurementRow(slNo: number): MeasurementRow {
   return {
     id: generateId('mr'),
     slNo,
+    jobType: '',
     location: '',
     coat: '',
     length: '',

@@ -111,7 +111,7 @@ export default function SummaryTable({ rows, onChange, grandTotal }: SummaryTabl
                       value={row.complaintSource}
                       onChange={(e) => updateRow(row.id, 'complaintSource', e.target.value)}
                       className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
-                      placeholder="Source..."
+                      placeholder="Engineer Dept."
                     />
                   </td>
                   <td className="px-1 py-1.5">

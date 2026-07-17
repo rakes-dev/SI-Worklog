@@ -49,13 +49,28 @@ export default function MeasurementTable({ rows, onChange, totalArea }: Measurem
     />
   );
 
+  const textInput = (
+    rowId: string,
+    field: 'jobType' | 'location' | 'coat',
+    value: string,
+    placeholder: string,
+    className: string
+  ) => (
+    <input
+      value={value}
+      onChange={(e) => updateRow(rowId, field, e.target.value)}
+      className={className}
+      placeholder={placeholder}
+    />
+  );
+
   return (
     <div className="bg-card border border-border rounded-lg overflow-hidden">
       <div className="flex items-center justify-between px-5 py-3 border-b border-border">
         <div>
           <h3 className="font-semibold text-foreground text-sm">Section B — Measurement Sheet</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Location measurements — Total Area = Length × Width × No.
+            Job Type groups matching rows — Total Area = Length × Width × No.
           </p>
         </div>
         <button
@@ -73,6 +88,7 @@ export default function MeasurementTable({ rows, onChange, totalArea }: Measurem
           <thead>
             <tr className="border-b border-border bg-secondary/50">
               <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-center w-8">Sl.</th>
+              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-left min-w-[140px]">Job Type</th>
               <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-left min-w-[160px]">Location</th>
               <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-center min-w-[80px]">Coat</th>
               <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-right min-w-[80px]">Length (m)</th>
@@ -85,7 +101,7 @@ export default function MeasurementTable({ rows, onChange, totalArea }: Measurem
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground text-sm">
+                <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground text-sm">
                   No rows yet — click "Add Row" to start
                 </td>
               </tr>
@@ -94,20 +110,31 @@ export default function MeasurementTable({ rows, onChange, totalArea }: Measurem
                 <tr key={row.id} className="border-b border-border hover:bg-secondary/20 transition-colors group">
                   <td className="px-2 py-1.5 text-center text-xs text-muted-foreground font-tabular">{row.slNo}</td>
                   <td className="px-1 py-1.5">
-                    <input
-                      value={row.location}
-                      onChange={(e) => updateRow(row.id, 'location', e.target.value)}
-                      className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
-                      placeholder="e.g. North Wall, Ceiling"
-                    />
+                    {textInput(
+                      row.id,
+                      'jobType',
+                      row.jobType ?? '',
+                      'e.g. Civil Repair',
+                      'w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-foreground focus:outline-none focus:border-ring focus:bg-card transition'
+                    )}
                   </td>
                   <td className="px-1 py-1.5">
-                    <input
-                      value={row.coat}
-                      onChange={(e) => updateRow(row.id, 'coat', e.target.value)}
-                      className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-center text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
-                      placeholder="1st"
-                    />
+                    {textInput(
+                      row.id,
+                      'location',
+                      row.location,
+                      'e.g. North Wall, Ceiling',
+                      'w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-foreground focus:outline-none focus:border-ring focus:bg-card transition'
+                    )}
+                  </td>
+                  <td className="px-1 py-1.5">
+                    {textInput(
+                      row.id,
+                      'coat',
+                      row.coat,
+                      '1st',
+                      'w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-center text-foreground focus:outline-none focus:border-ring focus:bg-card transition'
+                    )}
                   </td>
                   <td className="px-1 py-1.5">{numInput(row.id, 'length', row.length)}</td>
                   <td className="px-1 py-1.5">{numInput(row.id, 'width', row.width)}</td>
@@ -141,7 +168,7 @@ export default function MeasurementTable({ rows, onChange, totalArea }: Measurem
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-border bg-secondary/40">
-              <td colSpan={6} className="px-4 py-2.5 text-right text-sm font-semibold text-foreground">
+              <td colSpan={7} className="px-4 py-2.5 text-right text-sm font-semibold text-foreground">
                 Total Area
               </td>
               <td className="px-2 py-2.5 text-right text-sm font-bold font-tabular text-primary">

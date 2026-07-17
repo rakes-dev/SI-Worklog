@@ -15,6 +15,7 @@ export interface SummaryRow {
 export interface MeasurementRow {
   id: string;
   slNo: number;
+  jobType: string;
   location: string;
   coat: string;
   length: number | '';
