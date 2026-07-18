@@ -104,96 +104,108 @@ export default function SummaryTable({ rows, onChange, grandTotal, arcItems = []
                 </td>
               </tr>
             ) : (
-              rows.map((row) => (
-                <tr key={row.id} className="border-b border-border hover:bg-secondary/20 transition-colors group">
-                  <td className="px-2 py-1.5 text-center text-xs text-muted-foreground font-tabular">{row.slNo}</td>
-                  <td className="px-1 py-1.5">
-                    <input
-                      value={row.complaintSource}
-                      onChange={(e) => updateRow(row.id, 'complaintSource', e.target.value)}
-                      className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
-                      placeholder="Engineer Dept."
-                    />
-                  </td>
-                  <td className="px-1 py-1.5">
-                    <input
-                      value={row.paintType}
-                      onChange={(e) => updateRow(row.id, 'paintType', e.target.value)}
-                      className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
-                      placeholder="e.g. Emulsion"
-                    />
-                  </td>
-                  <td className="px-1 py-1.5">
-                    <input
-                      value={row.coat}
-                      onChange={(e) => updateRow(row.id, 'coat', e.target.value)}
-                      className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-center text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
-                      placeholder="1st"
-                    />
-                  </td>
-                  <td className="px-1 py-1.5">
-                    <input
-                      list={`arc-options-${row.id}`}
-                      value={row.arcNo}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        const matched = arcItems.find((item) => item.arc_no === val);
-                        if (matched) {
-                          const updated = rows.map((r) => {
-                            if (r.id !== row.id) return r;
-                            const next = {
-                              ...r,
-                              arcNo: val,
-                              paintType: matched.job_type || matched.description,
-                              coat: matched.coat ? String(matched.coat) : '',
-                              rate: matched.final_rate !== '' ? Number(matched.final_rate) : '',
-                            };
-                            next.amount = calcSummaryRow(next);
-                            return next;
-                          });
-                          onChange(updated);
-                        } else {
-                          updateRow(row.id, 'arcNo', val);
-                        }
-                      }}
-                      className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-center text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
-                      placeholder="ARC-001"
-                    />
-                    <datalist id={`arc-options-${row.id}`}>
-                      {arcItems.map((item) => (
-                        <option key={item.id} value={item.arc_no}>
-                          {item.job_type || item.description.substring(0, 30)} (₹{item.final_rate})
-                        </option>
-                      ))}
-                    </datalist>
-                  </td>
-                  <td className="px-1 py-1.5">{numInput(row.id, 'qty', row.qty)}</td>
-                  <td className="px-1 py-1.5">{numInput(row.id, 'rate', row.rate)}</td>
-                  <td className="px-2 py-1.5 text-right text-xs font-tabular font-semibold text-foreground">
-                    {formatCurrency(row.amount)}
-                  </td>
-                  <td className="px-1 py-1.5">
-                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        type="button"
-                        onClick={() => duplicateRow(row.id)}
-                        title="Duplicate row"
-                        className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-                      >
-                        <Copy size={12} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => deleteRow(row.id)}
-                        title="Delete row"
-                        className="p-1 rounded text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
+              rows.map((row) => {
+                // Filter ARC items based on the current row's paintType
+                const query = row.paintType ? row.paintType.toLowerCase().trim() : '';
+                const filteredArcItems = query
+                  ? arcItems.filter(
+                      (item) =>
+                        (item.job_type && item.job_type.toLowerCase().includes(query)) ||
+                        (item.description && item.description.toLowerCase().includes(query))
+                    )
+                  : arcItems;
+
+                return (
+                  <tr key={row.id} className="border-b border-border hover:bg-secondary/20 transition-colors group">
+                    <td className="px-2 py-1.5 text-center text-xs text-muted-foreground font-tabular">{row.slNo}</td>
+                    <td className="px-1 py-1.5">
+                      <input
+                        value={row.complaintSource}
+                        onChange={(e) => updateRow(row.id, 'complaintSource', e.target.value)}
+                        className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
+                        placeholder="Engineer Dept."
+                      />
+                    </td>
+                    <td className="px-1 py-1.5">
+                      <input
+                        value={row.paintType}
+                        onChange={(e) => updateRow(row.id, 'paintType', e.target.value)}
+                        className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
+                        placeholder="e.g. Emulsion"
+                      />
+                    </td>
+                    <td className="px-1 py-1.5">
+                      <input
+                        value={row.coat}
+                        onChange={(e) => updateRow(row.id, 'coat', e.target.value)}
+                        className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-center text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
+                        placeholder="1st"
+                      />
+                    </td>
+                    <td className="px-1 py-1.5">
+                      <input
+                        list={`arc-options-${row.id}`}
+                        value={row.arcNo}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const matched = arcItems.find((item) => item.arc_no === val);
+                          if (matched) {
+                            const updated = rows.map((r) => {
+                              if (r.id !== row.id) return r;
+                              const next = {
+                                ...r,
+                                arcNo: val,
+                                paintType: matched.job_type || matched.description,
+                                coat: matched.coat ? String(matched.coat) : '',
+                                rate: matched.final_rate !== '' ? Number(matched.final_rate) : '',
+                              };
+                              next.amount = calcSummaryRow(next);
+                              return next;
+                            });
+                            onChange(updated);
+                          } else {
+                            updateRow(row.id, 'arcNo', val);
+                          }
+                        }}
+                        className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-center text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
+                        placeholder="ARC-001"
+                      />
+                      <datalist id={`arc-options-${row.id}`}>
+                        {filteredArcItems.map((item) => (
+                          <option key={item.id} value={item.arc_no}>
+                            {item.job_type || item.description.substring(0, 30)} (₹{item.final_rate})
+                          </option>
+                        ))}
+                      </datalist>
+                    </td>
+                    <td className="px-1 py-1.5">{numInput(row.id, 'qty', row.qty)}</td>
+                    <td className="px-1 py-1.5">{numInput(row.id, 'rate', row.rate)}</td>
+                    <td className="px-2 py-1.5 text-right text-xs font-tabular font-semibold text-foreground">
+                      {formatCurrency(row.amount)}
+                    </td>
+                    <td className="px-1 py-1.5">
+                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          type="button"
+                          onClick={() => duplicateRow(row.id)}
+                          title="Duplicate row"
+                          className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                        >
+                          <Copy size={12} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteRow(row.id)}
+                          title="Delete row"
+                          className="p-1 rounded text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
           <tfoot>
