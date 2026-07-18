@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Plus, Trash2, Save, Loader2, Upload, Database, Search, Edit2, ArrowLeft, Eye, ArrowUpDown } from 'lucide-react';
+import { Plus, Save, Loader2, Upload, Database, Search, Edit2, ArrowLeft, Eye, ArrowUpDown } from 'lucide-react';
 import { dbService } from '@/services/db';
 import type { ArcItem } from '@/types';
 import { generateId } from '@/utils/helpers';
@@ -130,18 +130,6 @@ export default function ArcClient() {
       addToast('error', 'Save Failed', 'Could not save ARC item to Firestore.');
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleDeleteItem = async (id: string, arcNo: string) => {
-    if (!confirm(`Are you sure you want to delete ARC item "${arcNo}"?`)) return;
-    try {
-      await dbService.deleteArcItem(id);
-      addToast('success', 'ARC Item Deleted', `"${arcNo}" has been removed.`);
-      await loadItems();
-    } catch (error) {
-      console.error('Failed to delete ARC item:', error);
-      addToast('error', 'Delete Failed', 'Could not delete ARC item.');
     }
   };
 
@@ -294,7 +282,7 @@ export default function ArcClient() {
                         <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide text-left min-w-[250px]">Description</th>
                         <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide text-right min-w-[100px]">Final Rate (₹)</th>
                         <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide text-left min-w-[80px]">UOM</th>
-                        <th className="px-4 py-3 w-28 text-right" />
+                        <th className="px-4 py-3 w-20 text-right" />
                       </tr>
                     </thead>
                     <tbody>
@@ -334,13 +322,6 @@ export default function ArcClient() {
                                 className="p-1.5 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
                               >
                                 <Edit2 size={14} />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteItem(item.id, item.arc_no)}
-                                title="Delete item"
-                                className="p-1.5 rounded text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                              >
-                                <Trash2 size={14} />
                               </button>
                             </div>
                           </td>
