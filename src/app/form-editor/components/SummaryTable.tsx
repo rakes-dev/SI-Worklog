@@ -2,16 +2,17 @@
 
 import React from 'react';
 import { Plus, Trash2, Copy } from 'lucide-react';
-import type { SummaryRow } from '@/types';
+import type { SummaryRow, ArcItem } from '@/types';
 import { calcSummaryRow, defaultSummaryRow, formatCurrency } from '@/utils/helpers';
 
 interface SummaryTableProps {
   rows: SummaryRow[];
   onChange: (rows: SummaryRow[]) => void;
   grandTotal: number;
+  arcItems?: ArcItem[];
 }
 
-export default function SummaryTable({ rows, onChange, grandTotal }: SummaryTableProps) {
+export default function SummaryTable({ rows, onChange, grandTotal, arcItems = [] }: SummaryTableProps) {
   const updateRow = (id: string, field: keyof SummaryRow, value: string | number) => {
     const updated = rows.map((r) => {
       if (r.id !== id) return r;
@@ -88,7 +89,7 @@ export default function SummaryTable({ rows, onChange, grandTotal }: SummaryTabl
               <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-left min-w-[140px]">Complaint Source</th>
               <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-left min-w-[120px]">Paint Type</th>
               <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-center min-w-[80px]">Coat</th>
-              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-center min-w-[80px]">ARC No.</th>
+              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-center min-w-[100px]">ARC No.</th>
               <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-right min-w-[70px]">Qty</th>
               <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-right min-w-[80px]">Rate (₹)</th>
               <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-right min-w-[90px]">Amount (₹)</th>
@@ -132,11 +133,39 @@ export default function SummaryTable({ rows, onChange, grandTotal }: SummaryTabl
                   </td>
                   <td className="px-1 py-1.5">
                     <input
+                      list={`arc-options-${row.id}`}
                       value={row.arcNo}
-                      onChange={(e) => updateRow(row.id, 'arcNo', e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const matched = arcItems.find((item) => item.arc_no === val);
+                        if (matched) {
+                          const updated = rows.map((r) => {
+                            if (r.id !== row.id) return r;
+                            const next = {
+                              ...r,
+                              arcNo: val,
+                              paintType: matched.job_type || matched.description,
+                              coat: matched.coat ? String(matched.coat) : '',
+                              rate: matched.final_rate !== '' ? Number(matched.final_rate) : '',
+                            };
+                            next.amount = calcSummaryRow(next);
+                            return next;
+                          });
+                          onChange(updated);
+                        } else {
+                          updateRow(row.id, 'arcNo', val);
+                        }
+                      }}
                       className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-center text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
                       placeholder="ARC-001"
                     />
+                    <datalist id={`arc-options-${row.id}`}>
+                      {arcItems.map((item) => (
+                        <option key={item.id} value={item.arc_no}>
+                          {item.job_type || item.description.substring(0, 30)} (₹{item.final_rate})
+                        </option>
+                      ))}
+                    </datalist>
                   </td>
                   <td className="px-1 py-1.5">{numInput(row.id, 'qty', row.qty)}</td>
                   <td className="px-1 py-1.5">{numInput(row.id, 'rate', row.rate)}</td>

@@ -14,7 +14,8 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useAppStore } from '@/store/useAppStore';
-import type { PaintForm, SummaryRow, MeasurementRow, FormSignatures } from '@/types';
+import { dbService } from '@/services/db';
+import type { PaintForm, SummaryRow, MeasurementRow, FormSignatures, ArcItem } from '@/types';
 import {
   calcGrandTotal,
   calcTotalArea,
@@ -52,6 +53,8 @@ export default function FormEditorClient() {
   const [totalArea, setTotalArea] = useState(0);
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [initialized, setInitialized] = useState(false);
+  const [arcItems, setArcItems] = useState<ArcItem[]>([]);
+
   const syncedSummaryRows = useMemo(
     () => syncSummaryRowsWithMeasurements(summaryRows, measurementRows),
     [summaryRows, measurementRows]
@@ -66,6 +69,13 @@ export default function FormEditorClient() {
   } = useForm<PaintForm>({
     defaultValues: existingForm ?? defaultForm(job?.jobName ?? 'New Job', 1),
   });
+
+  // Fetch ARC items for autocomplete
+  useEffect(() => {
+    dbService.getAllArcItems()
+      .then(setArcItems)
+      .catch((err) => console.warn('Could not load ARC items for autocomplete:', err));
+  }, []);
 
   // Initialize state from existing or default form
   useEffect(() => {
@@ -283,6 +293,7 @@ export default function FormEditorClient() {
             rows={syncedSummaryRows}
             onChange={(rows) => setSummaryRows(rows)}
             grandTotal={grandTotal}
+            arcItems={arcItems}
           />
 
           {/* Section B — Measurement Sheet */}
@@ -290,6 +301,7 @@ export default function FormEditorClient() {
             rows={measurementRows}
             onChange={(rows) => setMeasurementRows(rows)}
             totalArea={totalArea}
+            arcItems={arcItems}
           />
 
           {/* Signatures */}

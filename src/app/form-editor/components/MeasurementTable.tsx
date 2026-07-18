@@ -1,17 +1,18 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Plus, Trash2, Copy } from 'lucide-react';
-import type { MeasurementRow } from '@/types';
+import type { MeasurementRow, ArcItem } from '@/types';
 import { calcMeasurementRow, defaultMeasurementRow } from '@/utils/helpers';
 
 interface MeasurementTableProps {
   rows: MeasurementRow[];
   onChange: (rows: MeasurementRow[]) => void;
   totalArea: number;
+  arcItems?: ArcItem[];
 }
 
-export default function MeasurementTable({ rows, onChange, totalArea }: MeasurementTableProps) {
+export default function MeasurementTable({ rows, onChange, totalArea, arcItems = [] }: MeasurementTableProps) {
   const updateRow = (id: string, field: keyof MeasurementRow, value: string | number) => {
     const updated = rows.map((r) => {
       if (r.id !== id) return r;
@@ -36,6 +37,15 @@ export default function MeasurementTable({ rows, onChange, totalArea }: Measurem
     onChange([...rows, { ...src, id: `mr-${Date.now()}`, slNo: rows.length + 1 }]);
   };
 
+  // Extract unique job types from ARC items for autocomplete suggestions
+  const uniqueJobTypes = useMemo(() => {
+    const set = new Set<string>();
+    arcItems.forEach((item) => {
+      if (item.job_type) set.add(item.job_type);
+    });
+    return Array.from(set);
+  }, [arcItems]);
+
   const numInput = (rowId: string, field: 'length' | 'width' | 'no', value: number | '') => (
     <input
       type="number"
@@ -54,9 +64,11 @@ export default function MeasurementTable({ rows, onChange, totalArea }: Measurem
     field: 'jobType' | 'location' | 'coat',
     value: string,
     placeholder: string,
-    className: string
+    className: string,
+    listId?: string
   ) => (
     <input
+      list={listId}
       value={value}
       onChange={(e) => updateRow(rowId, field, e.target.value)}
       className={className}
@@ -115,8 +127,14 @@ export default function MeasurementTable({ rows, onChange, totalArea }: Measurem
                       'jobType',
                       row.jobType ?? '',
                       'e.g. Civil Repair',
-                      'w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-foreground focus:outline-none focus:border-ring focus:bg-card transition'
+                      'w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-foreground focus:outline-none focus:border-ring focus:bg-card transition',
+                      `jobtype-options-${row.id}`
                     )}
+                    <datalist id={`jobtype-options-${row.id}`}>
+                      {uniqueJobTypes.map((jt, i) => (
+                        <option key={i} value={jt} />
+                      ))}
+                    </datalist>
                   </td>
                   <td className="px-1 py-1.5">
                     {textInput(
