@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Plus, Trash2, Copy } from 'lucide-react';
+import { Plus, Trash2, Copy, Info } from 'lucide-react';
 import type { SummaryRow, ArcItem } from '@/types';
 import { calcSummaryRow, defaultSummaryRow, formatCurrency } from '@/utils/helpers';
 
@@ -67,8 +67,12 @@ export default function SummaryTable({ rows, onChange, grandTotal, arcItems = []
       <div className="flex items-center justify-between px-5 py-3 border-b border-border">
         <div>
           <h3 className="font-semibold text-foreground text-sm">Section A — Summary</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Complaint source, paint type, quantities and rates
+          <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+            Complaint source, paint type, quantities and rates.
+            <span className="inline-flex items-center gap-0.5 text-primary font-medium">
+              <Info size={12} />
+              Tip: Enter Paint Type first to filter ARC No. options!
+            </span>
           </p>
         </div>
         <button
