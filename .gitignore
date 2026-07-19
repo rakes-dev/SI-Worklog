@@ -6,9 +6,9 @@ package-lock.json
 
 
 # Next.js build output
-.next/
+.next
 out/
-.dyad/
+.dyad
 
 # Production build
 build/
