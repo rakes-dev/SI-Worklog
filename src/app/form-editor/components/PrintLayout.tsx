@@ -140,8 +140,8 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                     fontSize: '14pt',
                     fontWeight: 'bold',
                     textAlign: 'center',
-                    marginBottom: '10pt',
-                    border: '2px solid #000',
+                    marginBottom: '5pt',
+                    // border: '2px solid #000',
                     padding: '4pt 0',
                   }}
                 >
@@ -408,7 +408,7 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                     fontSize: '8pt',
                     color: '#555',
                     display: 'flex',
-                    justify: 'space-between',
+                    // justify: 'space-between',
                   }}
                 >
                   <span>Document Ref: SI-PM-{form.sheetNo || '01'}</span>
