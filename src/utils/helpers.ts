@@ -48,12 +48,11 @@ function normalizeText(value: string): string {
 
 function isBlankSummaryRow(row: SummaryRow): boolean {
   return (
-    !row.complaintSource.trim() &&
     !row.paintType.trim() &&
     !row.coat.trim() &&
     !row.arcNo.trim() &&
-    row.qty === '' &&
-    row.rate === '' &&
+    (row.qty === '' || row.qty === 0) &&
+    (row.rate === '' || row.rate === 0) &&
     row.amount === 0
   );
 }
