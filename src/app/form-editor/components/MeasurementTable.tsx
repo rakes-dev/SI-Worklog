@@ -5,6 +5,39 @@ import { Plus, Trash2, Copy } from 'lucide-react';
 import type { MeasurementRow, ArcItem } from '@/types';
 import { calcMeasurementRow, defaultMeasurementRow } from '@/utils/helpers';
 
+const LOCATION_SUGGESTIONS = [
+  'Bed side table',
+  'Sofa table',
+  'Round table',
+  'Chair',
+  'Sofa chair',
+  'Hall Ceiling',
+  'Bedroom Ceiling',
+  'Washroom Ceiling',
+  'Shower Ceiling',
+  'W/C Ceiling',
+  'luggage Area Ceiling',
+  'TV Cabinet',
+  'Wardrobe',
+  'Writing Table',
+  'Telephone Table',
+  'AC grill',
+  'Door',
+  'Door frame',
+  'Basin Counter',
+  'Tv Wall frame',
+  'Coat Stand',
+  'Magazine Self',
+  'Washroom Sliding door',
+  'Iron Stand',
+  'Tea Counter',
+  'Public Area Staircase',
+  'Public Area Railing',
+  'Public Area Drain grill',
+  'Public Area Pillar',
+  'Public Area Pipe',
+];
+
 interface MeasurementTableProps {
   rows: MeasurementRow[];
   onChange: (rows: MeasurementRow[]) => void;
@@ -141,9 +174,15 @@ export default function MeasurementTable({ rows, onChange, totalArea, arcItems =
                       row.id,
                       'location',
                       row.location,
-                      'e.g. North Wall, Ceiling',
-                      'w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-foreground focus:outline-none focus:border-ring focus:bg-card transition'
+                      'e.g. Bed side table',
+                      'w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-foreground focus:outline-none focus:border-ring focus:bg-card transition',
+                      `location-options-${row.id}`
                     )}
+                    <datalist id={`location-options-${row.id}`}>
+                      {LOCATION_SUGGESTIONS.map((loc, i) => (
+                        <option key={i} value={loc} />
+                      ))}
+                    </datalist>
                   </td>
                   <td className="px-1 py-1.5">
                     {textInput(
