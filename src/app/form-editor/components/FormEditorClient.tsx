@@ -65,6 +65,7 @@ export default function FormEditorClient() {
     handleSubmit,
     reset,
     control,
+    getValues,
     formState: { errors, isDirty },
   } = useForm<PaintForm>({
     defaultValues: existingForm ?? defaultForm(job?.jobName ?? 'New Job', 1),
@@ -203,6 +204,11 @@ export default function FormEditorClient() {
     grandTotal: calcGrandTotal(syncedSummaryRows),
     totalArea,
   };
+  // Read the actual suitPublicAreaName value from the form fields
+  const formValues = getValues();
+  if (formValues.suitPublicAreaName) {
+    currentFormForPrint.suitPublicAreaName = formValues.suitPublicAreaName;
+  }
 
   return (
     <>
