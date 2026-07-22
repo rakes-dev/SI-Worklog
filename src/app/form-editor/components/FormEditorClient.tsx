@@ -36,7 +36,7 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 export default function FormEditorClient() {
   const params = useSearchParams();
   const router = useRouter();
-  const { jobs, addForm, updateForm, loadJobs } = useAppStore();
+  const { jobs, addForm, updateForm } = useAppStore();
   const { toasts, addToast, removeToast } = useToast();
 
   const jobId = params.get('jobId') ?? '';
@@ -64,7 +64,6 @@ export default function FormEditorClient() {
     register,
     handleSubmit,
     reset,
-    control,
     getValues,
     formState: { errors, isDirty },
   } = useForm<PaintForm>({
@@ -204,7 +203,6 @@ export default function FormEditorClient() {
     grandTotal: calcGrandTotal(syncedSummaryRows),
     totalArea,
   };
-  // Read the actual suitPublicAreaName value from the form fields
   const formValues = getValues();
   if (formValues.suitPublicAreaName) {
     currentFormForPrint.suitPublicAreaName = formValues.suitPublicAreaName;
@@ -213,7 +211,7 @@ export default function FormEditorClient() {
   return (
     <>
       {/* Print-only layout */}
-      <div className="hidden print:block">
+      <div className="print-layout">
         <PrintLayout form={currentFormForPrint} job={job} />
       </div>
 
@@ -311,10 +309,7 @@ export default function FormEditorClient() {
           />
 
           {/* Signatures */}
-          <SignatureSection
-            signatures={signatures}
-            onChange={(sigs) => setSignatures(sigs)}
-          />
+          <SignatureSection />
 
           {/* Sticky Save Bar */}
           <div className="fixed bottom-0 left-0 right-0 lg:left-sidebar lg:left-sidebar-collapsed bg-card border-t border-border px-4 py-3 flex items-center justify-between gap-3 z-20 no-print">

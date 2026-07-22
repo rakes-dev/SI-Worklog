@@ -68,15 +68,6 @@ export default function FormTopFields({ register, errors }: FormTopFieldsProps) 
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Submitted to Office</label>
-          <input
-            type="date"
-            {...register('submittedToOffice')}
-            className="px-3 py-2 rounded-md border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-        </div>
-
-        <div className="flex flex-col gap-1">
           <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Delay (days)</label>
           <input
             {...register('delay')}
