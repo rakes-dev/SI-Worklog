@@ -17,7 +17,7 @@ const SIG_LABELS = [
   { key: 'measurementCheck' as const, label: 'Measurement Check' },
 ];
 
-const FIRST_PAGE_MAX_ROWS_WITH_SUMMARY = 10;
+const FIRST_PAGE_MAX_ROWS_WITH_SUMMARY = 14;
 const FIRST_PAGE_MAX_ROWS_WITHOUT_SUMMARY = 18;
 const SUBSEQUENT_PAGE_MAX_ROWS = 18;
 
