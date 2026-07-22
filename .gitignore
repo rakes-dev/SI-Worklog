@@ -9,6 +9,7 @@ package-lock.json
 .next
 out/
 .dyad
+AI_RULES.md
 
 # Production build
 build/
