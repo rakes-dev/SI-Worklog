@@ -374,7 +374,7 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
             {isLastPage && (
               <div style={{ marginTop: 'auto', paddingTop: '10pt' }}>
                 <div className="avoid-break">
-                  <table className="print-clean-table">
+                  <table className="print-clean-table" style={{ border: 'none'}}>
                     <tbody>
                       <tr>
                         {SIG_LABELS.map((s) => (
