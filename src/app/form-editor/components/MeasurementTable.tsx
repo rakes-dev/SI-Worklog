@@ -115,7 +115,7 @@ export default function MeasurementTable({ rows, onChange, totalArea, arcItems =
         <div>
           <h3 className="font-semibold text-foreground text-sm">Section B — Measurement Sheet</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Job Type groups matching rows — Total Area = Length × Width × No.
+            Job Type groups matching rows — Total Area = Length × Width × No. (If only Length is given, it's treated as a circle: Area = π × (Length/2)² × No.)
           </p>
         </div>
         <button

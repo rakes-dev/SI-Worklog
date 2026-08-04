@@ -17,7 +17,7 @@ const SIG_LABELS = [
   { key: 'measurementCheck' as const, label: 'Measurement Check' },
 ];
 
-const FIRST_PAGE_MAX_ROWS_WITH_SUMMARY = 14;
+const FIRST_PAGE_MAX_ROWS_WITH_SUMMARY = 25;
 const FIRST_PAGE_MAX_ROWS_WITHOUT_SUMMARY = 18;
 const SUBSEQUENT_PAGE_MAX_ROWS = 18;
 
@@ -73,9 +73,9 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
             overflow: visible !important;
           }
           .print-page {
-            width: 100% !important;
+            width: 99% !important;
             max-width: 100% !important;
-            min-height: 265mm !important;
+            min-height: 275mm !important;
             display: flex !important;
             flex-direction: column !important;
             justify-content: space-between !important;
@@ -105,13 +105,11 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
         .print-clean-table {
           width: 100%;
           border-collapse: collapse;
-          border-left: 1px solid #000;
-          border-top: 1px solid #000;
+          border: 1px solid #000;
           box-sizing: border-box;
         }
         .print-clean-table th, .print-clean-table td {
-          border-right: 1px solid #000;
-          border-bottom: 1px solid #000;
+          border: 1px solid #000;
           box-sizing: border-box;
           word-wrap: break-word;
         }
@@ -134,7 +132,7 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
               padding: '10mm',
               display: 'flex',
               flexDirection: 'column',
-              minHeight: '265mm',
+              minHeight: '275mm',
               boxSizing: 'border-box',
             }}
           >
@@ -146,11 +144,11 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                   {/* Title */}
                   <div
                     style={{
-                      fontSize: '14pt',
+                      fontSize: '12pt',
                       fontWeight: 'bold',
                       textAlign: 'center',
-                      marginBottom: '10pt',
-                      border: '2px solid #000',
+                      marginBottom: '5pt',
+                      // border: '2px solid #000',
                       padding: '4pt 0',
                     }}
                   >
@@ -161,32 +159,18 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                   <table className="print-clean-table" style={{ marginBottom: '10pt' }}>
                     <tbody>
                       <tr>
-                        <td style={{ width: '25%', fontWeight: 'bold', padding: '4px' }}>
+                        <td style={{ width: '25%', fontWeight: 'bold', padding: '2px', paddingLeft: '4px' }}>
                           Suit / Public Area Name:
                         </td>
-                        <td style={{ width: '25%', padding: '4px' }}>
+                        <td style={{ width: '25%', padding: '2px', paddingLeft: '4px' }}>
                           {form.suitPublicAreaName || '—'}
                         </td>
-                        <td style={{ width: '25%', fontWeight: 'bold', padding: '4px' }}>Date:</td>
-                        <td style={{ width: '25%', padding: '4px' }}>{formatDate(form.date)}</td>
+                        <td style={{ width: '25%', fontWeight: 'bold', padding: '2px', paddingLeft: '4px' }}>Work Start Date:</td>
+                        <td style={{ width: '25%', padding: '2px', paddingLeft: '4px' }}>{formatDate(form.date)}</td>
                       </tr>
                       <tr>
-                        <td style={{ fontWeight: 'bold', padding: '4px' }}>Work Start Date:</td>
-                        <td style={{ padding: '4px' }}>{formatDate(form.workStartDate)}</td>
-                        <td style={{ fontWeight: 'bold', padding: '4px' }}>Work End Date:</td>
-                        <td style={{ padding: '4px' }}>{formatDate(form.workEndDate)}</td>
-                      </tr>
-                      <tr>
-                        <td style={{ fontWeight: 'bold', padding: '4px' }}>Delay:</td>
-                        <td style={{ padding: '4px' }}>
-                          {form.delay ? `${form.delay} days` : '—'}
-                        </td>
-                        <td style={{ fontWeight: 'bold', padding: '4px' }}>Total Sheets:</td>
-                        <td style={{ padding: '4px' }}>{form.totalSheets}</td>
-                      </tr>
-                      <tr>
-                        <td style={{ fontWeight: 'bold', padding: '4px' }}>Sheet No.:</td>
-                        <td style={{ padding: '4px' }}>{form.sheetNo}</td>
+                        <td style={{ fontWeight: 'bold', padding: '2px', paddingLeft: '4px' }}>Total Sheets:</td>
+                        <td style={{ padding: '2px', paddingLeft: '4px' }}>{form.totalSheets}</td>
                         <td style={{}}></td>
                         <td style={{}}></td>
                       </tr>
@@ -236,18 +220,18 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                         <tbody>
                           {form.summaryRows.map((row) => (
                             <tr key={`print-sr-${row.id}`}>
-                              <td style={{ padding: '4px', textAlign: 'center' }}>{row.slNo}</td>
-                              <td style={{ padding: '4px' }}>{row.complaintSource}</td>
-                              <td style={{ padding: '4px' }}>{row.paintType}</td>
-                              <td style={{ padding: '4px', textAlign: 'center' }}>{row.coat}</td>
-                              <td style={{ padding: '4px', textAlign: 'center' }}>{row.arcNo}</td>
-                              <td style={{ padding: '4px', textAlign: 'right' }}>
+                              <td style={{ padding: '2px', textAlign: 'center' }}>{row.slNo}</td>
+                              <td style={{ padding: '2px' }}>{row.complaintSource}</td>
+                              <td style={{ padding: '2px' }}>{row.paintType}</td>
+                              <td style={{ padding: '2px', textAlign: 'center' }}>{row.coat}</td>
+                              <td style={{ padding: '2px', textAlign: 'center' }}>{row.arcNo}</td>
+                              <td style={{ padding: '2px', textAlign: 'right' }}>
                                 {typeof row.qty === 'number' ? row.qty : ''}
                               </td>
-                              <td style={{ padding: '4px', textAlign: 'right' }}>
+                              <td style={{ padding: '2px', textAlign: 'right' }}>
                                 {typeof row.rate === 'number' ? formatCurrency(row.rate) : ''}
                               </td>
-                              <td style={{ padding: '4px', textAlign: 'right' }}>
+                              <td style={{ padding: '2px', textAlign: 'right' }}>
                                 {row.amount > 0 ? formatCurrency(row.amount) : ''}
                               </td>
                             </tr>
@@ -299,7 +283,7 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                 B. MEASUREMENT SHEET{' '}
                 <span style={{ fontSize: '9pt', fontWeight: 'normal' }}>
                   {totalPages > 1 ? `(Page ${page.pageNum} of ${totalPages})` : ''}
-                  &nbsp;&nbsp; Total Sheets: {form.totalSheets} &nbsp;&nbsp; Sheet No.: {form.sheetNo}
+                  &nbsp;&nbsp; Total Sheets: {form.totalSheets}
                 </span>
               </div>
 
@@ -321,58 +305,31 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                 <tbody>
                   {page.rows.map((row) => (
                     <tr key={`print-mr-${row.id}`}>
-                      <td style={{ padding: '4px', textAlign: 'center' }}>{row.slNo}</td>
-                      <td style={{ padding: '4px' }}>{row.jobType ?? ''}</td>
-                      <td style={{ padding: '4px' }}>{row.location}</td>
-                      <td style={{ padding: '4px', textAlign: 'center' }}>{row.coat}</td>
-                      <td style={{ padding: '4px', textAlign: 'right' }}>
+                      <td style={{ padding: '2px', textAlign: 'center' }}>{row.slNo}</td>
+                      <td style={{ padding: '2px' }}>{row.jobType ?? ''}</td>
+                      <td style={{ padding: '2px' }}>{row.location}</td>
+                      <td style={{ padding: '2px', textAlign: 'center' }}>{row.coat}</td>
+                      <td style={{ padding: '2px', textAlign: 'right' }}>
                         {typeof row.length === 'number' ? row.length : ''}
                       </td>
-                      <td style={{ padding: '4px', textAlign: 'right' }}>
+                      <td style={{ padding: '2px', textAlign: 'right' }}>
                         {typeof row.width === 'number' ? row.width : ''}
                       </td>
-                      <td style={{ padding: '4px', textAlign: 'right' }}>
+                      <td style={{ padding: '2px', textAlign: 'right' }}>
                         {typeof row.no === 'number' ? row.no : ''}
                       </td>
-                      <td style={{ padding: '4px', textAlign: 'right' }}>
+                      <td style={{ padding: '2px', textAlign: 'right' }}>
                         {row.totalArea > 0 ? row.totalArea.toFixed(2) : ''}
                       </td>
                     </tr>
                   ))}
                 </tbody>
-                {isLastPage && (
-                  <tfoot>
-                    <tr>
-                      <td
-                        colSpan={7}
-                        style={{
-                          fontWeight: 'bold',
-                          padding: '5px',
-                          textAlign: 'right',
-                          borderTop: '2px solid #000',
-                        }}
-                      >
-                        TOTAL AREA
-                      </td>
-                      <td
-                        style={{
-                          fontWeight: 'bold',
-                          padding: '5px',
-                          textAlign: 'right',
-                          borderTop: '2px solid #000',
-                        }}
-                      >
-                        {form.totalArea.toFixed(2)} m²
-                      </td>
-                    </tr>
-                  </tfoot>
-                )}
               </table>
             </div>
 
             {/* Signature Section & Footer pinned to the bottom on the last page */}
             {isLastPage && (
-              <div style={{ marginTop: 'auto', paddingTop: '10pt' }}>
+              <div>
                 <div className="avoid-break">
                   <table className="print-clean-table">
                     <tbody>
@@ -384,7 +341,7 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                               width: '20%',
                               verticalAlign: 'top',
                               padding: '5px',
-                              height: '70pt',
+                              height: '30pt',
                             }}
                           >
                             <div
@@ -397,7 +354,7 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                             >
                               {s.label}
                             </div>
-                            <div style={{ marginTop: '28pt', fontSize: '8pt' }}>
+                            <div style={{ marginTop: '12pt', fontSize: '8pt' }}>
                               <div style={{ borderBottom: '1px dashed #999', paddingBottom: '2px' }}>
                                 Sign:
                               </div>
@@ -413,7 +370,7 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                 <div
                   style={{
                     marginTop: '8pt',
-                    borderTop: '1px solid #000',
+                    // borderTop: '1px solid #000',
                     paddingTop: '4pt',
                     fontSize: '8pt',
                     color: '#555',
@@ -421,7 +378,7 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                     justifyContent: 'space-between',
                   }}
                 >
-                  <span>Document Ref: SI-PM-{form.sheetNo || '01'}</span>
+                  <span>Document Ref: SI-PM-01</span>
                   <span>
                     Page {page.pageNum} of {totalPages}
                   </span>

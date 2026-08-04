@@ -154,14 +154,16 @@ export default function SummaryTable({ rows, onChange, grandTotal, arcItems = []
                           const val = e.target.value;
                           const matched = arcItems.find((item) => item.arc_no === val);
                           if (matched) {
+                            const rateValue: number | '' =
+                              typeof matched.final_rate === 'number' ? matched.final_rate : '';
                             const updated = rows.map((r) => {
                               if (r.id !== row.id) return r;
-                              const next = {
+                              const next: SummaryRow = {
                                 ...r,
                                 arcNo: val,
                                 paintType: matched.job_type || matched.description,
                                 coat: matched.coat ? String(matched.coat) : '',
-                                rate: matched.final_rate !== '' ? Number(matched.final_rate) : '',
+                                rate: rateValue,
                               };
                               next.amount = calcSummaryRow(next);
                               return next;

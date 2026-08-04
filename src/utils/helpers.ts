@@ -31,6 +31,14 @@ export function calcMeasurementRow(row: MeasurementRow): number {
   const l = typeof row.length === 'number' ? row.length : 0;
   const w = typeof row.width === 'number' ? row.width : 0;
   const n = typeof row.no === 'number' ? row.no : 0;
+
+  // If only length is given (width is 0/empty), treat as circle item.
+  // Area = π × (diameter/2)² × no
+  if (l > 0 && w === 0) {
+    const radius = l / 2;
+    return parseFloat((Math.PI * radius * radius * n).toFixed(2));
+  }
+
   return parseFloat((l * w * n).toFixed(2));
 }
 
