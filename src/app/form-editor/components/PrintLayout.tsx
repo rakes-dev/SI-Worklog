@@ -17,7 +17,7 @@ const SIG_LABELS = [
   { key: 'measurementCheck' as const, label: 'Measurement Check' },
 ];
 
-const FIRST_PAGE_MAX_ROWS_WITH_SUMMARY = 25;
+const FIRST_PAGE_MAX_ROWS_WITH_SUMMARY = 31;
 const FIRST_PAGE_MAX_ROWS_WITHOUT_SUMMARY = 18;
 const SUBSEQUENT_PAGE_MAX_ROWS = 18;
 
@@ -144,19 +144,33 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                   {/* Title */}
                   <div
                     style={{
-                      fontSize: '12pt',
-                      fontWeight: 'bold',
-                      textAlign: 'center',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
                       marginBottom: '5pt',
-                      // border: '2px solid #000',
                       padding: '4pt 0',
                     }}
                   >
-                    STANDARD INTERIOR
+                    <span style={{ fontSize: '8pt', fontWeight: 'normal', whiteSpace: 'nowrap' }}>
+                      Measurement Sheet No.: {form.sheetNo}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: '14pt',
+                        fontWeight: 'bold',
+                        textAlign: 'center',
+                        flex: 1,
+                      }}
+                    >
+                      STANDARD INTERIOR
+                    </span>
+                    <span style={{ fontSize: '8pt', fontWeight: 'normal', whiteSpace: 'nowrap' }}>
+                      Date: {formatDate(form.date)}
+                    </span>
                   </div>
 
                   {/* Header Info Table */}
-                  <table className="print-clean-table" style={{ marginBottom: '10pt' }}>
+                  <table className="print-clean-table" style={{ marginBottom: '10pt', fontSize: '8pt' }}>
                     <tbody>
                       <tr>
                         <td style={{ width: '25%', fontWeight: 'bold', padding: '2px', paddingLeft: '4px' }}>
@@ -166,13 +180,13 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                           {form.suitPublicAreaName || '—'}
                         </td>
                         <td style={{ width: '25%', fontWeight: 'bold', padding: '2px', paddingLeft: '4px' }}>Work Start Date:</td>
-                        <td style={{ width: '25%', padding: '2px', paddingLeft: '4px' }}>{formatDate(form.date)}</td>
+                        <td style={{ width: '25%', padding: '2px', paddingLeft: '4px' }}>{formatDate(form.workStartDate)}</td>
                       </tr>
                       <tr>
                         <td style={{ fontWeight: 'bold', padding: '2px', paddingLeft: '4px' }}>Total Sheets:</td>
                         <td style={{ padding: '2px', paddingLeft: '4px' }}>{form.totalSheets}</td>
-                        <td style={{}}></td>
-                        <td style={{}}></td>
+                        <td style={{ fontWeight: 'bold', padding: '2px', paddingLeft: '4px' }}>Work End Date:</td>
+                        <td style={{ padding: '2px', paddingLeft: '4px' }}>{formatDate(form.workEndDate)}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -192,7 +206,7 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                       >
                         A. SUMMARY
                       </div>
-                      <table className="print-clean-table" style={{ marginBottom: '10pt' }}>
+                      <table className="print-clean-table" style={{ marginBottom: '10pt', fontSize: '8pt' }}>
                         <thead>
                           <tr style={{ backgroundColor: '#f2f2f2' }}>
                             <th style={{ width: '6%', padding: '4px', textAlign: 'center' }}>
@@ -204,8 +218,8 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                             <th style={{ width: '18%', padding: '4px', textAlign: 'left' }}>
                               Paint Type
                             </th>
-                            <th style={{ width: '8%', padding: '4px', textAlign: 'center' }}>Coat</th>
-                            <th style={{ width: '10%', padding: '4px', textAlign: 'center' }}>
+                            <th style={{ width: '10%', padding: '4px', textAlign: 'center' }}>Coat</th>
+                            <th style={{ width: '8%', padding: '4px', textAlign: 'center' }}>
                               ARC No.
                             </th>
                             <th style={{ width: '8%', padding: '4px', textAlign: 'right' }}>Qty</th>
@@ -287,17 +301,17 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                 </span>
               </div>
 
-              <table className="print-clean-table" style={{ marginBottom: '10pt' }}>
+              <table className="print-clean-table" style={{ marginBottom: '10pt', fontSize: '8pt' }}>
                 <thead>
                   <tr style={{ backgroundColor: '#f2f2f2' }}>
                     <th style={{ width: '6%', padding: '4px', textAlign: 'center' }}>Sl. No.</th>
                     <th style={{ width: '18%', padding: '4px', textAlign: 'left' }}>Job Type</th>
-                    <th style={{ width: '22%', padding: '4px', textAlign: 'left' }}>Location</th>
+                    <th style={{ width: '30%', padding: '4px', textAlign: 'left' }}>Location</th>
                     <th style={{ width: '8%', padding: '4px', textAlign: 'center' }}>Coat</th>
                     <th style={{ width: '10%', padding: '4px', textAlign: 'right' }}>Length (m)</th>
                     <th style={{ width: '10%', padding: '4px', textAlign: 'right' }}>Width (m)</th>
-                    <th style={{ width: '8%', padding: '4px', textAlign: 'right' }}>No.</th>
-                    <th style={{ width: '18%', padding: '4px', textAlign: 'right' }}>
+                    <th style={{ width: '4%', padding: '4px', textAlign: 'right' }}>No.</th>
+                    <th style={{ width: '14%', padding: '4px', textAlign: 'right' }}>
                       Total Area (m²)
                     </th>
                   </tr>

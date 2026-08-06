@@ -57,21 +57,19 @@ export interface PaintForm {
   totalArea: number;
   // Signatures
   signatures: FormSignatures;
+  // Soft delete
+  isDeleted?: boolean;
+  deletedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface Job {
   id: string;
-  jobName: string;
-  clientName: string;
+  empName: string;
+  siteName: string;
   siteAddress: string;
-  workStartDate: string;
-  workEndDate: string;
-  submittedToOffice: string;
-  delay: string;
   remarks: string;
-  status: JobStatus;
   forms: PaintForm[];
   totalAmount: number;
   createdAt: string;

@@ -10,7 +10,6 @@ import FormsTable from './FormsTable';
 import ToastContainer from '@/components/ui/Toast';
 import { useToast } from '@/hooks/useToast';
 import { formatCurrency } from '@/utils/helpers';
-import StatusBadge from '@/components/ui/StatusBadge';
 
 export default function JobDetailClient() {
   const params = useSearchParams();
@@ -52,14 +51,13 @@ export default function JobDetailClient() {
               Dashboard
             </Link>
             <span>/</span>
-            <span className="text-foreground font-medium">{job?.jobName}</span>
+            <span className="text-foreground font-medium">{job?.siteName}</span>
           </div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold text-foreground">{job?.jobName}</h1>
-            <StatusBadge status={job?.status} />
+            <h1 className="text-2xl font-semibold text-foreground">{job?.siteName}</h1>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
-            {job?.clientName} · {job?.forms?.length} form{job?.forms?.length !== 1 ? 's' : ''} ·{' '}
+            {job?.empName} · {job?.forms?.length} form{job?.forms?.length !== 1 ? 's' : ''} ·{' '}
             <span className="font-tabular font-semibold text-foreground">
               ₹{formatCurrency(job?.totalAmount)}
             </span>{' '}

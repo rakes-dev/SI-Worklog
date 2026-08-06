@@ -145,6 +145,8 @@ function normalizePaintForm(
     measurementRows,
     totalArea: 0,
     signatures,
+    isDeleted: value?.isDeleted === true,
+    deletedAt: coerceString(value?.deletedAt),
     createdAt: coerceString(value?.createdAt, fallback.createdAt),
     updatedAt: coerceString(value?.updatedAt, fallback.updatedAt),
   };
@@ -157,21 +159,16 @@ function normalizePaintForm(
 function normalizeJob(value: FirestoreJobData): Job {
   const fallback = defaultJob();
   const forms = Array.isArray(value.forms)
-    ? value.forms.map((form, index) => normalizePaintForm(form, index, coerceString(value.jobName)))
+    ? value.forms.map((form, index) => normalizePaintForm(form, index, coerceString(value.siteName)))
     : [];
   const job: Job = {
     ...fallback,
     ...value,
     id: coerceRequiredString(value.id, fallback.id),
-    jobName: coerceString(value.jobName),
-    clientName: coerceString(value.clientName),
+    empName: coerceString(value.empName),
+    siteName: coerceString(value.siteName),
     siteAddress: coerceString(value.siteAddress),
-    workStartDate: coerceString(value.workStartDate, fallback.workStartDate),
-    workEndDate: coerceString(value.workEndDate),
-    submittedToOffice: coerceString(value.submittedToOffice),
-    delay: coerceString(value.delay),
     remarks: coerceString(value.remarks),
-    status: isJobStatus(value.status) ? value.status : 'Draft',
     forms,
     totalAmount: 0,
     createdAt: coerceString(value.createdAt, fallback.createdAt),

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Briefcase, Clock, CheckCircle, DollarSign, FileText } from 'lucide-react';
+import { Briefcase, DollarSign, FileText } from 'lucide-react';
 import type { Job } from '@/types';
 import { formatCurrency } from '@/utils/helpers';
 import Icon from '@/components/ui/AppIcon';
@@ -13,10 +13,6 @@ interface DashboardStatsProps {
 
 export default function DashboardStats({ jobs }: DashboardStatsProps) {
   const total = jobs.length;
-  const pending = jobs.filter((j) => j.status === 'Pending').length;
-  // const submitted = jobs.filter((j) => j.status === 'Submitted').length;
-  const approved = jobs.filter((j) => j.status === 'Approved').length;
-  // const rejected = jobs.filter((j) => j.status === 'Rejected').length;
   const totalForms = jobs.reduce((s, j) => s + j.forms.length, 0);
   const totalValue = jobs.reduce((s, j) => s + j.totalAmount, 0);
 
@@ -28,25 +24,6 @@ export default function DashboardStats({ jobs }: DashboardStatsProps) {
       icon: Briefcase,
       color: 'text-blue-600 dark:text-blue-400',
       bg: 'bg-blue-50 dark:bg-blue-900/20',
-      isCurrency: false,
-    },
-    {
-      key: 'stat-pending',
-      label: 'Pending',
-      value: pending,
-      icon: Clock,
-      color: 'text-yellow-600 dark:text-yellow-400',
-      bg: 'bg-yellow-50 dark:bg-yellow-900/20',
-      isCurrency: false,
-      alert: pending > 0,
-    },
-    {
-      key: 'stat-approved',
-      label: 'Approved',
-      value: approved,
-      icon: CheckCircle,
-      color: 'text-green-600 dark:text-green-400',
-      bg: 'bg-green-50 dark:bg-green-900/20',
       isCurrency: false,
     },
     {
@@ -77,9 +54,7 @@ export default function DashboardStats({ jobs }: DashboardStatsProps) {
         return (
           <div
             key={s.key}
-            className={`bg-card border rounded-lg p-4 flex flex-col gap-2 ${
-              s.alert ? 'border-yellow-400 dark:border-yellow-600' : 'border-border'
-            }`}
+            className="bg-card border border-border rounded-lg p-4 flex flex-col gap-2"
           >
             <div className={`w-8 h-8 rounded-md flex items-center justify-center ${s.bg}`}>
               <Icon size={16} className={s.color} />

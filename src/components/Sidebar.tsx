@@ -17,10 +17,8 @@ const NAV_ITEMS = [
 ];
 
 export default function Sidebar() {
-  const { sidebarCollapsed, toggleSidebar, jobs } = useAppStore();
+  const { sidebarCollapsed, toggleSidebar } = useAppStore();
   const pathname = usePathname();
-
-  const pendingCount = jobs?.filter((j) => j?.status === 'Pending')?.length;
 
   return (
     <>
@@ -73,14 +71,6 @@ SI WorkLog
               >
                 <Icon size={18} className="flex-shrink-0" />
                 {!sidebarCollapsed && <span>{item?.label}</span>}
-                {!sidebarCollapsed && item?.label === 'Jobs' && pendingCount > 0 && (
-                  <span className="ml-auto text-xs bg-accent text-accent-foreground rounded-full px-1.5 py-0.5 font-tabular">
-                    {pendingCount}
-                  </span>
-                )}
-                {sidebarCollapsed && item?.label === 'Jobs' && pendingCount > 0 && (
-                  <span className="absolute top-1 right-1 w-2 h-2 bg-accent rounded-full" />
-                )}
                 {/* Tooltip for collapsed */}
                 {sidebarCollapsed && (
                   <span className="absolute left-full ml-2 px-2 py-1 bg-foreground text-background text-xs rounded whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">

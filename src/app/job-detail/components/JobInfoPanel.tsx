@@ -3,9 +3,7 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Pencil, Save, X, Loader2 } from 'lucide-react';
-import type { Job, JobStatus } from '@/types';
-import StatusBadge from '@/components/ui/StatusBadge';
-import { formatDate } from '@/utils/helpers';
+import type { Job } from '@/types';
 import { useAppStore } from '@/store/useAppStore';
 
 interface JobInfoPanelProps {
@@ -22,15 +20,10 @@ export default function JobInfoPanel({ job, onSaved }: JobInfoPanelProps) {
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
     defaultValues: {
-      jobName: job.jobName,
-      clientName: job.clientName,
+      empName: job.empName,
+      siteName: job.siteName,
       siteAddress: job.siteAddress,
-      workStartDate: job.workStartDate,
-      workEndDate: job.workEndDate,
-      submittedToOffice: job.submittedToOffice,
-      delay: job.delay,
       remarks: job.remarks,
-      status: job.status,
     },
   });
 
@@ -62,14 +55,9 @@ export default function JobInfoPanel({ job, onSaved }: JobInfoPanelProps) {
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
           {[
-            { label: 'Job Name', value: job.jobName },
-            { label: 'Client Name', value: job.clientName },
+            { label: 'Employee Name', value: job.empName },
+            { label: 'Site Name', value: job.siteName },
             { label: 'Site Address', value: job.siteAddress },
-            { label: 'Status', value: <StatusBadge status={job.status} /> },
-            { label: 'Work Start', value: formatDate(job.workStartDate) },
-            { label: 'Work End', value: formatDate(job.workEndDate) || '—' },
-            { label: 'Submitted to Office', value: formatDate(job.submittedToOffice) || '—' },
-            { label: 'Delay', value: job.delay ? `${job.delay} days` : '—' },
           ].map((item, i) => (
             <div key={`info-${i}`} className="flex flex-col gap-0.5">
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
@@ -108,45 +96,27 @@ export default function JobInfoPanel({ job, onSaved }: JobInfoPanelProps) {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              Job Name <span className="text-red-500">*</span>
+              Employee Name <span className="text-red-500">*</span>
             </label>
             <input
-              {...register('jobName', { required: 'Required' })}
+              {...register('empName', { required: 'Required' })}
               className="px-3 py-2 rounded-md border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             />
-            {errors.jobName && <p className="text-xs text-red-500">{errors.jobName.message}</p>}
+            {errors.empName && <p className="text-xs text-red-500">{errors.empName.message}</p>}
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Client Name</label>
-            <input {...register('clientName')} className="px-3 py-2 rounded-md border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Site Name <span className="text-red-500">*</span>
+            </label>
+            <input {...register('siteName', { required: 'Required' })} className="px-3 py-2 rounded-md border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+            {errors.siteName && <p className="text-xs text-red-500">{errors.siteName.message}</p>}
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Site Address</label>
-            <input {...register('siteAddress')} className="px-3 py-2 rounded-md border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Work Start Date</label>
-            <input type="date" {...register('workStartDate')} className="px-3 py-2 rounded-md border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Work End Date</label>
-            <input type="date" {...register('workEndDate')} className="px-3 py-2 rounded-md border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Submitted to Office</label>
-            <input type="date" {...register('submittedToOffice')} className="px-3 py-2 rounded-md border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Delay (days)</label>
-            <input {...register('delay')} className="px-3 py-2 rounded-md border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Status</label>
-            <select {...register('status')} className="px-3 py-2 rounded-md border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring">
-              {(['Draft', 'Pending', 'Approved'] as JobStatus[]).map((s) => (
-                <option key={`edit-status-${s}`} value={s}>{s}</option>
-              ))}
-            </select>
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Site Address <span className="text-red-500">*</span>
+            </label>
+            <input {...register('siteAddress', { required: 'Required' })} className="px-3 py-2 rounded-md border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+            {errors.siteAddress && <p className="text-xs text-red-500">{errors.siteAddress.message}</p>}
           </div>
           <div className="flex flex-col gap-1 sm:col-span-2 lg:col-span-3">
             <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Remarks</label>

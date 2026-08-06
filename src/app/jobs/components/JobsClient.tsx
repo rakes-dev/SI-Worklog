@@ -4,18 +4,11 @@ import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Search, Filter, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
-import type { JobStatus } from '@/types';
 import JobCard from '@/app/components/JobCard';
 import NewJobModal from '@/app/components/NewJobModal';
 import ToastContainer from '@/components/ui/Toast';
 import { useToast } from '@/hooks/useToast';
 
-const STATUS_FILTERS: { key: string; label: string; value: JobStatus | 'All' }[] = [
-  { key: 'filter-all', label: 'All', value: 'All' },
-  { key: 'filter-draft', label: 'Draft', value: 'Draft' },
-  { key: 'filter-pending', label: 'Pending', value: 'Pending' },
-  { key: 'filter-approved', label: 'Approved', value: 'Approved' },
-];
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -31,7 +24,6 @@ export default function JobsClient() {
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth()); // 0-indexed
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<JobStatus | 'All'>('All');
   const [showNewJob, setShowNewJob] = useState(false);
 
   const handlePrevMonth = () => {
@@ -64,28 +56,24 @@ export default function JobsClient() {
       return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
     });
 
-    if (statusFilter !== 'All') {
-      list = list.filter((j) => j.status === statusFilter);
-    }
-
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(
         (j) =>
-          j.jobName.toLowerCase().includes(q) ||
-          j.clientName.toLowerCase().includes(q) ||
+          j.siteName.toLowerCase().includes(q) ||
+          j.empName.toLowerCase().includes(q) ||
           j.siteAddress.toLowerCase().includes(q) ||
           j.forms.some((f) => f.suitPublicAreaName.toLowerCase().includes(q))
       );
     }
 
     return list;
-  }, [jobs, selectedMonth, selectedYear, statusFilter, search]);
+  }, [jobs, selectedMonth, selectedYear, search]);
 
   const handleDuplicate = async (id: string) => {
     try {
       const newJob = await duplicateJob(id);
-      addToast('success', 'Job duplicated', `"${newJob.jobName}" created.`);
+      addToast('success', 'Job duplicated', `"${newJob.siteName}" created.`);
     } catch {
       addToast('error', 'Duplicate failed', 'Could not duplicate this job.');
     }
@@ -154,41 +142,11 @@ export default function JobsClient() {
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by job name, client, site, suit name..."
+          placeholder="Search by site name, employee, address, suit name..."
           className="w-full pl-9 pr-4 py-2.5 rounded-md border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring transition"
         />
       </div>
 
-      {/* Status filter tabs */}
-      <div className="flex items-center gap-1 mb-5 overflow-x-auto pb-1 scrollbar-thin">
-        {STATUS_FILTERS.map((f) => {
-          const count =
-            f.value === 'All'
-              ? monthJobs.length
-              : monthJobs.filter((j) => j.status === f.value).length;
-          return (
-            <button
-              key={f.key}
-              onClick={() => setStatusFilter(f.value)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all scale-press ${
-                statusFilter === f.value
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-secondary text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {f.label}
-              <span
-                className={`text-xs font-tabular px-1.5 py-0.5 rounded-full ${
-                  statusFilter === f.value
-                    ? 'bg-white/20 text-white' :'bg-muted text-muted-foreground'
-                }`}
-              >
-                {count}
-              </span>
-            </button>
-          );
-        })}
-      </div>
 
       {/* Job Cards Grid */}
       {filtered.length === 0 ? (
@@ -197,16 +155,16 @@ export default function JobsClient() {
             <Filter size={28} className="text-muted-foreground" />
           </div>
           <h3 className="font-semibold text-foreground text-lg mb-1">
-            {search || statusFilter !== 'All' ?'No jobs match your filters'
+            {search ?'No jobs match your search'
               : `No jobs in ${MONTH_NAMES[selectedMonth]} ${selectedYear}`}
           </h3>
           <p className="text-muted-foreground text-sm max-w-sm">
-            {search || statusFilter !== 'All' ?'Try adjusting your search or clearing the status filter.'
+            {search ?'Try adjusting your search.'
               : isCurrentMonth
               ? 'Create your first job for this month to get started.'
               : 'Use the month navigator to browse other months.'}
           </p>
-          {!search && statusFilter === 'All' && isCurrentMonth && (
+          {!search && isCurrentMonth && (
             <button
               onClick={() => setShowNewJob(true)}
               className="mt-4 flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:opacity-90 transition-opacity scale-press"
@@ -242,7 +200,7 @@ export default function JobsClient() {
         open={showNewJob}
         onClose={() => setShowNewJob(false)}
         onCreated={(job) => {
-          addToast('success', 'Job created', `"${job.jobName}" is ready.`);
+          addToast('success', 'Job created', `"${job.siteName}" is ready.`);
           router.push(`/job-detail?id=${job.id}`);
         }}
       />

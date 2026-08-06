@@ -11,6 +11,7 @@ import {
   FileText,
   AlertCircle,
   CheckCircle2,
+  Copy,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useAppStore } from '@/store/useAppStore';
@@ -36,7 +37,7 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 export default function FormEditorClient() {
   const params = useSearchParams();
   const router = useRouter();
-  const { jobs, addForm, updateForm } = useAppStore();
+  const { jobs, addForm, updateForm, duplicateForm } = useAppStore();
   const { toasts, addToast, removeToast } = useToast();
 
   const jobId = params.get('jobId') ?? '';
@@ -44,7 +45,7 @@ export default function FormEditorClient() {
   const printMode = params.get('print') === '1';
 
   const job = jobs.find((j) => j.id === jobId);
-  const existingForm = job?.forms.find((f) => f.id === formId);
+  const existingForm = job?.forms.find((f) => f.id === formId && !f.isDeleted);
 
   const [summaryRows, setSummaryRows] = useState<SummaryRow[]>([]);
   const [measurementRows, setMeasurementRows] = useState<MeasurementRow[]>([]);
@@ -54,6 +55,8 @@ export default function FormEditorClient() {
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [initialized, setInitialized] = useState(false);
   const [arcItems, setArcItems] = useState<ArcItem[]>([]);
+  const [autoSaveTimer, setAutoSaveTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const [lastSavedData, setLastSavedData] = useState<string>('');
 
   const syncedSummaryRows = useMemo(
     () => syncSummaryRowsWithMeasurements(summaryRows, measurementRows),
@@ -67,7 +70,7 @@ export default function FormEditorClient() {
     getValues,
     formState: { errors, isDirty },
   } = useForm<PaintForm>({
-    defaultValues: existingForm ?? defaultForm(job?.jobName ?? 'New Job', 1),
+    defaultValues: existingForm ?? defaultForm(job?.siteName ?? 'New Job', 1),
   });
 
   // Fetch ARC items for autocomplete
@@ -80,7 +83,7 @@ export default function FormEditorClient() {
   // Initialize state from existing or default form
   useEffect(() => {
     if (initialized) return;
-    const src = existingForm ?? defaultForm(job?.jobName ?? 'New Job', 1);
+    const src = existingForm ?? defaultForm(job?.siteName ?? 'New Job', 1);
     setSummaryRows(src.summaryRows);
     setMeasurementRows(src.measurementRows);
     setSignatures(src.signatures);
@@ -120,6 +123,64 @@ export default function FormEditorClient() {
     }),
     [syncedSummaryRows, measurementRows, signatures, existingForm]
   );
+
+  // Auto-save: debounce 2s after any change
+  useEffect(() => {
+    if (!initialized || !job || !signatures) return;
+    if (autoSaveTimer) clearTimeout(autoSaveTimer);
+
+    const timer = setTimeout(() => {
+      const values = getValues();
+      const formData = buildFormData(values);
+      const dataKey = JSON.stringify({
+        formData,
+        summaryRows: syncedSummaryRows,
+        measurementRows,
+      });
+      if (dataKey === lastSavedData) return;
+
+      setLastSavedData(dataKey);
+      setSaveState('saving');
+      if (existingForm) {
+        updateForm(jobId, formData)
+          .then(() => {
+            setSaveState('saved');
+            setTimeout(() => setSaveState('idle'), 2000);
+          })
+          .catch(() => {
+            setSaveState('error');
+            setTimeout(() => setSaveState('idle'), 2000);
+          });
+      } else {
+        addForm(jobId, formData)
+          .then(() => {
+            setSaveState('saved');
+            setTimeout(() => setSaveState('idle'), 2000);
+          })
+          .catch(() => {
+            setSaveState('error');
+            setTimeout(() => setSaveState('idle'), 2000);
+          });
+      }
+    }, 2000);
+
+    setAutoSaveTimer(timer);
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialized, job, signatures, syncedSummaryRows, measurementRows, getValues, buildFormData, existingForm, jobId, updateForm, addForm, lastSavedData]);
+
+  const handleDuplicateForm = async () => {
+    if (!job || !existingForm) return;
+    try {
+      await duplicateForm(jobId, formId);
+      addToast('success', 'Form duplicated', 'A copy of this form has been created.');
+    } catch (error) {
+      console.error('Duplicate form failed:', error);
+      addToast('error', 'Duplicate failed', 'Could not duplicate the form.');
+    }
+  };
 
   const onSubmit = async (values: PaintForm) => {
     if (!job || !signatures) return;
@@ -195,7 +256,7 @@ export default function FormEditorClient() {
 
   // Reconstruct current form for print
   const currentFormForPrint: PaintForm = {
-    ...(existingForm ?? defaultForm(job.jobName, 1)),
+    ...(existingForm ?? defaultForm(job.siteName, 1)),
     suitPublicAreaName: '',
     summaryRows: syncedSummaryRows,
     measurementRows,
@@ -206,6 +267,12 @@ export default function FormEditorClient() {
   const formValues = getValues();
   if (formValues.suitPublicAreaName) {
     currentFormForPrint.suitPublicAreaName = formValues.suitPublicAreaName;
+  }
+  if (formValues.date) {
+    currentFormForPrint.date = formValues.date;
+  }
+  if (formValues.sheetNo) {
+    currentFormForPrint.sheetNo = formValues.sheetNo;
   }
 
   return (
@@ -227,7 +294,7 @@ export default function FormEditorClient() {
                 href={`/job-detail?id=${jobId}`}
                 className="hover:text-foreground transition-colors"
               >
-                {job.jobName}
+                {job.siteName}
               </Link>
               <span>/</span>
               <span className="text-foreground font-medium">
@@ -240,7 +307,7 @@ export default function FormEditorClient() {
               </h1>
             </div>
             <p className="text-sm text-muted-foreground mt-0.5">
-              {job.clientName} · {job.siteAddress}
+              {job.empName} · {job.siteAddress}
             </p>
           </div>
 
@@ -253,6 +320,17 @@ export default function FormEditorClient() {
               <ChevronLeft size={15} />
               Back
             </button>
+
+            {existingForm && (
+              <button
+                type="button"
+                onClick={handleDuplicateForm}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-md border border-border text-foreground hover:bg-secondary transition-colors scale-press"
+              >
+                <Copy size={15} />
+                Duplicate
+              </button>
+            )}
 
             <button
               type="button"

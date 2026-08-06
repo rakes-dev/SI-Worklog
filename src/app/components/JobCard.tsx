@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Eye, Pencil, Copy, Trash2, FileText, MapPin, User, Calendar,  } from 'lucide-react';
 import type { Job } from '@/types';
-import StatusBadge from '@/components/ui/StatusBadge';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import { formatDate, formatCurrency } from '@/utils/helpers';
 import { useAppStore } from '@/store/useAppStore';
@@ -24,7 +23,7 @@ export default function JobCard({ job, onDuplicate, onToast }: JobCardProps) {
   const handleDelete = async () => {
     setIsDeleting(true);
     await deleteJob(job.id);
-    onToast('success', 'Job deleted', `"${job.jobName}" has been removed.`);
+    onToast('success', 'Job deleted', `"${job.siteName}" has been removed.`);
     setShowConfirm(false);
     setIsDeleting(false);
   };
@@ -46,13 +45,12 @@ export default function JobCard({ job, onDuplicate, onToast }: JobCardProps) {
         {/* Header */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-foreground text-sm truncate">{job.jobName}</h3>
+            <h3 className="font-semibold text-foreground text-sm truncate">{job.empName}</h3>
             <div className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground">
-              <User size={11} />
-              <span className="truncate">{job.clientName || 'No client set'}</span>
+              <MapPin size={11} />
+              <span className="truncate">{job.siteName || 'No site set'}</span>
             </div>
           </div>
-          <StatusBadge status={job.status} size="sm" />
         </div>
 
         {/* Meta */}
@@ -63,16 +61,6 @@ export default function JobCard({ job, onDuplicate, onToast }: JobCardProps) {
               <span className="truncate">{job.siteAddress}</span>
             </div>
           )}
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Calendar size={11} className="flex-shrink-0" />
-            <span>{formatDate(job.workStartDate)}</span>
-            {job.workEndDate && (
-              <>
-                <span>—</span>
-                <span>{formatDate(job.workEndDate)}</span>
-              </>
-            )}
-          </div>
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <FileText size={11} className="flex-shrink-0" />
             <span>
@@ -129,7 +117,7 @@ export default function JobCard({ job, onDuplicate, onToast }: JobCardProps) {
       <ConfirmModal
         open={showConfirm}
         title="Delete Job"
-        message={`Are you sure you want to delete "${job.jobName}"? All forms and measurements will be permanently removed.`}
+        message={`Are you sure you want to delete "${job.siteName}"? All forms and measurements will be permanently removed.`}
         confirmLabel="Delete Job"
         onConfirm={handleDelete}
         onCancel={() => setShowConfirm(false)}

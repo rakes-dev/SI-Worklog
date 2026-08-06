@@ -201,6 +201,8 @@ export function defaultForm(jobName: string, formIndex: number): PaintForm {
     ],
     totalArea: 0,
     signatures: defaultSignatures(),
+    isDeleted: false,
+    deletedAt: undefined,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -210,15 +212,10 @@ export function defaultJob(): Job {
   const id = generateId('job');
   return {
     id,
-    jobName: '',
-    clientName: '',
+    empName: '',
+    siteName: '',
     siteAddress: '',
-    workStartDate: todayISO(),
-    workEndDate: '',
-    submittedToOffice: '',
-    delay: '',
     remarks: '',
-    status: 'Draft',
     forms: [],
     totalAmount: 0,
     createdAt: new Date().toISOString(),

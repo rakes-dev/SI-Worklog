@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { Plus, Trash2, Copy } from 'lucide-react';
 import type { MeasurementRow, ArcItem } from '@/types';
 import { calcMeasurementRow, defaultMeasurementRow } from '@/utils/helpers';
@@ -55,6 +55,23 @@ export default function MeasurementTable({ rows, onChange, totalArea, arcItems =
     });
     onChange(updated);
   };
+
+  // Auto-add a new empty row when the last row has any data filled
+  useEffect(() => {
+    if (rows.length === 0) return;
+    const lastRow = rows[rows.length - 1];
+    const isLastRowFilled =
+      (lastRow.jobType ?? '').trim() !== '' ||
+      lastRow.location.trim() !== '' ||
+      lastRow.coat.trim() !== '' ||
+      (typeof lastRow.length === 'number' && lastRow.length > 0) ||
+      (typeof lastRow.width === 'number' && lastRow.width > 0) ||
+      (typeof lastRow.no === 'number' && lastRow.no > 0);
+    if (isLastRowFilled) {
+      onChange([...rows, defaultMeasurementRow(rows.length + 1)]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows]);
 
   const addRow = () => {
     onChange([...rows, defaultMeasurementRow(rows.length + 1)]);
