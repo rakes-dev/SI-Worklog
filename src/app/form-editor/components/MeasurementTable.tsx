@@ -231,8 +231,7 @@ export default function MeasurementTable({ rows, onChange, totalArea, arcItems =
                       row.location,
                       'e.g. Bed side table',
                       'w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-foreground focus:outline-none focus:border-ring focus:bg-card transition',
-                      `location-options-${row.id}`,
-                      35
+                      `location-options-${row.id}`
                     )}
                     <datalist id={`location-options-${row.id}`}>
                       {LOCATION_SUGGESTIONS.map((loc, i) => (

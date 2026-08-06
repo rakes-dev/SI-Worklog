@@ -17,7 +17,7 @@ const SIG_LABELS = [
   { key: 'measurementCheck' as const, label: 'Measurement Check' },
 ];
 
-const FIRST_PAGE_MAX_ROWS_WITH_SUMMARY = 27;
+const FIRST_PAGE_MAX_ROWS_WITH_SUMMARY = 31;
 const FIRST_PAGE_MAX_ROWS_WITHOUT_SUMMARY = 31;
 const SUBSEQUENT_PAGE_MAX_ROWS = 27;
 
@@ -50,8 +50,19 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
   const visibleMeasurementRows = form.measurementRows.filter((row) => !isEmptyMeasurementRow(row));
 
   const hasSummaryRows = visibleSummaryRows.length > 0;
+
+  // For every 35 characters in a location field, deduct 1 row from the first page limit
+  // (long locations wrap to multiple lines, taking up more vertical space)
+  const locationDeduction = visibleMeasurementRows.reduce((total, row) => {
+    const locLen = (row.location ?? '').length;
+    return total + Math.floor(locLen / 35);
+  }, 0);
+
+  // If more than 6 summary rows, deduct 1 additional row (summary table takes more space)
+  const summaryDeduction = visibleSummaryRows.length > 5 ? 1 : 0;
+
   const firstPageLimit = hasSummaryRows
-    ? FIRST_PAGE_MAX_ROWS_WITH_SUMMARY
+    ? Math.max(1, FIRST_PAGE_MAX_ROWS_WITH_SUMMARY - locationDeduction - summaryDeduction)
     : FIRST_PAGE_MAX_ROWS_WITHOUT_SUMMARY;
 
   // Split measurement rows into pages
