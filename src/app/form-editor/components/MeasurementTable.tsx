@@ -130,26 +130,32 @@ export default function MeasurementTable({ rows, onChange, totalArea, arcItems =
 
   const numInput = (
     rowId: string,
-    field: 'length' | 'width' | 'no',
+    field: 'no' | 'length' | 'width',
     value: number | ''
   ) => (
     <input
       type="number"
-      step="0.01"
+      step={field === 'no' ? '1' : '0.01'}
       min="0"
       value={value === '' ? '' : value}
       onChange={(e) =>
         updateRow(
           rowId,
           field,
-          e.target.value === '' ? '' : parseFloat(e.target.value) || 0
+          e.target.value === '' ? '' : field === 'no'
+            ? parseInt(e.target.value, 10) || 0
+            : parseFloat(e.target.value) || 0
         )
       }
       onBlur={(e) => {
         if (e.target.value !== '') {
-          const formatted = Number(e.target.value).toFixed(2);
-          updateRow(rowId, field, parseFloat(formatted));
-          e.target.value = formatted;
+          if (field === 'no') {
+            updateRow(rowId, field, parseInt(e.target.value, 10));
+          } else {
+            const formatted = Number(e.target.value).toFixed(2);
+            updateRow(rowId, field, parseFloat(formatted));
+            e.target.value = formatted;
+          }
         }
       }}
       className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-right text-xs font-tabular text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
