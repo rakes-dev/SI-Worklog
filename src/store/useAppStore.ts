@@ -20,6 +20,7 @@ interface AppStore {
   addForm: (jobId: string, form: PaintForm) => Promise<void>;
   updateForm: (jobId: string, form: PaintForm) => Promise<void>;
   deleteForm: (jobId: string, formId: string) => Promise<void>;
+  permanentlyDeleteForm: (jobId: string, formId: string) => Promise<void>;
   restoreForm: (jobId: string, formId: string) => Promise<void>;
   duplicateForm: (jobId: string, formId: string) => Promise<void>;
   toggleTheme: () => void;
@@ -140,6 +141,19 @@ export const useAppStore = create<AppStore>()(
         set((s) => ({ jobs: s.jobs.map((j) => (j.id === jobId ? updated : j)) }));
         dbService.saveJob(updated).catch((error) => {
           console.warn('Firestore sync failed for deleteForm (local save preserved):', error);
+        });
+      },
+
+      permanentlyDeleteForm: async (jobId, formId) => {
+        const job = get().jobs.find((j) => j.id === jobId);
+        if (!job) return;
+        const updated = recalcJobTotal({
+          ...job,
+          forms: job.forms.filter((f) => f.id !== formId),
+        });
+        set((s) => ({ jobs: s.jobs.map((j) => (j.id === jobId ? updated : j)) }));
+        dbService.saveJob(updated).catch((error) => {
+          console.warn('Firestore sync failed for permanentlyDeleteForm (local save preserved):', error);
         });
       },
 

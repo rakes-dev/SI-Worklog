@@ -18,8 +18,8 @@ const SIG_LABELS = [
 ];
 
 const FIRST_PAGE_MAX_ROWS_WITH_SUMMARY = 27;
-const FIRST_PAGE_MAX_ROWS_WITHOUT_SUMMARY = 18;
-const SUBSEQUENT_PAGE_MAX_ROWS = 18;
+const FIRST_PAGE_MAX_ROWS_WITHOUT_SUMMARY = 31;
+const SUBSEQUENT_PAGE_MAX_ROWS = 27;
 
 export default function PrintLayout({ form, job }: PrintLayoutProps) {
   const hasSummaryRows = Boolean(form.summaryRows && form.summaryRows.length > 0);

@@ -15,8 +15,9 @@ interface FormsTableProps {
 
 export default function FormsTable({ job, onToast }: FormsTableProps) {
   const router = useRouter();
-  const { addForm, deleteForm, restoreForm, duplicateForm } = useAppStore();
+  const { addForm, deleteForm, permanentlyDeleteForm, restoreForm, duplicateForm } = useAppStore();
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [permanentDeleteTarget, setPermanentDeleteTarget] = useState<string | null>(null);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
 
   const activeForms = job.forms.filter((f) => !f.isDeleted);
@@ -60,6 +61,19 @@ export default function FormsTable({ job, onToast }: FormsTableProps) {
       onToast('error', 'Delete failed', 'Could not delete this form.');
     } finally {
       setDeleteTarget(null);
+    }
+  };
+
+  const handlePermanentDelete = async () => {
+    if (!permanentDeleteTarget) return;
+    try {
+      await permanentlyDeleteForm(job.id, permanentDeleteTarget);
+      onToast('success', 'Form permanently deleted', 'The form has been removed permanently.');
+    } catch (error) {
+      console.error('Failed to permanently delete form:', error);
+      onToast('error', 'Delete failed', 'Could not permanently delete this form.');
+    } finally {
+      setPermanentDeleteTarget(null);
     }
   };
 
@@ -248,13 +262,20 @@ export default function FormsTable({ job, onToast }: FormsTableProps) {
                     <td className="px-4 py-2 text-muted-foreground font-tabular text-xs">
                       {formatDate(form.deletedAt || '') || '—'}
                     </td>
-                    <td className="px-4 py-2 text-right">
+                    <td className="px-4 py-2 text-right flex items-center justify-end gap-1">
                       <button
                         onClick={() => handleRestore(form.id)}
                         title="Restore form"
                         className="p-1.5 rounded text-muted-foreground hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors scale-press"
                       >
                         <RotateCcw size={14} />
+                      </button>
+                      <button
+                        onClick={() => setPermanentDeleteTarget(form.id)}
+                        title="Delete permanently"
+                        className="p-1.5 rounded text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors scale-press"
+                      >
+                        <Trash2 size={14} />
                       </button>
                     </td>
                   </tr>
@@ -272,6 +293,16 @@ export default function FormsTable({ job, onToast }: FormsTableProps) {
         confirmLabel="Move to Trash"
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
+        destructive
+      />
+
+      <ConfirmModal
+        open={!!permanentDeleteTarget}
+        title="Permanently Delete Form"
+        message="This will remove the form permanently from this job. This action cannot be undone."
+        confirmLabel="Delete Permanently"
+        onConfirm={handlePermanentDelete}
+        onCancel={() => setPermanentDeleteTarget(null)}
         destructive
       />
     </div>

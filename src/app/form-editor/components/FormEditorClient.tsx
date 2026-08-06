@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import {
@@ -57,6 +57,8 @@ export default function FormEditorClient() {
   const [arcItems, setArcItems] = useState<ArcItem[]>([]);
   const [autoSaveTimer, setAutoSaveTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
   const [lastSavedData, setLastSavedData] = useState<string>('');
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const initialLoadCompleteRef = useRef(false);
 
   const syncedSummaryRows = useMemo(
     () => syncSummaryRowsWithMeasurements(summaryRows, measurementRows),
@@ -84,6 +86,8 @@ export default function FormEditorClient() {
   useEffect(() => {
     if (initialized) return;
     const src = existingForm ?? defaultForm(job?.siteName ?? 'New Job', 1);
+    initialLoadCompleteRef.current = false;
+    setHasUnsavedChanges(false);
     setSummaryRows(src.summaryRows);
     setMeasurementRows(src.measurementRows);
     setSignatures(src.signatures);
@@ -92,6 +96,15 @@ export default function FormEditorClient() {
     reset(src);
     setInitialized(true);
   }, [existingForm, job, initialized, reset]);
+
+  useEffect(() => {
+    if (!initialized) return;
+    if (!initialLoadCompleteRef.current) {
+      initialLoadCompleteRef.current = true;
+      return;
+    }
+    setHasUnsavedChanges(true);
+  }, [initialized, isDirty, summaryRows, measurementRows, signatures]);
 
   // Recalculate totals when rows change
   useEffect(() => {
@@ -126,7 +139,7 @@ export default function FormEditorClient() {
 
   // Auto-save: debounce 2s after any change
   useEffect(() => {
-    if (!initialized || !job || !signatures) return;
+    if (!initialized || !job || !signatures || !hasUnsavedChanges) return;
     if (autoSaveTimer) clearTimeout(autoSaveTimer);
 
     const timer = setTimeout(() => {
@@ -144,6 +157,7 @@ export default function FormEditorClient() {
       if (existingForm) {
         updateForm(jobId, formData)
           .then(() => {
+            setHasUnsavedChanges(false);
             setSaveState('saved');
             setTimeout(() => setSaveState('idle'), 2000);
           })
@@ -154,6 +168,7 @@ export default function FormEditorClient() {
       } else {
         addForm(jobId, formData)
           .then(() => {
+            setHasUnsavedChanges(false);
             setSaveState('saved');
             setTimeout(() => setSaveState('idle'), 2000);
           })
@@ -169,7 +184,7 @@ export default function FormEditorClient() {
       if (timer) clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialized, job, signatures, syncedSummaryRows, measurementRows, getValues, buildFormData, existingForm, jobId, updateForm, addForm, lastSavedData]);
+  }, [initialized, job, signatures, syncedSummaryRows, measurementRows, getValues, buildFormData, existingForm, jobId, updateForm, addForm, lastSavedData, hasUnsavedChanges]);
 
   const handleDuplicateForm = async () => {
     if (!job || !existingForm) return;
@@ -192,6 +207,7 @@ export default function FormEditorClient() {
       } else {
         await addForm(jobId, formData);
       }
+      setHasUnsavedChanges(false);
       setSaveState('saved');
       addToast('success', 'Form saved', 'All changes saved successfully.');
       setTimeout(() => setSaveState('idle'), 3000);
@@ -213,6 +229,7 @@ export default function FormEditorClient() {
       } else {
         await addForm(jobId, formData);
       }
+      setHasUnsavedChanges(false);
       setSaveState('saved');
       addToast('success', 'Form saved', 'Saved before printing.');
       setTimeout(() => setSaveState('idle'), 2000);
