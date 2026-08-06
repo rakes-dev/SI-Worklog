@@ -1,7 +1,7 @@
 'use client';
 
-import React from 'react';
-import { Plus, Trash2, Copy, Info } from 'lucide-react';
+import React, { useRef, useCallback } from 'react';
+import { Plus, Trash2, Copy, Info, GripVertical } from 'lucide-react';
 import type { SummaryRow, ArcItem } from '@/types';
 import { calcSummaryRow, defaultSummaryRow, formatCurrency } from '@/utils/helpers';
 
@@ -13,6 +13,11 @@ interface SummaryTableProps {
 }
 
 export default function SummaryTable({ rows, onChange, grandTotal, arcItems = [] }: SummaryTableProps) {
+  const [draggedRowId, setDraggedRowId] = React.useState<string | null>(null);
+  const [overRowId, setOverRowId] = React.useState<string | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const pendingRef = useRef<{ sourceId: string; targetId: string } | null>(null);
+
   const updateRow = (id: string, field: keyof SummaryRow, value: string | number) => {
     const updated = rows.map((r) => {
       if (r.id !== id) return r;
@@ -22,6 +27,32 @@ export default function SummaryTable({ rows, onChange, grandTotal, arcItems = []
     });
     onChange(updated);
   };
+
+  const renumberRows = (updatedRows: SummaryRow[]) =>
+    updatedRows.map((row, index) => ({ ...row, slNo: index + 1 }));
+
+  const reorderRows = (sourceId: string, targetId: string) => {
+    const sourceIndex = rows.findIndex((row) => row.id === sourceId);
+    const targetIndex = rows.findIndex((row) => row.id === targetId);
+    if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return;
+
+    const updated = [...rows];
+    const [movedRow] = updated.splice(sourceIndex, 1);
+    const adjustedTargetIndex = sourceIndex < targetIndex ? targetIndex - 1 : targetIndex;
+    updated.splice(adjustedTargetIndex, 0, movedRow);
+    onChange(renumberRows(updated));
+  };
+
+  const scheduleReorder = useCallback((sourceId: string, targetId: string) => {
+    pendingRef.current = { sourceId, targetId };
+    if (rafRef.current !== null) return;
+    rafRef.current = requestAnimationFrame(() => {
+      const p = pendingRef.current;
+      rafRef.current = null;
+      pendingRef.current = null;
+      if (p) reorderRows(p.sourceId, p.targetId);
+    });
+  }, []);
 
   const addRow = () => {
     onChange([...rows, defaultSummaryRow(rows.length + 1)]);
@@ -89,6 +120,7 @@ export default function SummaryTable({ rows, onChange, grandTotal, arcItems = []
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-secondary/50">
+              <th className="px-2 py-2 w-8" />
               <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-center w-8">Sl.</th>
               <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-left min-w-[140px]">Complaint Source</th>
               <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-left min-w-[120px]">Paint Type</th>
@@ -103,7 +135,7 @@ export default function SummaryTable({ rows, onChange, grandTotal, arcItems = []
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground text-sm">
+                <td colSpan={10} className="px-4 py-8 text-center text-muted-foreground text-sm">
                   No rows yet — click "Add Row" to start
                 </td>
               </tr>
@@ -120,7 +152,52 @@ export default function SummaryTable({ rows, onChange, grandTotal, arcItems = []
                   : arcItems;
 
                 return (
-                  <tr key={row.id} className="border-b border-border hover:bg-secondary/20 transition-colors group">
+                  <tr
+                    key={row.id}
+                    className={`border-b border-border transition-transform duration-150 ease-out group ${overRowId === row.id ? 'bg-secondary/30 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]' : 'hover:bg-secondary/20'}`}
+                    style={{ willChange: 'transform' }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      if (draggedRowId && draggedRowId !== row.id) {
+                        scheduleReorder(draggedRowId, row.id);
+                      }
+                      setOverRowId(row.id);
+                    }}
+                    onDragLeave={() => {
+                      if (overRowId === row.id) setOverRowId(null);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (draggedRowId) reorderRows(draggedRowId, row.id);
+                      setDraggedRowId(null);
+                      setOverRowId(null);
+                    }}
+                  >
+                    <td className="px-2 py-1.5 align-middle">
+                      <button
+                        type="button"
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.effectAllowed = 'move';
+                          e.dataTransfer.setData('text/plain', row.id);
+                          setDraggedRowId(row.id);
+                        }}
+                        onDragEnd={() => {
+                          setDraggedRowId(null);
+                          setOverRowId(null);
+                          if (rafRef.current) {
+                            cancelAnimationFrame(rafRef.current);
+                            rafRef.current = null;
+                            pendingRef.current = null;
+                          }
+                        }}
+                        title="Drag to reorder"
+                        aria-label="Drag to reorder row"
+                        className="inline-flex items-center justify-center p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary cursor-grab active:cursor-grabbing opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity touch-none"
+                      >
+                        <GripVertical size={14} />
+                      </button>
+                    </td>
                     <td className="px-2 py-1.5 text-center text-xs text-muted-foreground font-tabular">{row.slNo}</td>
                     <td className="px-1 py-1.5">
                       <input

@@ -21,8 +21,35 @@ const FIRST_PAGE_MAX_ROWS_WITH_SUMMARY = 27;
 const FIRST_PAGE_MAX_ROWS_WITHOUT_SUMMARY = 31;
 const SUBSEQUENT_PAGE_MAX_ROWS = 27;
 
+function isEmptySummaryRow(row: PaintForm['summaryRows'][number]): boolean {
+  return (
+    (!row.complaintSource.trim() || row.complaintSource.trim() === 'Engineer Dept.') &&
+    !row.paintType.trim() &&
+    !row.coat.trim() &&
+    !row.arcNo.trim() &&
+    (row.qty === '' || row.qty === 0) &&
+    (row.rate === '' || row.rate === 0) &&
+    row.amount === 0
+  );
+}
+
+function isEmptyMeasurementRow(row: PaintForm['measurementRows'][number]): boolean {
+  return (
+    !row.jobType?.trim() &&
+    !row.location.trim() &&
+    !row.coat.trim() &&
+    (row.length === '' || row.length === 0) &&
+    (row.width === '' || row.width === 0) &&
+    (row.no === '' || row.no === 0) &&
+    row.totalArea === 0
+  );
+}
+
 export default function PrintLayout({ form, job }: PrintLayoutProps) {
-  const hasSummaryRows = Boolean(form.summaryRows && form.summaryRows.length > 0);
+  const visibleSummaryRows = form.summaryRows.filter((row) => !isEmptySummaryRow(row));
+  const visibleMeasurementRows = form.measurementRows.filter((row) => !isEmptyMeasurementRow(row));
+
+  const hasSummaryRows = visibleSummaryRows.length > 0;
   const firstPageLimit = hasSummaryRows
     ? FIRST_PAGE_MAX_ROWS_WITH_SUMMARY
     : FIRST_PAGE_MAX_ROWS_WITHOUT_SUMMARY;
@@ -34,7 +61,10 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
     isLast: boolean;
   }> = [];
 
-  const allRows = [...form.measurementRows];
+  const allRows = visibleMeasurementRows.map((row, index) => ({
+    ...row,
+    slNo: index + 1,
+  }));
   if (allRows.length === 0) {
     measurementPages.push({ rows: [], pageNum: 1, isLast: true });
   } else {
@@ -232,9 +262,9 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                           </tr>
                         </thead>
                         <tbody>
-                          {form.summaryRows.map((row) => (
+                          {visibleSummaryRows.map((row, index) => (
                             <tr key={`print-sr-${row.id}`}>
-                              <td style={{ padding: '2px', textAlign: 'center' }}>{row.slNo}</td>
+                              <td style={{ padding: '2px', textAlign: 'center' }}>{index + 1}</td>
                               <td style={{ padding: '2px' }}>{row.complaintSource}</td>
                               <td style={{ padding: '2px' }}>{row.paintType}</td>
                               <td style={{ padding: '2px', textAlign: 'center' }}>{row.coat}</td>
