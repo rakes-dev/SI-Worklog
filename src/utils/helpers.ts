@@ -69,7 +69,16 @@ export function syncSummaryRowsWithMeasurements(
   summaryRows: SummaryRow[],
   measurementRows: MeasurementRow[]
 ): SummaryRow[] {
-  const groupedRows = new Map<string, { jobType: string; totalArea: number }>();
+  const groupedRows = new Map<
+    string,
+    {
+      jobType: string;
+      totalArea: number;
+      arcNo: string;
+      rate: number | '';
+      coat: string;
+    }
+  >();
   const jobTypeOrder: string[] = [];
 
   measurementRows.forEach((row) => {
@@ -85,7 +94,13 @@ export function syncSummaryRowsWithMeasurements(
       return;
     }
 
-    groupedRows.set(key, { jobType, totalArea: parseFloat(totalArea.toFixed(2)) });
+    groupedRows.set(key, {
+      jobType,
+      totalArea: parseFloat(totalArea.toFixed(2)),
+      arcNo: row.arcNo ?? '',
+      rate: row.rate ?? '',
+      coat: row.coat ?? '',
+    });
     jobTypeOrder.push(key);
   });
 
@@ -117,6 +132,9 @@ export function syncSummaryRowsWithMeasurements(
       ...baseRow,
       complaintSource: baseRow.complaintSource.trim() ? baseRow.complaintSource : 'Engineer Dept.',
       paintType: group.jobType,
+      coat: group.coat || baseRow.coat,
+      arcNo: group.arcNo || baseRow.arcNo,
+      rate: group.rate !== '' ? group.rate : baseRow.rate,
       qty: group.totalArea,
       amount: 0,
     };
@@ -173,6 +191,8 @@ export function defaultMeasurementRow(slNo: number): MeasurementRow {
     jobType: '',
     location: '',
     coat: '',
+    arcNo: '',
+    rate: '',
     length: '',
     width: '',
     no: '',

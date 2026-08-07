@@ -96,6 +96,8 @@ function normalizeMeasurementRow(
     jobType: coerceString(value?.jobType),
     location: coerceString(value?.location),
     coat: coerceString(value?.coat),
+    arcNo: coerceString(value?.arcNo),
+    rate: coerceNumberOrEmpty(value?.rate),
     length: coerceNumberOrEmpty(value?.length),
     width: coerceNumberOrEmpty(value?.width),
     no: coerceNumberOrEmpty(value?.no),

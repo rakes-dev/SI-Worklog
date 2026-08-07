@@ -365,10 +365,10 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                       <td style={{ padding: '2px' }}>{row.location}</td>
                       <td style={{ padding: '2px', textAlign: 'center' }}>{row.coat}</td>
                       <td style={{ padding: '2px', textAlign: 'right' }}>
-                        {typeof row.length === 'number' ? row.length : ''}
+                        {typeof row.length === 'number' ? row.length.toFixed(2) : ''}
                       </td>
                       <td style={{ padding: '2px', textAlign: 'right' }}>
-                        {typeof row.width === 'number' ? row.width : ''}
+                        {typeof row.width === 'number' ? row.width.toFixed(2) : ''}
                       </td>
                       <td style={{ padding: '2px', textAlign: 'right' }}>
                         {typeof row.no === 'number' ? row.no : ''}

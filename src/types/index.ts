@@ -18,6 +18,8 @@ export interface MeasurementRow {
   jobType: string;
   location: string;
   coat: string;
+  arcNo: string;
+  rate: number | '';
   length: number | '';
   width: number | '';
   no: number | '';

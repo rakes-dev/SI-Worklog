@@ -54,6 +54,7 @@ export default function MeasurementTable({ rows, onChange, totalArea, arcItems =
       (row.jobType ?? '').trim() !== '' ||
       row.location.trim() !== '' ||
       row.coat.trim() !== '' ||
+      (row.arcNo ?? '').trim() !== '' ||
       (typeof row.length === 'number' && row.length > 0) ||
       (typeof row.width === 'number' && row.width > 0) ||
       (typeof row.no === 'number' && row.no > 0)
@@ -181,13 +182,46 @@ export default function MeasurementTable({ rows, onChange, totalArea, arcItems =
     />
   );
 
+  const handleArcSelect = (rowId: string, val: string) => {
+    const matched = arcItems.find((item) => item.arc_no === val);
+    if (matched) {
+      const rateValue: number | '' =
+        typeof matched.final_rate === 'number' ? matched.final_rate : '';
+      const updated = rows.map((r) => {
+        if (r.id !== rowId) return r;
+        const next = {
+          ...r,
+          arcNo: val,
+          jobType: matched.job_type || r.jobType,
+          coat: matched.coat ? String(matched.coat) : r.coat,
+          rate: rateValue,
+        };
+        next.totalArea = calcMeasurementRow(next);
+        return next;
+      });
+      onChange(appendTrailingEmptyRow(updated));
+    } else {
+      updateRow(rowId, 'arcNo', val);
+    }
+  };
+
+  const arcInput = (row: MeasurementRow) => (
+    <input
+      list={`arc-options-${row.id}`}
+      value={row.arcNo ?? ''}
+      onChange={(e) => handleArcSelect(row.id, e.target.value)}
+      className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-center text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
+      placeholder="ARC-001"
+    />
+  );
+
   return (
     <div className="bg-card border border-border rounded-lg overflow-hidden">
       <div className="flex items-center justify-between px-5 py-3 border-b border-border">
         <div>
           <h3 className="font-semibold text-foreground text-sm">Section B — Measurement Sheet</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Job Type groups matching rows — Total Area = Length × Width × No. (If only Length is given, it's treated as a circle: Area = π × (Length/2)² × No.)
+            Select an ARC No. to auto-fill Job Type, Coat & Rate — Summary updates automatically. Total Area = Length × Width × No. (If only Length is given, it's treated as a circle: Area = π × (Length/2)² × No.)
           </p>
         </div>
         <button
@@ -205,6 +239,7 @@ export default function MeasurementTable({ rows, onChange, totalArea, arcItems =
           <thead>
             <tr className="border-b border-border bg-secondary/50">
               <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-center w-8">Sl.</th>
+              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-center min-w-[100px]">ARC No.</th>
               <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-left min-w-[140px]">Job Type</th>
               <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-left min-w-[160px]">Location</th>
               <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-center min-w-[80px]">Coat</th>
@@ -230,6 +265,16 @@ export default function MeasurementTable({ rows, onChange, totalArea, arcItems =
                   style={{ willChange: 'transform' }}
                 >
                   <td className="px-2 py-1.5 text-center text-xs text-muted-foreground font-tabular">{row.slNo}</td>
+                  <td className="px-1 py-1.5">
+                    {arcInput(row)}
+                    <datalist id={`arc-options-${row.id}`}>
+                      {arcItems.map((item) => (
+                        <option key={item.id} value={item.arc_no}>
+                          {item.job_type || item.description.substring(0, 30)} (₹{item.final_rate})
+                        </option>
+                      ))}
+                    </datalist>
+                  </td>
                   <td className="px-1 py-1.5">
                     {textInput(
                       row.id,
@@ -319,7 +364,7 @@ export default function MeasurementTable({ rows, onChange, totalArea, arcItems =
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-border bg-secondary/40">
-              <td colSpan={7} className="px-4 py-2.5 text-right text-sm font-semibold text-foreground">
+              <td colSpan={8} className="px-4 py-2.5 text-right text-sm font-semibold text-foreground">
                 Total Area
               </td>
               <td className="px-2 py-2.5 text-right text-sm font-bold font-tabular text-primary">
