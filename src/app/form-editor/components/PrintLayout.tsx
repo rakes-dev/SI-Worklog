@@ -281,7 +281,7 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                               <td style={{ padding: '2px', textAlign: 'center' }}>{row.coat}</td>
                               <td style={{ padding: '2px', textAlign: 'center' }}>{row.arcNo}</td>
                               <td style={{ padding: '2px', textAlign: 'right' }}>
-                                {typeof row.qty === 'number' ? row.qty : ''}
+                                {typeof row.qty === 'number' ? row.qty.toFixed(2) : ''}
                               </td>
                               <td style={{ padding: '2px', textAlign: 'right' }}>
                                 {typeof row.rate === 'number' ? formatCurrency(row.rate) : ''}
