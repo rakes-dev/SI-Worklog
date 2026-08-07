@@ -2,7 +2,7 @@
 
 import React from 'react';
 import type { PaintForm, Job } from '@/types';
-import { formatDate, formatCurrency } from '@/utils/helpers';
+import { formatDate, formatCurrency, calcAreaUnitLabel } from '@/utils/helpers';
 
 interface PrintLayoutProps {
   form: PaintForm;
@@ -48,6 +48,13 @@ function isEmptyMeasurementRow(row: PaintForm['measurementRows'][number]): boole
 export default function PrintLayout({ form, job }: PrintLayoutProps) {
   const visibleSummaryRows = form.summaryRows.filter((row) => !isEmptySummaryRow(row));
   const visibleMeasurementRows = form.measurementRows.filter((row) => !isEmptyMeasurementRow(row));
+
+  // Unit label for the Total Area column across all visible measurement rows.
+  // Mixed m² + ft² → "m²/ft²"; otherwise the single unit in use.
+  const hasFt2Area = visibleMeasurementRows.some((r) => calcAreaUnitLabel(r.uom) === 'ft²');
+  const hasM2Area = visibleMeasurementRows.some((r) => calcAreaUnitLabel(r.uom) !== 'ft²');
+  const areaHeaderUnit =
+    hasFt2Area && hasM2Area ? 'm²/ft²' : hasFt2Area ? 'ft²' : 'm²';
 
   const hasSummaryRows = visibleSummaryRows.length > 0;
 
@@ -353,7 +360,7 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                     <th style={{ width: '10%', padding: '4px', textAlign: 'right' }}>Width (m)</th>
                     <th style={{ width: '4%', padding: '4px', textAlign: 'right' }}>No.</th>
                     <th style={{ width: '10%', padding: '4px', textAlign: 'right' }}>
-                      Total Area (m²)
+                      Total Area ({areaHeaderUnit})
                     </th>
                   </tr>
                 </thead>
@@ -374,7 +381,9 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                         {typeof row.no === 'number' ? row.no : ''}
                       </td>
                       <td style={{ padding: '2px', textAlign: 'right' }}>
-                        {row.totalArea > 0 ? row.totalArea.toFixed(2) : ''}
+                        {row.totalArea > 0
+                          ? `${row.totalArea.toFixed(2)} ${calcAreaUnitLabel(row.uom)}`
+                          : ''}
                       </td>
                     </tr>
                   ))}

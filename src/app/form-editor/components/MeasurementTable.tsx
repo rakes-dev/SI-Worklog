@@ -3,7 +3,7 @@
 import React, { useMemo } from 'react';
 import { Plus, Trash2, Copy, ChevronUp, ChevronDown } from 'lucide-react';
 import type { MeasurementRow, ArcItem } from '@/types';
-import { calcMeasurementRow, defaultMeasurementRow } from '@/utils/helpers';
+import { calcMeasurementRow, calcAreaUnitLabel, defaultMeasurementRow } from '@/utils/helpers';
 
 const LOCATION_SUGGESTIONS = [
   'Bed side table',
@@ -195,6 +195,7 @@ export default function MeasurementTable({ rows, onChange, totalArea, arcItems =
           jobType: matched.job_type || r.jobType,
           coat: matched.coat ? String(matched.coat) : r.coat,
           rate: rateValue,
+          uom: matched.uom || r.uom,
         };
         next.totalArea = calcMeasurementRow(next);
         return next;
@@ -246,7 +247,7 @@ export default function MeasurementTable({ rows, onChange, totalArea, arcItems =
               <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-right min-w-[80px]">Length (m)</th>
               <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-right min-w-[80px]">Width (m)</th>
               <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-right min-w-[60px]">No.</th>
-              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-right min-w-[100px]">Total Area (m²)</th>
+              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-right min-w-[100px]">Total Area</th>
               <th className="px-2 py-2 w-24" />
             </tr>
           </thead>
@@ -318,7 +319,7 @@ export default function MeasurementTable({ rows, onChange, totalArea, arcItems =
                   <td className="px-1 py-1.5">{numInput(row.id, 'width', row.width)}</td>
                   <td className="px-1 py-1.5">{numInput(row.id, 'no', row.no)}</td>
                   <td className="px-2 py-1.5 text-right text-xs font-tabular font-semibold text-foreground">
-                    {row.totalArea.toFixed(2)}
+                    {row.totalArea.toFixed(2)} {calcAreaUnitLabel(row.uom)}
                   </td>
                   <td className="px-1 py-1.5">
                     <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -368,7 +369,7 @@ export default function MeasurementTable({ rows, onChange, totalArea, arcItems =
                 Total Area
               </td>
               <td className="px-2 py-2.5 text-right text-sm font-bold font-tabular text-primary">
-                {totalArea.toFixed(2)} m²
+                {totalArea.toFixed(2)}{rows.some((r) => calcAreaUnitLabel(r.uom) === 'ft²') ? ' ft²' : ' m²'}
               </td>
               <td />
             </tr>

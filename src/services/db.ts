@@ -107,6 +107,7 @@ function normalizeMeasurementRow(
     coat: coerceString(value?.coat),
     arcNo: coerceString(value?.arcNo),
     rate: coerceNumberOrEmpty(value?.rate),
+    uom: coerceString(value?.uom),
     length: coerceNumberOrEmpty(value?.length),
     width: coerceNumberOrEmpty(value?.width),
     no: coerceNumberOrEmpty(value?.no),

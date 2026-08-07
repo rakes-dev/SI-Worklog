@@ -20,6 +20,7 @@ import type { PaintForm, SummaryRow, MeasurementRow, FormSignatures, ArcItem } f
 import {
   calcGrandTotal,
   calcTotalArea,
+  calcAreaUnitLabel,
   defaultForm,
   generateId,
   syncSummaryRowsWithMeasurements,
@@ -420,7 +421,7 @@ export default function FormEditorClient() {
               <span className="text-muted-foreground hidden sm:inline">
                 Total Area:{' '}
                 <span className="font-semibold font-tabular text-foreground">
-                  {totalArea.toFixed(2)} m²
+                  {totalArea.toFixed(2)}{measurementRows.some((r) => calcAreaUnitLabel(r.uom) === 'ft²') ? ' ft²' : ' m²'}
                 </span>
               </span>
             </div>

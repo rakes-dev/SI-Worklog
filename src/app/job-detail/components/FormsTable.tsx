@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { FileText, Plus, Eye, Copy, Trash2, Printer, MoreVertical, RotateCcw } from 'lucide-react';
+import { FileText, Plus, Eye, Copy, Trash2, Printer, MoreVertical, RotateCcw, ChevronUp, ChevronDown, Search, ArrowUpDown } from 'lucide-react';
 import type { Job, PaintForm } from '@/types';
-import { formatDate, formatCurrency, defaultForm } from '@/utils/helpers';
+import { formatDate, formatCurrency, defaultForm, isSqftUom } from '@/utils/helpers';
 import { useAppStore } from '@/store/useAppStore';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 
@@ -15,13 +15,74 @@ interface FormsTableProps {
 
 export default function FormsTable({ job, onToast }: FormsTableProps) {
   const router = useRouter();
-  const { addForm, deleteForm, permanentlyDeleteForm, restoreForm, duplicateForm } = useAppStore();
+  const { addForm, updateJob, deleteForm, permanentlyDeleteForm, restoreForm, duplicateForm } = useAppStore();
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [permanentDeleteTarget, setPermanentDeleteTarget] = useState<string | null>(null);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
 
+  // Filter / sort state
+  const [search, setSearch] = useState('');
+  const [sortKey, setSortKey] = useState<'position' | 'name' | 'date' | 'area' | 'amount'>('position');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
   const activeForms = job.forms.filter((f) => !f.isDeleted);
   const deletedForms = job.forms.filter((f) => f.isDeleted);
+
+  const displayForms = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    let list = activeForms.filter((f) => {
+      if (!q) return true;
+      return (
+        f.formName.toLowerCase().includes(q) ||
+        (f.suitPublicAreaName || '').toLowerCase().includes(q) ||
+        formatDate(f.date).toLowerCase().includes(q)
+      );
+    });
+    if (sortKey !== 'position') {
+      list = [...list].sort((a, b) => {
+        let cmp = 0;
+        if (sortKey === 'name') cmp = a.formName.localeCompare(b.formName);
+        else if (sortKey === 'date') cmp = (a.date || '').localeCompare(b.date || '');
+        else if (sortKey === 'area') cmp = a.totalArea - b.totalArea;
+        else if (sortKey === 'amount') cmp = a.grandTotal - b.grandTotal;
+        return sortDir === 'asc' ? cmp : -cmp;
+      });
+    }
+    return list;
+  }, [activeForms, search, sortKey, sortDir]);
+
+  // Determine a unit label for the Total Area column across the displayed forms.
+  // Mixed m² + ft² → show "m²/ft²"; otherwise show the single unit in use.
+  const hasFt2 = displayForms.some((f) =>
+    (f.measurementRows || []).some((r) => isSqftUom(r.uom))
+  );
+  const hasM2 = displayForms.some(
+    (f) => !(f.measurementRows || []).some((r) => isSqftUom(r.uom))
+  );
+  const areaUnitHeader =
+    hasFt2 && hasM2
+      ? 'Total Area (m²/ft²)'
+      : hasFt2
+        ? 'Total Area (ft²)'
+        : 'Total Area (m²)';
+
+  const moveForm = async (formId: string, dir: 'up' | 'down') => {
+    const fullForms = [...job.forms];
+    const activeIds = job.forms.filter((f) => !f.isDeleted).map((f) => f.id);
+    const activeIdx = activeIds.indexOf(formId);
+    const targetId = dir === 'up' ? activeIds[activeIdx - 1] : activeIds[activeIdx + 1];
+    if (!targetId) return;
+    const a = fullForms.findIndex((f) => f.id === formId);
+    const b = fullForms.findIndex((f) => f.id === targetId);
+    [fullForms[a], fullForms[b]] = [fullForms[b], fullForms[a]];
+    try {
+      await updateJob({ ...job, forms: fullForms });
+      onToast('success', 'Order updated', 'Form reordered successfully.');
+    } catch (error) {
+      console.error('Failed to reorder form:', error);
+      onToast('error', 'Reorder failed', 'Could not reorder this form.');
+    }
+  };
 
   const handleAddForm = async () => {
     try {
@@ -91,7 +152,7 @@ export default function FormsTable({ job, onToast }: FormsTableProps) {
     router.push(`/form-editor?jobId=${job.id}&formId=${form.id}&print=1`);
   };
 
-  const renderFormRow = (form: PaintForm, idx: number) => (
+  const renderFormRow = (form: PaintForm, idx: number, isFirst: boolean, isLast: boolean) => (
     <tr
       key={form.id}
       className="border-b border-border hover:bg-secondary/30 transition-colors cursor-pointer group"
@@ -121,6 +182,26 @@ export default function FormsTable({ job, onToast }: FormsTableProps) {
       </td>
       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-end gap-1">
+          {sortKey === 'position' && (
+            <span className="flex items-center gap-0.5 mr-1">
+              <button
+                onClick={() => moveForm(form.id, 'up')}
+                disabled={isFirst}
+                title="Move up"
+                className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <ChevronUp size={14} />
+              </button>
+              <button
+                onClick={() => moveForm(form.id, 'down')}
+                disabled={isLast}
+                title="Move down"
+                className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <ChevronDown size={14} />
+              </button>
+            </span>
+          )}
           <button
             onClick={() => handleOpenForm(form)}
             title="Open form editor"
@@ -202,39 +283,85 @@ export default function FormsTable({ job, onToast }: FormsTableProps) {
           </button>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-secondary/50">
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide w-10">#</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Form Name</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Suit / Area</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Date</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Sheets</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Area (m²)</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Amount (₹)</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide w-24">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {activeForms.map((form, idx) => renderFormRow(form, idx))}
-            </tbody>
-            <tfoot>
-              <tr className="bg-secondary/30">
-                <td colSpan={5} className="px-4 py-3 text-sm font-semibold text-foreground text-right">
-                  Grand Total
-                </td>
-                <td className="px-4 py-3 text-right font-tabular font-semibold text-foreground text-sm">
-                  {activeForms.reduce((s, f) => s + f.totalArea, 0).toFixed(2)}
-                </td>
-                <td className="px-4 py-3 text-right font-tabular font-bold text-primary text-sm">
-                  ₹{formatCurrency(activeForms.reduce((s, f) => s + f.grandTotal, 0))}
-                </td>
-                <td />
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+        <>
+          {activeForms.length > 0 && (
+            <div className="flex flex-col sm:flex-row gap-3 px-4 py-3 border-b border-border">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search by name, suit/area or date…"
+                  className="w-full pl-9 pr-3 py-2 bg-input border border-border rounded-md text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <select
+                  value={sortKey}
+                  onChange={(e) => setSortKey(e.target.value as typeof sortKey)}
+                  className="px-3 py-2 bg-input border border-border rounded-md text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="position">Manual order</option>
+                  <option value="name">Sort by Name</option>
+                  <option value="date">Sort by Date</option>
+                  <option value="area">Sort by Area</option>
+                  <option value="amount">Sort by Amount</option>
+                </select>
+                <button
+                  onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+                  disabled={sortKey === 'position'}
+                  title={sortDir === 'asc' ? 'Sort ascending' : 'Sort descending'}
+                  className="p-2 bg-input border border-border rounded-md text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ArrowUpDown size={15} />
+                </button>
+              </div>
+            </div>
+          )}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-secondary/50">
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide w-10">#</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Form Name</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Suit / Area</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Date</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Sheets</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">{areaUnitHeader}</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Amount (₹)</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide w-44">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {displayForms.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="px-4 py-10 text-center text-muted-foreground text-sm">
+                      {activeForms.length === 0 ? 'No active forms yet.' : 'No forms match your search.'}
+                    </td>
+                  </tr>
+                ) : (
+                  displayForms.map((form, idx) =>
+                    renderFormRow(form, idx, idx === 0, idx === displayForms.length - 1)
+                  )
+                )}
+              </tbody>
+              <tfoot>
+                <tr className="bg-secondary/30">
+                  <td colSpan={5} className="px-4 py-3 text-sm font-semibold text-foreground text-right">
+                    Grand Total
+                  </td>
+                  <td className="px-4 py-3 text-right font-tabular font-semibold text-foreground text-sm">
+                    {displayForms.reduce((s, f) => s + f.totalArea, 0).toFixed(2)}
+                  </td>
+                  <td className="px-4 py-3 text-right font-tabular font-bold text-primary text-sm">
+                    ₹{formatCurrency(displayForms.reduce((s, f) => s + f.grandTotal, 0))}
+                  </td>
+                  <td />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </>
       )}
 
       {/* Deleted Forms (Trash) */}

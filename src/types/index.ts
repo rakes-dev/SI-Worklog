@@ -20,6 +20,7 @@ export interface MeasurementRow {
   coat: string;
   arcNo: string;
   rate: number | '';
+  uom: string;
   length: number | '';
   width: number | '';
   no: number | '';

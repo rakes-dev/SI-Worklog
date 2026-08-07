@@ -32,14 +32,37 @@ export function calcMeasurementRow(row: MeasurementRow): number {
   const w = typeof row.width === 'number' ? row.width : 0;
   const n = typeof row.no === 'number' ? row.no : 0;
 
+  let area: number;
+
   // If only length is given (width is 0/empty), treat as circle item.
   // Area = π × (diameter/2)² × no
   if (l > 0 && w === 0) {
     const radius = l / 2;
-    return parseFloat((Math.PI * radius * radius * n).toFixed(2));
+    area = Math.PI * radius * radius * n;
+  } else {
+    area = l * w * n;
   }
 
-  return parseFloat((l * w * n).toFixed(2));
+  // Length & breadth are entered in meters. If the billing UOM is square feet,
+  // convert the resulting area to square feet (1 m² = 10.76391 ft²).
+  if (isSqftUom(row.uom)) {
+    area *= SQM_TO_SQFT;
+  }
+
+  return parseFloat(area.toFixed(2));
+}
+
+// 1 square meter = 10.76391 square feet
+const SQM_TO_SQFT = 10.76391;
+
+/** True when the unit of measurement is "sqft" (case/whitespace/punctuation insensitive). */
+export function isSqftUom(uom?: string): boolean {
+  return (uom ?? '').trim().toLowerCase().replace(/[\s._-]/g, '') === 'sqft';
+}
+
+/** Human-readable area unit label strictly per measurement row UOM. */
+export function calcAreaUnitLabel(uom?: string): string {
+  return isSqftUom(uom) ? 'ft²' : 'm²';
 }
 
 export function calcGrandTotal(rows: SummaryRow[]): number {
@@ -193,6 +216,7 @@ export function defaultMeasurementRow(slNo: number): MeasurementRow {
     coat: '',
     arcNo: '',
     rate: '',
+    uom: '',
     length: '',
     width: '',
     no: '',
