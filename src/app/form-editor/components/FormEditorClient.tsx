@@ -9,6 +9,7 @@ import {
   Printer,
   Loader2,
   FileText,
+  FileDown,
   AlertCircle,
   CheckCircle2,
   Copy,
@@ -30,6 +31,8 @@ import SummaryTable from './SummaryTable';
 import MeasurementTable from './MeasurementTable';
 import SignatureSection from './SignatureSection';
 import PrintLayout from './PrintLayout';
+import PdfExportLayout from './PdfExportLayout';
+import { exportPrintLayoutToPdf } from '@/utils/pdfExport';
 import ToastContainer from '@/components/ui/Toast';
 import { useToast } from '@/hooks/useToast';
 
@@ -54,12 +57,15 @@ export default function FormEditorClient() {
   const [grandTotal, setGrandTotal] = useState(0);
   const [totalArea, setTotalArea] = useState(0);
   const [saveState, setSaveState] = useState<SaveState>('idle');
+  const [exportingPdf, setExportingPdf] = useState(false);
   const [initialized, setInitialized] = useState(false);
   const [arcItems, setArcItems] = useState<ArcItem[]>([]);
   const [autoSaveTimer, setAutoSaveTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
   const [lastSavedData, setLastSavedData] = useState<string>('');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const initialLoadCompleteRef = useRef(false);
+  const printLayoutRef = useRef<HTMLDivElement>(null);
+  const pdfExportRef = useRef<HTMLDivElement>(null);
 
   const syncedSummaryRows = useMemo(
     () => syncSummaryRowsWithMeasurements(summaryRows, measurementRows),
@@ -242,6 +248,40 @@ export default function FormEditorClient() {
     }
   };
 
+  const handleExportPdf = async (values: PaintForm) => {
+    if (!job || !signatures) return;
+    setExportingPdf(true);
+    try {
+      // Save first so the exported PDF reflects the latest data.
+      const formData = buildFormData(values);
+      if (existingForm) {
+        await updateForm(jobId, formData);
+      } else {
+        await addForm(jobId, formData);
+      }
+      setHasUnsavedChanges(false);
+      setSaveState('saved');
+      setTimeout(() => setSaveState('idle'), 2000);
+
+      const root = pdfExportRef.current;
+      if (root) {
+        const sanitize = (s: string) =>
+          s.replace(/[\\/:*?"<>|]+/g, '_').replace(/\s+/g, ' ').trim();
+        const siteName = sanitize(job.siteName || 'Job');
+        const formName = sanitize(existingForm?.formName || formData.formName || 'Form');
+        await exportPrintLayoutToPdf(root, `${siteName} - ${formName}`);
+        addToast('success', 'PDF exported', `"${formName}" exported as PDF.`);
+      } else {
+        addToast('error', 'Export failed', 'Print layout is not ready yet. Please try again.');
+      }
+    } catch (error) {
+      console.error('Export PDF failed:', error);
+      addToast('error', 'Export failed', 'Could not export the form to PDF.');
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
   if (!job) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8">
@@ -296,8 +336,13 @@ export default function FormEditorClient() {
   return (
     <>
       {/* Print-only layout */}
-      <div className="print-layout">
+      <div className="print-layout" ref={printLayoutRef}>
         <PrintLayout form={currentFormForPrint} job={job} />
+      </div>
+
+      {/* PDF-export-only layout (hidden on screen; captured by exportPrintLayoutToPdf) */}
+      <div className="pdf-export-layout" ref={pdfExportRef}>
+        <PdfExportLayout form={currentFormForPrint} job={job} />
       </div>
 
       {/* Screen layout */}
@@ -357,6 +402,20 @@ export default function FormEditorClient() {
             >
               <Printer size={15} />
               Print
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSubmit(handleExportPdf)}
+              disabled={exportingPdf}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md border border-border text-foreground hover:bg-secondary transition-colors scale-press disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {exportingPdf ? (
+                <Loader2 size={15} className="animate-spin" />
+              ) : (
+                <FileDown size={15} />
+              )}
+              {exportingPdf ? 'Exporting...' : 'Export PDF'}
             </button>
 
             <button
@@ -433,6 +492,19 @@ export default function FormEditorClient() {
               >
                 <Printer size={14} />
                 <span className="hidden sm:inline">Print A4</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmit(handleExportPdf)}
+                disabled={exportingPdf}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-md border border-border text-foreground hover:bg-secondary transition-colors scale-press disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {exportingPdf ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <FileDown size={14} />
+                )}
+                <span className="hidden sm:inline">{exportingPdf ? 'Exporting...' : 'Export PDF'}</span>
               </button>
               <button
                 type="submit"

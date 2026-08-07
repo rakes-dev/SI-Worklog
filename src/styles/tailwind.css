@@ -161,6 +161,10 @@
   display: none;
 }
 
+.pdf-export-layout {
+  display: none;
+}
+
 @media print {
   html, body, main, #root, [data-nextjs-scroll-focus-boundary], .flex, .flex-1, .flex-col, div {
     height: auto !important;
