@@ -81,7 +81,7 @@ export interface Job {
 export interface ArcItem {
   id: string;
   arc_no: string;
-  coat: number | '';
+  coat: string;
   description: string;
   final_rate: number | '';
   uom: string;

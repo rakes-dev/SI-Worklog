@@ -42,6 +42,15 @@ function coerceRequiredString(value: unknown, fallback: string): string {
   return typeof value === 'string' && value ? value : fallback;
 }
 
+// Coerce a field that is now a string but may hold legacy values in Firestore
+// as numbers (e.g. coat stored as 2). Numeric legacy values are preserved as
+// their string representation so no existing data is lost during migration.
+function coerceStringFromLegacy(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return '';
+}
+
 function coerceNumberOrEmpty(value: unknown): number | '' {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value === 'string') {
@@ -193,7 +202,7 @@ function normalizeArcItem(value: Partial<ArcItem>): ArcItem {
   return {
     id: coerceRequiredString(value.id, generateId('arc')),
     arc_no: coerceString(value.arc_no),
-    coat: coerceNumberOrEmpty(value.coat),
+    coat: coerceStringFromLegacy(value.coat),
     description: coerceString(value.description),
     final_rate: coerceNumberOrEmpty(value.final_rate),
     uom: coerceString(value.uom),

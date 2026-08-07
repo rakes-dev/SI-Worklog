@@ -168,7 +168,7 @@ export default function ArcClient() {
           parsed.push({
             id: generateId('arc'),
             arc_no: arcNo,
-            coat: coatIdx >= 0 ? (parseInt(cols[coatIdx], 10) || '') : '',
+            coat: coatIdx >= 0 ? (cols[coatIdx] || '') : '',
             description: descIdx >= 0 ? cols[descIdx] || '' : '',
             final_rate: rateIdx >= 0 ? (parseFloat(cols[rateIdx]) || '') : '',
             uom: uomIdx >= 0 ? cols[uomIdx] || '' : '',
@@ -395,11 +395,10 @@ export default function ArcClient() {
                       Coat
                     </label>
                     <input
-                      type="number"
-                      min="0"
+                      type="text"
                       value={formItem.coat}
-                      onChange={(e) => setFormItem({ ...formItem, coat: e.target.value === '' ? '' : parseInt(e.target.value, 10) })}
-                      placeholder="e.g. 1, 2"
+                      onChange={(e) => setFormItem({ ...formItem, coat: e.target.value })}
+                      placeholder="e.g. 1, 2, 3 coats"
                       className="px-3 py-2 rounded-md border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     />
                   </div>

@@ -348,11 +348,11 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                     <th style={{ width: '6%', padding: '4px', textAlign: 'center' }}>Sl. No.</th>
                     <th style={{ width: '18%', padding: '4px', textAlign: 'left' }}>Job Type</th>
                     <th style={{ width: '30%', padding: '4px', textAlign: 'left' }}>Location</th>
-                    <th style={{ width: '8%', padding: '4px', textAlign: 'center' }}>Coat</th>
+                    <th style={{ width: '12%', padding: '4px', textAlign: 'center' }}>Coat</th>
                     <th style={{ width: '10%', padding: '4px', textAlign: 'right' }}>Length (m)</th>
                     <th style={{ width: '10%', padding: '4px', textAlign: 'right' }}>Width (m)</th>
                     <th style={{ width: '4%', padding: '4px', textAlign: 'right' }}>No.</th>
-                    <th style={{ width: '14%', padding: '4px', textAlign: 'right' }}>
+                    <th style={{ width: '10%', padding: '4px', textAlign: 'right' }}>
                       Total Area (m²)
                     </th>
                   </tr>
