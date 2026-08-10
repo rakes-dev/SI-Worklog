@@ -2,7 +2,7 @@
 
 import React from 'react';
 import type { PaintForm, Job } from '@/types';
-import { formatDate, formatCurrency, calcAreaUnitLabel } from '@/utils/helpers';
+import { formatDate, formatCurrency, calcAreaUnitLabel, aggregateAreaUnitLabel } from '@/utils/helpers';
 
 interface PrintLayoutProps {
   form: PaintForm;
@@ -50,11 +50,7 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
   const visibleMeasurementRows = form.measurementRows.filter((row) => !isEmptyMeasurementRow(row));
 
   // Unit label for the Total Area column across all visible measurement rows.
-  // Mixed m² + ft² → "m²/ft²"; otherwise the single unit in use.
-  const hasFt2Area = visibleMeasurementRows.some((r) => calcAreaUnitLabel(r.uom) === 'ft²');
-  const hasM2Area = visibleMeasurementRows.some((r) => calcAreaUnitLabel(r.uom) !== 'ft²');
-  const areaHeaderUnit =
-    hasFt2Area && hasM2Area ? 'm²/ft²' : hasFt2Area ? 'ft²' : 'm²';
+  const areaHeaderUnit = aggregateAreaUnitLabel(visibleMeasurementRows.map((r) => r.uom));
 
   const hasSummaryRows = visibleSummaryRows.length > 0;
 

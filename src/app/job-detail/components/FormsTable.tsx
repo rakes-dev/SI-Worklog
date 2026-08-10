@@ -4,7 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { FileText, Plus, Eye, Copy, Trash2, Printer, MoreVertical, RotateCcw, ChevronUp, ChevronDown, Search, ArrowUpDown } from 'lucide-react';
 import type { Job, PaintForm } from '@/types';
-import { formatDate, formatCurrency, defaultForm, isSqftUom } from '@/utils/helpers';
+import { formatDate, formatCurrency, defaultForm, aggregateAreaUnitLabel } from '@/utils/helpers';
 import { useAppStore } from '@/store/useAppStore';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 
@@ -52,19 +52,10 @@ export default function FormsTable({ job, onToast }: FormsTableProps) {
   }, [activeForms, search, sortKey, sortDir]);
 
   // Determine a unit label for the Total Area column across the displayed forms.
-  // Mixed m² + ft² → show "m²/ft²"; otherwise show the single unit in use.
-  const hasFt2 = displayForms.some((f) =>
-    (f.measurementRows || []).some((r) => isSqftUom(r.uom))
-  );
-  const hasM2 = displayForms.some(
-    (f) => !(f.measurementRows || []).some((r) => isSqftUom(r.uom))
-  );
-  const areaUnitHeader =
-    hasFt2 && hasM2
-      ? 'Total Area (m²/ft²)'
-      : hasFt2
-        ? 'Total Area (ft²)'
-        : 'Total Area (m²)';
+  // Mixed units → shown joined, e.g. "m²/ft²".
+  const areaUnitHeader = `Total Area (${aggregateAreaUnitLabel(
+    displayForms.flatMap((f) => (f.measurementRows || []).map((r) => r.uom))
+  )})`;
 
   const moveForm = async (formId: string, dir: 'up' | 'down') => {
     const fullForms = [...job.forms];

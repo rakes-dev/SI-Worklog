@@ -32,6 +32,12 @@ export function calcMeasurementRow(row: MeasurementRow): number {
   const w = typeof row.width === 'number' ? row.width : 0;
   const n = typeof row.no === 'number' ? row.no : 0;
 
+  // RFT — running feet (linear measurement). Length is entered in meters, so
+  // convert to feet and multiply by the number of pieces. Width is not used.
+  if (isRftUom(row.uom)) {
+    return parseFloat((l * M_TO_FT * n).toFixed(2));
+  }
+
   let area: number;
 
   // If only length is given (width is 0/empty), treat as circle item.
@@ -54,15 +60,38 @@ export function calcMeasurementRow(row: MeasurementRow): number {
 
 // 1 square meter = 10.76391 square feet
 const SQM_TO_SQFT = 10.76391;
+// 1 meter = 3.28084 feet
+const M_TO_FT = 3.28084;
 
 /** True when the unit of measurement is "sqft" (case/whitespace/punctuation insensitive). */
 export function isSqftUom(uom?: string): boolean {
   return (uom ?? '').trim().toLowerCase().replace(/[\s._-]/g, '') === 'sqft';
 }
 
-/** Human-readable area unit label strictly per measurement row UOM. */
+/** True when the unit of measurement is "rft" (running feet). */
+export function isRftUom(uom?: string): boolean {
+  return (uom ?? '').trim().toLowerCase().replace(/[\s._-]/g, '') === 'rft';
+}
+
+/** Human-readable unit label strictly per measurement row UOM. */
 export function calcAreaUnitLabel(uom?: string): string {
+  if (isRftUom(uom)) return 'rft';
   return isSqftUom(uom) ? 'ft²' : 'm²';
+}
+
+/** Unit label across a set of rows (e.g. a form). Mixed units → joined, e.g. "m²/ft²". */
+export function aggregateAreaUnitLabel(uoms: (string | undefined)[]): string {
+  const has = { m2: false, ft2: false, rft: false };
+  for (const u of uoms) {
+    if (isRftUom(u)) has.rft = true;
+    else if (isSqftUom(u)) has.ft2 = true;
+    else has.m2 = true; // empty / default rows are treated as m²
+  }
+  const parts: string[] = [];
+  if (has.m2) parts.push('m²');
+  if (has.rft) parts.push('rft');
+  if (has.ft2) parts.push('ft²');
+  return parts.length ? parts.join('/') : 'm²';
 }
 
 export function calcGrandTotal(rows: SummaryRow[]): number {

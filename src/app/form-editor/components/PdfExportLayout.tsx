@@ -2,7 +2,7 @@
 
 import React from 'react';
 import type { PaintForm, Job } from '@/types';
-import { formatDate, formatCurrency, calcAreaUnitLabel } from '@/utils/helpers';
+import { formatDate, formatCurrency, calcAreaUnitLabel, aggregateAreaUnitLabel } from '@/utils/helpers';
 
 interface PdfExportLayoutProps {
   form: PaintForm;
@@ -51,11 +51,6 @@ export default function PdfExportLayout({ form, job }: PdfExportLayoutProps) {
   const visibleMeasurementRows = form.measurementRows.filter((r) => !isEmptyMeasurementRow(r));
   const hasSummaryRows = visibleSummaryRows.length > 0;
 
-  const hasFt2Area = visibleMeasurementRows.some((r) => calcAreaUnitLabel(r.uom) === 'ft²');
-  const hasM2Area = visibleMeasurementRows.some((r) => calcAreaUnitLabel(r.uom) !== 'ft²');
-  const areaHeaderUnit =
-    hasFt2Area && hasM2Area ? 'm²/ft²' : hasFt2Area ? 'ft²' : 'm²';
-
   // Pagination (mirrors the print layout): page 1 carries the header + summary
   // + the first batch of measurement rows; later pages continue the rows.
   const locationDeduction = visibleMeasurementRows.reduce((total, row) => {
@@ -83,9 +78,7 @@ export default function PdfExportLayout({ form, job }: PdfExportLayoutProps) {
     }
   }
 
-  const hasSqft = visibleMeasurementRows.some((r) => calcAreaUnitLabel(r.uom) === 'ft²');
-  const hasM2 = visibleMeasurementRows.some((r) => calcAreaUnitLabel(r.uom) !== 'ft²');
-  const areaUnit = hasSqft && hasM2 ? 'm²/ft²' : hasSqft ? 'ft²' : 'm²';
+  const areaUnit = aggregateAreaUnitLabel(visibleMeasurementRows.map((r) => r.uom));
 
   return (
     <div
@@ -240,7 +233,7 @@ export default function PdfExportLayout({ form, job }: PdfExportLayoutProps) {
                     <th style={{ width: '10%', textAlign: 'right' }}>Length (m)</th>
                     <th style={{ width: '10%', textAlign: 'right' }}>Width (m)</th>
                     <th style={{ width: '4%', textAlign: 'right' }}>No.</th>
-                    <th style={{ width: '10%', textAlign: 'right' }}>Total Area ({areaHeaderUnit})</th>
+                    <th style={{ width: '10%', textAlign: 'right' }}>Total Area ({areaUnit})</th>
                   </tr>
                 </thead>
                 <tbody>

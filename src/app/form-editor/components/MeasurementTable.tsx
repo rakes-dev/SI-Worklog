@@ -3,7 +3,7 @@
 import React, { useMemo } from 'react';
 import { Plus, Trash2, Copy, ChevronUp, ChevronDown } from 'lucide-react';
 import type { MeasurementRow, ArcItem } from '@/types';
-import { calcMeasurementRow, calcAreaUnitLabel, defaultMeasurementRow } from '@/utils/helpers';
+import { calcMeasurementRow, calcAreaUnitLabel, aggregateAreaUnitLabel, defaultMeasurementRow } from '@/utils/helpers';
 
 const LOCATION_SUGGESTIONS = [
   'Bed side table',
@@ -369,7 +369,7 @@ export default function MeasurementTable({ rows, onChange, totalArea, arcItems =
                 Total Area
               </td>
               <td className="px-2 py-2.5 text-right text-sm font-bold font-tabular text-primary">
-                {totalArea.toFixed(2)}{rows.some((r) => calcAreaUnitLabel(r.uom) === 'ft²') ? ' ft²' : ' m²'}
+                {totalArea.toFixed(2)} {aggregateAreaUnitLabel(rows.map((r) => r.uom))}
               </td>
               <td />
             </tr>

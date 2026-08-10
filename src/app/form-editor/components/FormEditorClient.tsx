@@ -13,6 +13,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Copy,
+  Files,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useAppStore } from '@/store/useAppStore';
@@ -21,7 +22,7 @@ import type { PaintForm, SummaryRow, MeasurementRow, FormSignatures, ArcItem } f
 import {
   calcGrandTotal,
   calcTotalArea,
-  calcAreaUnitLabel,
+  aggregateAreaUnitLabel,
   defaultForm,
   generateId,
   syncSummaryRowsWithMeasurements,
@@ -32,6 +33,7 @@ import MeasurementTable from './MeasurementTable';
 import SignatureSection from './SignatureSection';
 import PrintLayout from './PrintLayout';
 import PdfExportLayout from './PdfExportLayout';
+import CopyFormModal from './CopyFormModal';
 import { exportPrintLayoutToPdf } from '@/utils/pdfExport';
 import ToastContainer from '@/components/ui/Toast';
 import { useToast } from '@/hooks/useToast';
@@ -58,6 +60,7 @@ export default function FormEditorClient() {
   const [totalArea, setTotalArea] = useState(0);
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [copyModalOpen, setCopyModalOpen] = useState(false);
   const [initialized, setInitialized] = useState(false);
   const [arcItems, setArcItems] = useState<ArcItem[]>([]);
   const [autoSaveTimer, setAutoSaveTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
@@ -385,14 +388,24 @@ export default function FormEditorClient() {
             </button>
 
             {existingForm && (
-              <button
-                type="button"
-                onClick={handleDuplicateForm}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-md border border-border text-foreground hover:bg-secondary transition-colors scale-press"
-              >
-                <Copy size={15} />
-                Duplicate
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={handleDuplicateForm}
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-md border border-border text-foreground hover:bg-secondary transition-colors scale-press"
+                >
+                  <Copy size={15} />
+                  Duplicate
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCopyModalOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-md border border-border text-foreground hover:bg-secondary transition-colors scale-press"
+                >
+                  <Files size={15} />
+                  Copy to Job
+                </button>
+              </>
             )}
 
             <button
@@ -480,7 +493,7 @@ export default function FormEditorClient() {
               <span className="text-muted-foreground hidden sm:inline">
                 Total Area:{' '}
                 <span className="font-semibold font-tabular text-foreground">
-                  {totalArea.toFixed(2)}{measurementRows.some((r) => calcAreaUnitLabel(r.uom) === 'ft²') ? ' ft²' : ' m²'}
+                  {totalArea.toFixed(2)} {aggregateAreaUnitLabel(measurementRows.map((r) => r.uom))}
                 </span>
               </span>
             </div>
@@ -523,6 +536,18 @@ export default function FormEditorClient() {
           </div>
         </form>
       </div>
+
+      <CopyFormModal
+        open={copyModalOpen}
+        sourceJobId={jobId}
+        formId={existingForm?.id ?? ''}
+        formName={existingForm?.formName ?? ''}
+        jobs={jobs}
+        onClose={() => setCopyModalOpen(false)}
+        onCopied={(targetJobName, newFormName) => {
+          addToast('success', 'Form copied', `"${newFormName}" copied to "${targetJobName}".`);
+        }}
+      />
 
       <ToastContainer toasts={toasts} onRemove={removeToast} />
     </>

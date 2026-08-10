@@ -23,6 +23,7 @@ interface AppStore {
   permanentlyDeleteForm: (jobId: string, formId: string) => Promise<void>;
   restoreForm: (jobId: string, formId: string) => Promise<void>;
   duplicateForm: (jobId: string, formId: string) => Promise<void>;
+  copyFormToJob: (sourceJobId: string, formId: string, targetJobId: string) => Promise<void>;
   toggleTheme: () => void;
   toggleSidebar: () => void;
   setSidebarCollapsed: (v: boolean) => void;
@@ -190,6 +191,28 @@ export const useAppStore = create<AppStore>()(
         set((s) => ({ jobs: s.jobs.map((j) => (j.id === jobId ? updated : j)) }));
         dbService.saveJob(updated).catch((error) => {
           console.warn('Firestore sync failed for duplicateForm (local save preserved):', error);
+        });
+      },
+
+      copyFormToJob: async (sourceJobId, formId, targetJobId) => {
+        const sourceJob = get().jobs.find((j) => j.id === sourceJobId);
+        const targetJob = get().jobs.find((j) => j.id === targetJobId);
+        if (!sourceJob || !targetJob) return;
+        const src = sourceJob.forms.find((f) => f.id === formId);
+        if (!src) return;
+        const newForm: PaintForm = {
+          ...src,
+          id: `form-${Date.now()}`,
+          isDeleted: false,
+          deletedAt: undefined,
+          formName: `${src.formName} (Copy)`,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        const updated = recalcJobTotal({ ...targetJob, forms: [...targetJob.forms, newForm] });
+        set((s) => ({ jobs: s.jobs.map((j) => (j.id === targetJobId ? updated : j)) }));
+        dbService.saveJob(updated).catch((error) => {
+          console.warn('Firestore sync failed for copyFormToJob (local save preserved):', error);
         });
       },
 
