@@ -198,7 +198,10 @@ export function syncSummaryRowsWithMeasurements(
     const jobType = (row.jobType ?? '').trim();
     if (!jobType) return;
 
-    const key = normalizeText(jobType);
+    const arcNo = (row.arcNo ?? '').trim();
+    // Split the summary Qty per job type + ARC no. Rows without an ARC no are
+    // kept together under just the (job type) name.
+    const key = `${normalizeText(jobType)}::${normalizeText(arcNo)}`;
     const totalArea = row.totalArea || 0;
     const existing = groupedRows.get(key);
 
