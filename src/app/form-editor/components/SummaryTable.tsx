@@ -181,16 +181,16 @@ export default function SummaryTable({
                         placeholder="e.g. Emulsion"
                       />
                     </td>
-                    <td className="px-1 py-1.5">
-                      {!isCarpenter && (
+                    {!isCarpenter && (
+                      <td className="px-1 py-1.5">
                         <input
                           value={row.coat}
                           onChange={(e) => updateRow(row.id, 'coat', e.target.value)}
                           className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-center text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
                           placeholder="1st"
                         />
-                      )}
-                    </td>
+                      </td>
+                    )}
                     <td className="px-1 py-1.5">
                       <input
                         list={`arc-options-${row.id}`}
