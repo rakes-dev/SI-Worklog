@@ -466,6 +466,7 @@ export default function FormEditorClient() {
             onChange={(rows) => setSummaryRows(rows)}
             grandTotal={grandTotal}
             arcItems={arcItems}
+            formType={existingForm?.formType ?? 'painting'}
           />
 
           {/* Section B — Measurement Sheet */}
@@ -474,6 +475,7 @@ export default function FormEditorClient() {
             onChange={(rows) => setMeasurementRows(rows)}
             totalArea={totalArea}
             arcItems={arcItems}
+            formType={existingForm?.formType ?? 'painting'}
           />
 
           {/* Signatures */}

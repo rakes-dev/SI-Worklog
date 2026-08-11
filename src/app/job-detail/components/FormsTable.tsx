@@ -7,6 +7,8 @@ import type { Job, PaintForm } from '@/types';
 import { formatDate, formatCurrency, defaultForm, aggregateAreaUnitLabel } from '@/utils/helpers';
 import { useAppStore } from '@/store/useAppStore';
 import ConfirmModal from '@/components/ui/ConfirmModal';
+import AddFormModal from './AddFormModal';
+import type { FormType } from '@/types';
 
 interface FormsTableProps {
   job: Job;
@@ -19,6 +21,7 @@ export default function FormsTable({ job, onToast }: FormsTableProps) {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [permanentDeleteTarget, setPermanentDeleteTarget] = useState<string | null>(null);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
 
   // Filter / sort state
   const [search, setSearch] = useState('');
@@ -75,15 +78,17 @@ export default function FormsTable({ job, onToast }: FormsTableProps) {
     }
   };
 
-  const handleAddForm = async () => {
+  const handleAddForm = async (formType: FormType) => {
     try {
-      const form = defaultForm(job.siteName, job.forms.length + 1);
+      const form = defaultForm(job.siteName, job.forms.length + 1, formType);
       await addForm(job.id, form);
       onToast('success', 'Form added', `"${form.formName}" created.`);
       router.push(`/form-editor?jobId=${job.id}&formId=${form.id}`);
     } catch (error) {
       console.error('Failed to add form:', error);
       onToast('error', 'Failed to add form', 'Please check your connection and try again.');
+    } finally {
+      setShowTemplateModal(false);
     }
   };
 
@@ -248,7 +253,7 @@ export default function FormsTable({ job, onToast }: FormsTableProps) {
           </p>
         </div>
         <button
-          onClick={handleAddForm}
+          onClick={() => setShowTemplateModal(true)}
           className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:opacity-90 transition-opacity scale-press"
         >
           <Plus size={15} />
@@ -266,7 +271,7 @@ export default function FormsTable({ job, onToast }: FormsTableProps) {
             Add a Standard Interior form to start recording measurements and summary data for this job.
           </p>
           <button
-            onClick={handleAddForm}
+            onClick={() => setShowTemplateModal(true)}
             className="mt-4 flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:opacity-90 transition-opacity scale-press"
           >
             <Plus size={15} />
@@ -403,6 +408,12 @@ export default function FormsTable({ job, onToast }: FormsTableProps) {
           </div>
         </div>
       )}
+
+      <AddFormModal
+        open={showTemplateModal}
+        onClose={() => setShowTemplateModal(false)}
+        onSelect={handleAddForm}
+      />
 
       <ConfirmModal
         open={!!deleteTarget}

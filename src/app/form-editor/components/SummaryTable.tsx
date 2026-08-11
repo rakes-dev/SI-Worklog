@@ -10,9 +10,18 @@ interface SummaryTableProps {
   onChange: (rows: SummaryRow[]) => void;
   grandTotal: number;
   arcItems?: ArcItem[];
+  formType?: 'painting' | 'carpenter';
 }
 
-export default function SummaryTable({ rows, onChange, grandTotal, arcItems = [] }: SummaryTableProps) {
+export default function SummaryTable({
+  rows,
+  onChange,
+  grandTotal,
+  arcItems = [],
+  formType = 'painting',
+}: SummaryTableProps) {
+  const isCarpenter = formType === 'carpenter';
+  const totalCols = isCarpenter ? 8 : 9;
   const [draggedRowId, setDraggedRowId] = React.useState<string | null>(null);
   const [overRowId, setOverRowId] = React.useState<string | null>(null);
 
@@ -120,7 +129,9 @@ export default function SummaryTable({ rows, onChange, grandTotal, arcItems = []
               <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-center w-8">Sl.</th>
               <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-left min-w-[140px]">Complaint Source</th>
               <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-left min-w-[120px]">Paint Type</th>
-              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-center min-w-[80px]">Coat</th>
+              {!isCarpenter && (
+                <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-center min-w-[80px]">Coat</th>
+              )}
               <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-center min-w-[100px]">ARC No.</th>
               <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-right min-w-[70px]">Qty</th>
               <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-right min-w-[80px]">Rate (₹)</th>
@@ -131,7 +142,7 @@ export default function SummaryTable({ rows, onChange, grandTotal, arcItems = []
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={10} className="px-4 py-8 text-center text-muted-foreground text-sm">
+                <td colSpan={totalCols} className="px-4 py-8 text-center text-muted-foreground text-sm">
                   No rows yet — click "Add Row" to start
                 </td>
               </tr>
@@ -171,12 +182,14 @@ export default function SummaryTable({ rows, onChange, grandTotal, arcItems = []
                       />
                     </td>
                     <td className="px-1 py-1.5">
-                      <input
-                        value={row.coat}
-                        onChange={(e) => updateRow(row.id, 'coat', e.target.value)}
-                        className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-center text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
-                        placeholder="1st"
-                      />
+                      {!isCarpenter && (
+                        <input
+                          value={row.coat}
+                          onChange={(e) => updateRow(row.id, 'coat', e.target.value)}
+                          className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-center text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
+                          placeholder="1st"
+                        />
+                      )}
                     </td>
                     <td className="px-1 py-1.5">
                       <input
@@ -266,7 +279,7 @@ export default function SummaryTable({ rows, onChange, grandTotal, arcItems = []
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-border bg-secondary/40">
-              <td colSpan={7} className="px-4 py-2.5 text-right text-sm font-semibold text-foreground">
+              <td colSpan={isCarpenter ? 6 : 7} className="px-4 py-2.5 text-right text-sm font-semibold text-foreground">
                 Grand Total
               </td>
               <td className="px-2 py-2.5 text-right text-sm font-bold font-tabular text-primary">

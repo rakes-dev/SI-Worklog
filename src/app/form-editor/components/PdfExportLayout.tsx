@@ -2,7 +2,7 @@
 
 import React from 'react';
 import type { PaintForm, Job } from '@/types';
-import { formatDate, formatCurrency, calcAreaUnitLabel, aggregateAreaUnitLabel } from '@/utils/helpers';
+import { formatDate, formatCurrency, calcAreaUnitLabel, aggregateAreaUnitLabel, linearUnitLabel, linearCellValue, linearUnitSuffix } from '@/utils/helpers';
 
 interface PdfExportLayoutProps {
   form: PaintForm;
@@ -26,6 +26,7 @@ function isEmptyMeasurementRow(row: PaintForm['measurementRows'][number]): boole
     !row.jobType?.trim() &&
     !row.location.trim() &&
     !row.coat.trim() &&
+    (row.height === '' || row.height === 0) &&
     (row.length === '' || row.length === 0) &&
     (row.width === '' || row.width === 0) &&
     (row.no === '' || row.no === 0) &&
@@ -47,6 +48,7 @@ const SUBSEQUENT_PAGE_MAX_ROWS = 32;
 const CELL_PAD = { padding: '2px 4px' } as const;
 
 export default function PdfExportLayout({ form, job }: PdfExportLayoutProps) {
+  const isCarpenter = form.formType === 'carpenter';
   const visibleSummaryRows = form.summaryRows.filter((r) => !isEmptySummaryRow(r));
   const visibleMeasurementRows = form.measurementRows.filter((r) => !isEmptyMeasurementRow(r));
   const hasSummaryRows = visibleSummaryRows.length > 0;
@@ -79,6 +81,16 @@ export default function PdfExportLayout({ form, job }: PdfExportLayoutProps) {
   }
 
   const areaUnit = aggregateAreaUnitLabel(visibleMeasurementRows.map((r) => r.uom));
+
+  // Linear column (Length/Width/Height) header label & cell formatting.
+  // Uniform feet-based rows -> "Length (ft)"; uniform meters -> "Length (m)";
+  // mixed UOMs -> plain "Length" and the unit (m / ft) is appended after each
+  // number in the cell.
+  const linUnit = linearUnitLabel(visibleMeasurementRows.map((r) => r.uom));
+  const isMixedLinear = linUnit === 'm/ft';
+  const linHeader = (what: string) => (isMixedLinear ? what : `${what} (${linUnit})`);
+  const linCell = (uom: string | undefined, value: number | '') =>
+    value === '' ? '' : `${linearCellValue(uom, value)}${isMixedLinear ? ` ${linearUnitSuffix(uom)}` : ''}`;
 
   return (
     <div
@@ -175,7 +187,9 @@ export default function PdfExportLayout({ form, job }: PdfExportLayoutProps) {
                           <th style={{ width: '6%', textAlign: 'center' }}>Sl. No.</th>
                           <th style={{ width: '20%', textAlign: 'left' }}>Complaint Source</th>
                           <th style={{ width: '18%', textAlign: 'left' }}>Paint Type</th>
-                          <th style={{ width: '10%', textAlign: 'center' }}>Coat</th>
+                          {!isCarpenter && (
+                            <th style={{ width: '10%', textAlign: 'center' }}>Coat</th>
+                          )}
                           <th style={{ width: '8%', textAlign: 'center' }}>ARC No.</th>
                           <th style={{ width: '8%', textAlign: 'right' }}>Qty</th>
                           <th style={{ width: '14%', textAlign: 'right' }}>Rate (₹)</th>
@@ -188,7 +202,9 @@ export default function PdfExportLayout({ form, job }: PdfExportLayoutProps) {
                             <td style={{ textAlign: 'center', ...CELL_PAD }}>{index + 1}</td>
                             <td style={CELL_PAD}>{row.complaintSource}</td>
                             <td style={CELL_PAD}>{row.paintType}</td>
-                            <td style={{ textAlign: 'center', ...CELL_PAD }}>{row.coat}</td>
+                            {!isCarpenter && (
+                              <td style={{ textAlign: 'center', ...CELL_PAD }}>{row.coat}</td>
+                            )}
                             <td style={{ textAlign: 'center', ...CELL_PAD }}>{row.arcNo}</td>
                             <td style={{ textAlign: 'right', ...CELL_PAD }}>
                               {typeof row.qty === 'number' ? row.qty.toFixed(2) : ''}
@@ -204,7 +220,7 @@ export default function PdfExportLayout({ form, job }: PdfExportLayoutProps) {
                       </tbody>
                       <tfoot>
                         <tr>
-                          <td colSpan={7} style={{ fontWeight: 'bold', textAlign: 'right', ...CELL_PAD }}>
+                          <td colSpan={isCarpenter ? 6 : 7} style={{ fontWeight: 'bold', textAlign: 'right', ...CELL_PAD }}>
                             GRAND TOTAL
                           </td>
                           <td style={{ fontWeight: 'bold', textAlign: 'right', ...CELL_PAD }}>
@@ -229,9 +245,9 @@ export default function PdfExportLayout({ form, job }: PdfExportLayoutProps) {
                     <th style={{ width: '6%', textAlign: 'center' }}>Sl. No.</th>
                     <th style={{ width: '18%', textAlign: 'left' }}>Job Type</th>
                     <th style={{ width: '30%', textAlign: 'left' }}>Location</th>
-                    <th style={{ width: '12%', textAlign: 'center' }}>Coat</th>
-                    <th style={{ width: '10%', textAlign: 'right' }}>Length (m)</th>
-                    <th style={{ width: '10%', textAlign: 'right' }}>Width (m)</th>
+                    <th style={{ width: '12%', textAlign: 'center' }}>{isCarpenter ? linHeader('Height') : 'Coat'}</th>
+                    <th style={{ width: '10%', textAlign: 'right' }}>{linHeader('Length')}</th>
+                    <th style={{ width: '10%', textAlign: 'right' }}>{linHeader('Width')}</th>
                     <th style={{ width: '4%', textAlign: 'right' }}>No.</th>
                     <th style={{ width: '10%', textAlign: 'right' }}>Total Area ({areaUnit})</th>
                   </tr>
@@ -242,18 +258,22 @@ export default function PdfExportLayout({ form, job }: PdfExportLayoutProps) {
                       <td style={{ textAlign: 'center', ...CELL_PAD }}>{row.slNo}</td>
                       <td style={CELL_PAD}>{row.jobType ?? ''}</td>
                       <td style={CELL_PAD}>{row.location}</td>
-                      <td style={{ textAlign: 'center', ...CELL_PAD }}>{row.coat}</td>
-                      <td style={{ textAlign: 'right', ...CELL_PAD }}>
-                        {typeof row.length === 'number' ? row.length.toFixed(2) : ''}
+                      <td style={{ textAlign: 'center', ...CELL_PAD }}>
+                        {isCarpenter ? linCell(row.uom, row.height) : row.coat}
                       </td>
                       <td style={{ textAlign: 'right', ...CELL_PAD }}>
-                        {typeof row.width === 'number' ? row.width.toFixed(2) : ''}
+                        {linCell(row.uom, row.length)}
+                      </td>
+                      <td style={{ textAlign: 'right', ...CELL_PAD }}>
+                        {linCell(row.uom, row.width)}
                       </td>
                       <td style={{ textAlign: 'right', ...CELL_PAD }}>
                         {typeof row.no === 'number' ? row.no : ''}
                       </td>
                       <td style={{ textAlign: 'right', ...CELL_PAD }}>
-                        {row.totalArea > 0 ? row.totalArea.toFixed(2) : ''}
+                        {row.totalArea > 0
+                          ? `${row.totalArea.toFixed(2)} ${calcAreaUnitLabel(row.uom)}`
+                          : ''}
                       </td>
                     </tr>
                   ))}

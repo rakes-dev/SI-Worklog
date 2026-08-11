@@ -9,7 +9,7 @@ import {
 } from 'firebase/firestore';
 import { getFirestoreDb } from '@/services/firebase';
 import { ensureFirestoreSchema } from '@/services/firestore-schema';
-import type { ArcItem, Job, JobStatus, MeasurementRow, PaintForm, SignatureEntry, SummaryRow } from '@/types';
+import type { ArcItem, Job, JobStatus, MeasurementRow, PaintForm, SignatureEntry, SummaryRow, FormType } from '@/types';
 import {
   calcGrandTotal,
   calcMeasurementRow,
@@ -32,6 +32,10 @@ type FirestoreJobData = Partial<Job> & {
 
 function isJobStatus(value: unknown): value is JobStatus {
   return value === 'Draft' || value === 'Pending' || value === 'Approved';
+}
+
+function isFormType(value: unknown): value is FormType {
+  return value === 'painting' || value === 'carpenter';
 }
 
 function coerceString(value: unknown, fallback = ''): string {
@@ -83,7 +87,9 @@ function normalizeSummaryRow(value: Partial<SummaryRow> | undefined, index: numb
     slNo: coerceNumber(value?.slNo, index + 1),
     complaintSource: coerceString(value?.complaintSource, fallback.complaintSource),
     paintType: coerceString(value?.paintType),
-    coat: coerceString(value?.coat),
+    // coat is now a string. Legacy Firestore docs may still hold a number —
+    // preserve it as its string representation instead of discarding it.
+    coat: coerceStringFromLegacy(value?.coat),
     arcNo: coerceString(value?.arcNo),
     qty: coerceNumberOrEmpty(value?.qty),
     rate: coerceNumberOrEmpty(value?.rate),
@@ -104,7 +110,9 @@ function normalizeMeasurementRow(
     slNo: coerceNumber(value?.slNo, index + 1),
     jobType: coerceString(value?.jobType),
     location: coerceString(value?.location),
-    coat: coerceString(value?.coat),
+    // coat is now a string; migrate any legacy numeric value to a string.
+    coat: coerceStringFromLegacy(value?.coat),
+    height: coerceNumberOrEmpty(value?.height),
     arcNo: coerceString(value?.arcNo),
     rate: coerceNumberOrEmpty(value?.rate),
     uom: coerceString(value?.uom),
@@ -144,6 +152,7 @@ function normalizePaintForm(
     ...value,
     id: coerceRequiredString(value?.id, generateId('form')),
     formName: coerceString(value?.formName, fallback.formName),
+    formType: isFormType(value?.formType) ? value.formType : 'painting',
     suitPublicAreaName: coerceString(value?.suitPublicAreaName),
     date: coerceString(value?.date, fallback.date),
     workStartDate: coerceString(value?.workStartDate),

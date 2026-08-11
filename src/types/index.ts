@@ -1,4 +1,5 @@
 export type JobStatus = 'Draft' | 'Pending' | 'Approved';
+export type FormType = 'painting' | 'carpenter';
 
 export interface SummaryRow {
   id: string;
@@ -18,6 +19,7 @@ export interface MeasurementRow {
   jobType: string;
   location: string;
   coat: string;
+  height: number | '';
   arcNo: string;
   rate: number | '';
   uom: string;
@@ -44,6 +46,7 @@ export interface FormSignatures {
 export interface PaintForm {
   id: string;
   formName: string;
+  formType: FormType;
   suitPublicAreaName: string;
   date: string;
   workStartDate: string;

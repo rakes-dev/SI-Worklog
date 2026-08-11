@@ -2,7 +2,7 @@
 
 import React from 'react';
 import type { PaintForm, Job } from '@/types';
-import { formatDate, formatCurrency, calcAreaUnitLabel, aggregateAreaUnitLabel } from '@/utils/helpers';
+import { formatDate, formatCurrency, calcAreaUnitLabel, aggregateAreaUnitLabel, linearUnitLabel, linearCellValue, linearUnitSuffix } from '@/utils/helpers';
 
 interface PrintLayoutProps {
   form: PaintForm;
@@ -38,6 +38,7 @@ function isEmptyMeasurementRow(row: PaintForm['measurementRows'][number]): boole
     !row.jobType?.trim() &&
     !row.location.trim() &&
     !row.coat.trim() &&
+    (row.height === '' || row.height === 0) &&
     (row.length === '' || row.length === 0) &&
     (row.width === '' || row.width === 0) &&
     (row.no === '' || row.no === 0) &&
@@ -46,11 +47,22 @@ function isEmptyMeasurementRow(row: PaintForm['measurementRows'][number]): boole
 }
 
 export default function PrintLayout({ form, job }: PrintLayoutProps) {
+  const isCarpenter = form.formType === 'carpenter';
   const visibleSummaryRows = form.summaryRows.filter((row) => !isEmptySummaryRow(row));
   const visibleMeasurementRows = form.measurementRows.filter((row) => !isEmptyMeasurementRow(row));
 
   // Unit label for the Total Area column across all visible measurement rows.
   const areaHeaderUnit = aggregateAreaUnitLabel(visibleMeasurementRows.map((r) => r.uom));
+
+  // Linear column (Length/Width/Height) header label & cell formatting.
+  // Uniform feet-based rows -> "Length (ft)"; uniform meters -> "Length (m)";
+  // mixed UOMs -> plain "Length" and the unit (m / ft) is appended after each
+  // number in the cell.
+  const linUnit = linearUnitLabel(visibleMeasurementRows.map((r) => r.uom));
+  const isMixedLinear = linUnit === 'm/ft';
+  const linHeader = (what: string) => (isMixedLinear ? what : `${what} (${linUnit})`);
+  const linCell = (uom: string | undefined, value: number | '') =>
+    value === '' ? '' : `${linearCellValue(uom, value)}${isMixedLinear ? ` ${linearUnitSuffix(uom)}` : ''}`;
 
   const hasSummaryRows = visibleSummaryRows.length > 0;
 
@@ -262,7 +274,9 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                             <th style={{ width: '18%', padding: '4px', textAlign: 'left' }}>
                               Paint Type
                             </th>
-                            <th style={{ width: '10%', padding: '4px', textAlign: 'center' }}>Coat</th>
+                            {!isCarpenter && (
+                              <th style={{ width: '10%', padding: '4px', textAlign: 'center' }}>Coat</th>
+                            )}
                             <th style={{ width: '8%', padding: '4px', textAlign: 'center' }}>
                               ARC No.
                             </th>
@@ -281,7 +295,9 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                               <td style={{ padding: '2px', textAlign: 'center' }}>{index + 1}</td>
                               <td style={{ padding: '2px' }}>{row.complaintSource}</td>
                               <td style={{ padding: '2px' }}>{row.paintType}</td>
-                              <td style={{ padding: '2px', textAlign: 'center' }}>{row.coat}</td>
+                              {!isCarpenter && (
+                                <td style={{ padding: '2px', textAlign: 'center' }}>{row.coat}</td>
+                              )}
                               <td style={{ padding: '2px', textAlign: 'center' }}>{row.arcNo}</td>
                               <td style={{ padding: '2px', textAlign: 'right' }}>
                                 {typeof row.qty === 'number' ? row.qty.toFixed(2) : ''}
@@ -298,7 +314,7 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                         <tfoot>
                           <tr>
                             <td
-                              colSpan={7}
+                              colSpan={isCarpenter ? 6 : 7}
                               style={{
                                 fontWeight: 'bold',
                                 padding: '5px',
@@ -351,9 +367,11 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                     <th style={{ width: '6%', padding: '4px', textAlign: 'center' }}>Sl. No.</th>
                     <th style={{ width: '18%', padding: '4px', textAlign: 'left' }}>Job Type</th>
                     <th style={{ width: '30%', padding: '4px', textAlign: 'left' }}>Location</th>
-                    <th style={{ width: '12%', padding: '4px', textAlign: 'center' }}>Coat</th>
-                    <th style={{ width: '10%', padding: '4px', textAlign: 'right' }}>Length (m)</th>
-                    <th style={{ width: '10%', padding: '4px', textAlign: 'right' }}>Width (m)</th>
+                    <th style={{ width: '12%', padding: '4px', textAlign: 'center' }}>
+                      {isCarpenter ? linHeader('Height') : 'Coat'}
+                    </th>
+                    <th style={{ width: '10%', padding: '4px', textAlign: 'right' }}>{linHeader('Length')}</th>
+                    <th style={{ width: '10%', padding: '4px', textAlign: 'right' }}>{linHeader('Width')}</th>
                     <th style={{ width: '4%', padding: '4px', textAlign: 'right' }}>No.</th>
                     <th style={{ width: '10%', padding: '4px', textAlign: 'right' }}>
                       Total Area ({areaHeaderUnit})
@@ -366,12 +384,14 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                       <td style={{ padding: '2px', textAlign: 'center' }}>{row.slNo}</td>
                       <td style={{ padding: '2px' }}>{row.jobType ?? ''}</td>
                       <td style={{ padding: '2px' }}>{row.location}</td>
-                      <td style={{ padding: '2px', textAlign: 'center' }}>{row.coat}</td>
-                      <td style={{ padding: '2px', textAlign: 'right' }}>
-                        {typeof row.length === 'number' ? row.length.toFixed(2) : ''}
+                      <td style={{ padding: '2px', textAlign: 'center' }}>
+                        {isCarpenter ? linCell(row.uom, row.height) : row.coat}
                       </td>
                       <td style={{ padding: '2px', textAlign: 'right' }}>
-                        {typeof row.width === 'number' ? row.width.toFixed(2) : ''}
+                        {linCell(row.uom, row.length)}
+                      </td>
+                      <td style={{ padding: '2px', textAlign: 'right' }}>
+                        {linCell(row.uom, row.width)}
                       </td>
                       <td style={{ padding: '2px', textAlign: 'right' }}>
                         {typeof row.no === 'number' ? row.no : ''}

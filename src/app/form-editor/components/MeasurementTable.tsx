@@ -3,7 +3,8 @@
 import React, { useMemo } from 'react';
 import { Plus, Trash2, Copy, ChevronUp, ChevronDown } from 'lucide-react';
 import type { MeasurementRow, ArcItem } from '@/types';
-import { calcMeasurementRow, calcAreaUnitLabel, aggregateAreaUnitLabel, defaultMeasurementRow } from '@/utils/helpers';
+import { calcMeasurementRow, calcAreaUnitLabel, aggregateAreaUnitLabel, linearUnitLabel, isCftUom, defaultMeasurementRow } from '@/utils/helpers';
+import MeasInput from './MeasInput';
 
 const LOCATION_SUGGESTIONS = [
   'Bed side table',
@@ -43,17 +44,28 @@ interface MeasurementTableProps {
   onChange: (rows: MeasurementRow[]) => void;
   totalArea: number;
   arcItems?: ArcItem[];
+  formType?: 'painting' | 'carpenter';
 }
 
-export default function MeasurementTable({ rows, onChange, totalArea, arcItems = [] }: MeasurementTableProps) {
+export default function MeasurementTable({
+  rows,
+  onChange,
+  totalArea,
+  arcItems = [],
+  formType = 'painting',
+}: MeasurementTableProps) {
   const [draggedRowId, setDraggedRowId] = React.useState<string | null>(null);
   const [overRowId, setOverRowId] = React.useState<string | null>(null);
+  const isCarpenter = formType === 'carpenter';
+  const linUnit = linearUnitLabel(rows.map((r) => r.uom));
 
   const hasFilledMeasurementValues = (row: MeasurementRow) => {
     return (
       (row.jobType ?? '').trim() !== '' ||
       row.location.trim() !== '' ||
-      row.coat.trim() !== '' ||
+      (isCarpenter
+        ? typeof row.height === 'number' && row.height > 0
+        : row.coat.trim() !== '') ||
       (row.arcNo ?? '').trim() !== '' ||
       (typeof row.length === 'number' && row.length > 0) ||
       (typeof row.width === 'number' && row.width > 0) ||
@@ -128,40 +140,6 @@ export default function MeasurementTable({ rows, onChange, totalArea, arcItems =
     });
     return Array.from(set);
   }, [arcItems]);
-
-  const numInput = (
-    rowId: string,
-    field: 'no' | 'length' | 'width',
-    value: number | ''
-  ) => (
-    <input
-      type="number"
-      step={field === 'no' ? '1' : '0.01'}
-      min="0"
-      value={value === '' ? '' : value}
-      onChange={(e) =>
-        updateRow(
-          rowId,
-          field,
-          e.target.value === '' ? '' : field === 'no'
-            ? parseInt(e.target.value, 10) || 0
-            : parseFloat(e.target.value) || 0
-        )
-      }
-      onBlur={(e) => {
-        if (e.target.value !== '') {
-          if (field === 'no') {
-            updateRow(rowId, field, parseInt(e.target.value, 10));
-          } else {
-            const formatted = Number(e.target.value).toFixed(2);
-            updateRow(rowId, field, parseFloat(formatted));
-            e.target.value = formatted;
-          }
-        }
-      }}
-      className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-right text-xs font-tabular text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
-    />
-  );
 
   const textInput = (
     rowId: string,
@@ -243,9 +221,15 @@ export default function MeasurementTable({ rows, onChange, totalArea, arcItems =
               <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-center min-w-[100px]">ARC No.</th>
               <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-left min-w-[140px]">Job Type</th>
               <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-left min-w-[160px]">Location</th>
-              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-center min-w-[80px]">Coat</th>
-              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-right min-w-[80px]">Length (m)</th>
-              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-right min-w-[80px]">Width (m)</th>
+              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-center min-w-[80px]">
+                {isCarpenter ? `Height (${linUnit})` : 'Coat'}
+              </th>
+              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-right min-w-[80px]">
+                Length ({linUnit})
+              </th>
+              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-right min-w-[80px]">
+                Width ({linUnit})
+              </th>
               <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-right min-w-[60px]">No.</th>
               <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-right min-w-[100px]">Total Area</th>
               <th className="px-2 py-2 w-24" />
@@ -307,17 +291,43 @@ export default function MeasurementTable({ rows, onChange, totalArea, arcItems =
                     </datalist>
                   </td>
                   <td className="px-1 py-1.5">
-                    {textInput(
-                      row.id,
-                      'coat',
-                      row.coat,
-                      '1st',
-                      'w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-center text-foreground focus:outline-none focus:border-ring focus:bg-card transition'
+                    {isCarpenter ? (
+                      <MeasInput
+                        field="height"
+                        uom={row.uom}
+                        value={row.height}
+                        disabled={!isCftUom(row.uom)}
+                        onChange={(v) => updateRow(row.id, 'height', v)}
+                      />
+                    ) : (
+                      textInput(
+                        row.id,
+                        'coat',
+                        row.coat,
+                        '1st',
+                        'w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-center text-foreground focus:outline-none focus:border-ring focus:bg-card transition'
+                      )
                     )}
                   </td>
-                  <td className="px-1 py-1.5">{numInput(row.id, 'length', row.length)}</td>
-                  <td className="px-1 py-1.5">{numInput(row.id, 'width', row.width)}</td>
-                  <td className="px-1 py-1.5">{numInput(row.id, 'no', row.no)}</td>
+                  <td className="px-1 py-1.5">
+                    <MeasInput
+                      field="length"
+                      uom={row.uom}
+                      value={row.length}
+                      onChange={(v) => updateRow(row.id, 'length', v)}
+                    />
+                  </td>
+                  <td className="px-1 py-1.5">
+                    <MeasInput
+                      field="width"
+                      uom={row.uom}
+                      value={row.width}
+                      onChange={(v) => updateRow(row.id, 'width', v)}
+                    />
+                  </td>
+                  <td className="px-1 py-1.5">
+                    <MeasInput field="no" uom="" value={row.no} onChange={(v) => updateRow(row.id, 'no', v)} />
+                  </td>
                   <td className="px-2 py-1.5 text-right text-xs font-tabular font-semibold text-foreground">
                     {row.totalArea.toFixed(2)} {calcAreaUnitLabel(row.uom)}
                   </td>
