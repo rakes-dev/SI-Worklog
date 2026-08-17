@@ -7,7 +7,7 @@ import {
   setDoc,
   writeBatch,
 } from 'firebase/firestore';
-import { getFirestoreDb } from '@/services/firebase';
+import { ensureFirebaseAuth, getFirestoreDb } from '@/services/firebase';
 import { ensureFirestoreSchema } from '@/services/firestore-schema';
 import type { ArcItem, Job, JobStatus, MeasurementRow, PaintForm, SignatureEntry, SummaryRow, FormType } from '@/types';
 import {
@@ -221,6 +221,7 @@ function normalizeArcItem(value: Partial<ArcItem>): ArcItem {
 }
 
 async function getAllJobsFromFirestore(): Promise<Job[]> {
+  await ensureFirebaseAuth();
   ensureFirestoreSchema().catch(() => {});
   const db = getFirestoreDb();
   const snapshot = await getDocs(collection(db, COLLECTION_JOBS));
@@ -238,6 +239,7 @@ export const dbService = {
   },
 
   async getJob(id: string): Promise<Job | undefined> {
+    await ensureFirebaseAuth();
     ensureFirestoreSchema().catch(() => {});
     const snapshot = await getDoc(jobRef(id));
     if (!snapshot.exists()) return undefined;
@@ -245,6 +247,7 @@ export const dbService = {
   },
 
   async saveJob(job: Job): Promise<void> {
+    await ensureFirebaseAuth();
     // Fire schema init in background — non-blocking
     ensureFirestoreSchema().catch(() => {});
     const normalized = normalizeJob(job);
@@ -262,6 +265,7 @@ export const dbService = {
   },
 
   async deleteJob(id: string): Promise<void> {
+    await ensureFirebaseAuth();
     ensureFirestoreSchema().catch(() => {});
     const timeout = new Promise<void>((_, reject) =>
       setTimeout(() => reject(new Error('Firestore delete timed out')), 10000)
@@ -282,6 +286,7 @@ export const dbService = {
     let errors = 0;
 
     try {
+      await ensureFirebaseAuth();
       await ensureFirestoreSchema();
       const data = JSON.parse(jsonString);
       const jobs: FirestoreJobData[] = data.jobs || (Array.isArray(data) ? data : []);
@@ -322,6 +327,7 @@ export const dbService = {
   // === ARC Collection ===
 
   async getAllArcItems(): Promise<ArcItem[]> {
+    await ensureFirebaseAuth();
     ensureFirestoreSchema().catch(() => {});
     const db = getFirestoreDb();
     const snapshot = await getDocs(collection(db, COLLECTION_ARC));
@@ -329,6 +335,7 @@ export const dbService = {
   },
 
   async saveArcItem(item: ArcItem): Promise<void> {
+    await ensureFirebaseAuth();
     ensureFirestoreSchema().catch(() => {});
     const normalized = normalizeArcItem(item);
     const timeout = new Promise<void>((_, reject) =>
@@ -343,6 +350,7 @@ export const dbService = {
   },
 
   async deleteArcItem(id: string): Promise<void> {
+    await ensureFirebaseAuth();
     ensureFirestoreSchema().catch(() => {});
     const timeout = new Promise<void>((_, reject) =>
       setTimeout(() => reject(new Error('Firestore delete timed out')), 10000)
@@ -351,6 +359,7 @@ export const dbService = {
   },
 
   async saveAllArcItems(items: ArcItem[]): Promise<void> {
+    await ensureFirebaseAuth();
     ensureFirestoreSchema().catch(() => {});
     const db = getFirestoreDb();
     const batch = writeBatch(db);

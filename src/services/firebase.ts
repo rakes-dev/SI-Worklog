@@ -1,5 +1,6 @@
 import { getApp, getApps, initializeApp, type FirebaseApp } from 'firebase/app';
 import { enableMultiTabIndexedDbPersistence, getFirestore, type Firestore } from 'firebase/firestore';
+import { getAuth, signInAnonymously, type Auth } from 'firebase/auth';
 
 type FirebaseConfig = {
   apiKey: string;
@@ -13,7 +14,9 @@ type FirebaseConfig = {
 
 let firebaseApp: FirebaseApp | null = null;
 let firestoreDb: Firestore | null = null;
+let firebaseAuth: Auth | null = null;
 let persistenceEnabled = false;
+let authBootstrapPromise: Promise<void> | null = null;
 
 function readFirebaseConfig(): FirebaseConfig {
   return {
@@ -73,4 +76,40 @@ export function getFirestoreDb(): Firestore {
   }
 
   return firestoreDb;
+}
+
+export function getFirebaseAuth(): Auth {
+  if (firebaseAuth) return firebaseAuth;
+
+  firebaseAuth = getAuth(getFirebaseApp());
+  return firebaseAuth;
+}
+
+export async function ensureFirebaseAuth(): Promise<void> {
+  if (typeof window === 'undefined') return;
+
+  const auth = getFirebaseAuth();
+
+  if (auth.currentUser) return;
+
+  if (!authBootstrapPromise) {
+    authBootstrapPromise = (async () => {
+      try {
+        const authStateReady = (auth as { authStateReady?: () => Promise<void> }).authStateReady;
+        if (typeof authStateReady === 'function') {
+          await authStateReady.call(auth);
+        }
+
+        if (!auth.currentUser) {
+          await signInAnonymously(auth);
+        }
+      } catch (error) {
+        console.warn('Firebase anonymous auth could not be initialized.', error);
+      }
+    })().finally(() => {
+      authBootstrapPromise = null;
+    });
+  }
+
+  await authBootstrapPromise;
 }
