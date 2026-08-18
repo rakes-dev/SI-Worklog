@@ -1,8 +1,14 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
 import {
   ChevronLeft,
   Save,
@@ -14,11 +20,17 @@ import {
   CheckCircle2,
   Copy,
   Files,
-} from 'lucide-react';
-import Link from 'next/link';
-import { useAppStore } from '@/store/useAppStore';
-import { dbService } from '@/services/db';
-import type { PaintForm, SummaryRow, MeasurementRow, FormSignatures, ArcItem } from '@/types';
+} from "lucide-react";
+import Link from "next/link";
+import { useAppStore } from "@/store/useAppStore";
+import { dbService } from "@/services/db";
+import type {
+  PaintForm,
+  SummaryRow,
+  MeasurementRow,
+  FormSignatures,
+  ArcItem,
+} from "@/types";
 import {
   calcGrandTotal,
   calcTotalArea,
@@ -26,19 +38,19 @@ import {
   defaultForm,
   generateId,
   syncSummaryRowsWithMeasurements,
-} from '@/utils/helpers';
-import FormTopFields from './FormTopFields';
-import SummaryTable from './SummaryTable';
-import MeasurementTable from './MeasurementTable';
-import SignatureSection from './SignatureSection';
-import PrintLayout from './PrintLayout';
-import PdfExportLayout from './PdfExportLayout';
-import CopyFormModal from './CopyFormModal';
-import { exportPrintLayoutToPdf } from '@/utils/pdfExport';
-import ToastContainer from '@/components/ui/Toast';
-import { useToast } from '@/hooks/useToast';
+} from "@/utils/helpers";
+import FormTopFields from "./FormTopFields";
+import SummaryTable from "./SummaryTable";
+import MeasurementTable from "./MeasurementTable";
+import SignatureSection from "./SignatureSection";
+import PrintLayout from "./PrintLayout";
+import PdfExportLayout from "./PdfExportLayout";
+import CopyFormModal from "./CopyFormModal";
+import { exportPrintLayoutToPdf } from "@/utils/pdfExport";
+import ToastContainer from "@/components/ui/Toast";
+import { useToast } from "@/hooks/useToast";
 
-type SaveState = 'idle' | 'saving' | 'saved' | 'error';
+type SaveState = "idle" | "saving" | "saved" | "error";
 
 export default function FormEditorClient() {
   const params = useSearchParams();
@@ -46,9 +58,9 @@ export default function FormEditorClient() {
   const { jobs, addForm, updateForm, duplicateForm } = useAppStore();
   const { toasts, addToast, removeToast } = useToast();
 
-  const jobId = params.get('jobId') ?? '';
-  const formId = params.get('formId') ?? '';
-  const printMode = params.get('print') === '1';
+  const jobId = params.get("jobId") ?? "";
+  const formId = params.get("formId") ?? "";
+  const printMode = params.get("print") === "1";
 
   const job = jobs.find((j) => j.id === jobId);
   const existingForm = job?.forms.find((f) => f.id === formId && !f.isDeleted);
@@ -58,13 +70,15 @@ export default function FormEditorClient() {
   const [signatures, setSignatures] = useState<FormSignatures | null>(null);
   const [grandTotal, setGrandTotal] = useState(0);
   const [totalArea, setTotalArea] = useState(0);
-  const [saveState, setSaveState] = useState<SaveState>('idle');
+  const [saveState, setSaveState] = useState<SaveState>("idle");
   const [exportingPdf, setExportingPdf] = useState(false);
   const [copyModalOpen, setCopyModalOpen] = useState(false);
   const [initialized, setInitialized] = useState(false);
   const [arcItems, setArcItems] = useState<ArcItem[]>([]);
-  const [autoSaveTimer, setAutoSaveTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
-  const [lastSavedData, setLastSavedData] = useState<string>('');
+  const [autoSaveTimer, setAutoSaveTimer] = useState<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+  const [lastSavedData, setLastSavedData] = useState<string>("");
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const initialLoadCompleteRef = useRef(false);
   const printLayoutRef = useRef<HTMLDivElement>(null);
@@ -72,7 +86,7 @@ export default function FormEditorClient() {
 
   const syncedSummaryRows = useMemo(
     () => syncSummaryRowsWithMeasurements(summaryRows, measurementRows),
-    [summaryRows, measurementRows]
+    [summaryRows, measurementRows],
   );
 
   const {
@@ -82,20 +96,23 @@ export default function FormEditorClient() {
     getValues,
     formState: { errors, isDirty },
   } = useForm<PaintForm>({
-    defaultValues: existingForm ?? defaultForm(job?.siteName ?? 'New Job', 1),
+    defaultValues: existingForm ?? defaultForm(job?.siteName ?? "New Job", 1),
   });
 
   // Fetch ARC items for autocomplete
   useEffect(() => {
-    dbService.getAllArcItems()
+    dbService
+      .getAllArcItems()
       .then(setArcItems)
-      .catch((err) => console.warn('Could not load ARC items for autocomplete:', err));
+      .catch((err) =>
+        console.warn("Could not load ARC items for autocomplete:", err),
+      );
   }, []);
 
   // Initialize state from existing or default form
   useEffect(() => {
     if (initialized) return;
-    const src = existingForm ?? defaultForm(job?.siteName ?? 'New Job', 1);
+    const src = existingForm ?? defaultForm(job?.siteName ?? "New Job", 1);
     initialLoadCompleteRef.current = false;
     setHasUnsavedChanges(false);
     setSummaryRows(src.summaryRows);
@@ -135,7 +152,7 @@ export default function FormEditorClient() {
   const buildFormData = useCallback(
     (values: PaintForm): PaintForm => ({
       ...values,
-      id: existingForm?.id ?? generateId('form'),
+      id: existingForm?.id ?? generateId("form"),
       summaryRows: syncedSummaryRows,
       measurementRows,
       signatures: signatures!,
@@ -144,7 +161,7 @@ export default function FormEditorClient() {
       updatedAt: new Date().toISOString(),
       createdAt: existingForm?.createdAt ?? new Date().toISOString(),
     }),
-    [syncedSummaryRows, measurementRows, signatures, existingForm]
+    [syncedSummaryRows, measurementRows, signatures, existingForm],
   );
 
   // Auto-save: debounce 2s after any change
@@ -163,28 +180,28 @@ export default function FormEditorClient() {
       if (dataKey === lastSavedData) return;
 
       setLastSavedData(dataKey);
-      setSaveState('saving');
+      setSaveState("saving");
       if (existingForm) {
         updateForm(jobId, formData)
           .then(() => {
             setHasUnsavedChanges(false);
-            setSaveState('saved');
-            setTimeout(() => setSaveState('idle'), 2000);
+            setSaveState("saved");
+            setTimeout(() => setSaveState("idle"), 2000);
           })
           .catch(() => {
-            setSaveState('error');
-            setTimeout(() => setSaveState('idle'), 2000);
+            setSaveState("error");
+            setTimeout(() => setSaveState("idle"), 2000);
           });
       } else {
         addForm(jobId, formData)
           .then(() => {
             setHasUnsavedChanges(false);
-            setSaveState('saved');
-            setTimeout(() => setSaveState('idle'), 2000);
+            setSaveState("saved");
+            setTimeout(() => setSaveState("idle"), 2000);
           })
           .catch(() => {
-            setSaveState('error');
-            setTimeout(() => setSaveState('idle'), 2000);
+            setSaveState("error");
+            setTimeout(() => setSaveState("idle"), 2000);
           });
       }
     }, 2000);
@@ -194,22 +211,40 @@ export default function FormEditorClient() {
       if (timer) clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialized, job, signatures, syncedSummaryRows, measurementRows, getValues, buildFormData, existingForm, jobId, updateForm, addForm, lastSavedData, hasUnsavedChanges]);
+  }, [
+    initialized,
+    job,
+    signatures,
+    syncedSummaryRows,
+    measurementRows,
+    getValues,
+    buildFormData,
+    existingForm,
+    jobId,
+    updateForm,
+    addForm,
+    lastSavedData,
+    hasUnsavedChanges,
+  ]);
 
   const handleDuplicateForm = async () => {
     if (!job || !existingForm) return;
     try {
       await duplicateForm(jobId, formId);
-      addToast('success', 'Form duplicated', 'A copy of this form has been created.');
+      addToast(
+        "success",
+        "Form duplicated",
+        "A copy of this form has been created.",
+      );
     } catch (error) {
-      console.error('Duplicate form failed:', error);
-      addToast('error', 'Duplicate failed', 'Could not duplicate the form.');
+      console.error("Duplicate form failed:", error);
+      addToast("error", "Duplicate failed", "Could not duplicate the form.");
     }
   };
 
   const onSubmit = async (values: PaintForm) => {
     if (!job || !signatures) return;
-    setSaveState('saving');
+    setSaveState("saving");
     try {
       const formData = buildFormData(values);
       if (existingForm) {
@@ -218,19 +253,23 @@ export default function FormEditorClient() {
         await addForm(jobId, formData);
       }
       setHasUnsavedChanges(false);
-      setSaveState('saved');
-      addToast('success', 'Form saved', 'All changes saved successfully.');
-      setTimeout(() => setSaveState('idle'), 3000);
+      setSaveState("saved");
+      addToast("success", "Form saved", "All changes saved successfully.");
+      setTimeout(() => setSaveState("idle"), 3000);
     } catch (error) {
-      console.error('Save failed:', error);
-      setSaveState('error');
-      addToast('error', 'Save failed', 'Could not save form. Please check your connection and try again.');
+      console.error("Save failed:", error);
+      setSaveState("error");
+      addToast(
+        "error",
+        "Save failed",
+        "Could not save form. Please check your connection and try again.",
+      );
     }
   };
 
   const handlePrint = async (values: PaintForm) => {
     if (!job || !signatures) return;
-    setSaveState('saving');
+    setSaveState("saving");
     try {
       // Save first, then print
       const formData = buildFormData(values);
@@ -240,14 +279,18 @@ export default function FormEditorClient() {
         await addForm(jobId, formData);
       }
       setHasUnsavedChanges(false);
-      setSaveState('saved');
-      addToast('success', 'Form saved', 'Saved before printing.');
-      setTimeout(() => setSaveState('idle'), 2000);
+      setSaveState("saved");
+      addToast("success", "Form saved", "Saved before printing.");
+      setTimeout(() => setSaveState("idle"), 2000);
       window.print();
     } catch (error) {
-      console.error('Save before print failed:', error);
-      setSaveState('error');
-      addToast('error', 'Save failed', 'Could not save before printing. Please try again.');
+      console.error("Save before print failed:", error);
+      setSaveState("error");
+      addToast(
+        "error",
+        "Save failed",
+        "Could not save before printing. Please try again.",
+      );
     }
   };
 
@@ -263,23 +306,32 @@ export default function FormEditorClient() {
         await addForm(jobId, formData);
       }
       setHasUnsavedChanges(false);
-      setSaveState('saved');
-      setTimeout(() => setSaveState('idle'), 2000);
+      setSaveState("saved");
+      setTimeout(() => setSaveState("idle"), 2000);
 
       const root = pdfExportRef.current;
       if (root) {
         const sanitize = (s: string) =>
-          s.replace(/[\\/:*?"<>|]+/g, '_').replace(/\s+/g, ' ').trim();
-        const siteName = sanitize(job.siteName || 'Job');
-        const formName = sanitize(existingForm?.formName || formData.formName || 'Form');
+          s
+            .replace(/[\\/:*?"<>|]+/g, "_")
+            .replace(/\s+/g, " ")
+            .trim();
+        const siteName = sanitize(job.siteName || "Job");
+        const formName = sanitize(
+          existingForm?.formName || formData.formName || "Form",
+        );
         await exportPrintLayoutToPdf(root, `${siteName} - ${formName}`);
-        addToast('success', 'PDF exported', `"${formName}" exported as PDF.`);
+        addToast("success", "PDF exported", `"${formName}" exported as PDF.`);
       } else {
-        addToast('error', 'Export failed', 'Print layout is not ready yet. Please try again.');
+        addToast(
+          "error",
+          "Export failed",
+          "Print layout is not ready yet. Please try again.",
+        );
       }
     } catch (error) {
-      console.error('Export PDF failed:', error);
-      addToast('error', 'Export failed', 'Could not export the form to PDF.');
+      console.error("Export PDF failed:", error);
+      addToast("error", "Export failed", "Could not export the form to PDF.");
     } finally {
       setExportingPdf(false);
     }
@@ -289,7 +341,9 @@ export default function FormEditorClient() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8">
         <AlertCircle size={40} className="text-muted-foreground mb-4" />
-        <h2 className="text-xl font-semibold text-foreground mb-2">Job not found</h2>
+        <h2 className="text-xl font-semibold text-foreground mb-2">
+          Job not found
+        </h2>
         <p className="text-muted-foreground text-sm mb-5">
           The job associated with this form could not be found.
         </p>
@@ -318,7 +372,7 @@ export default function FormEditorClient() {
   // Reconstruct current form for print
   const currentFormForPrint: PaintForm = {
     ...(existingForm ?? defaultForm(job.siteName, 1)),
-    suitPublicAreaName: '',
+    suitPublicAreaName: "",
     summaryRows: syncedSummaryRows,
     measurementRows,
     signatures,
@@ -354,7 +408,12 @@ export default function FormEditorClient() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
             <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-              <Link href="/" className="hover:text-foreground transition-colors">Dashboard</Link>
+              <Link
+                href="/"
+                className="hover:text-foreground transition-colors"
+              >
+                Dashboard
+              </Link>
               <span>/</span>
               <Link
                 href={`/job-detail?id=${jobId}`}
@@ -364,12 +423,12 @@ export default function FormEditorClient() {
               </Link>
               <span>/</span>
               <span className="text-foreground font-medium">
-                {existingForm?.formName ?? 'New Form'}
+                {existingForm?.formName ?? "New Form"}
               </span>
             </div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-semibold text-foreground">
-                {existingForm?.formName ?? 'New Standard Interior Form'}
+                {existingForm?.formName ?? "New Standard Interior Form"}
               </h1>
             </div>
             <p className="text-sm text-muted-foreground mt-0.5">
@@ -428,28 +487,37 @@ export default function FormEditorClient() {
               ) : (
                 <FileDown size={15} />
               )}
-              {exportingPdf ? 'Exporting...' : 'Export PDF'}
+              {exportingPdf ? "Exporting..." : "Export PDF"}
             </button>
 
             <button
               type="button"
               onClick={handleSubmit(onSubmit)}
-              disabled={saveState === 'saving'}
+              disabled={saveState === "saving"}
               className="flex items-center gap-2 px-5 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:opacity-90 transition-opacity scale-press disabled:opacity-60 min-w-[110px] justify-center"
             >
-              {saveState === 'saving' ? (
-                <><Loader2 size={14} className="animate-spin" />Saving...</>
-              ) : saveState === 'saved' ? (
-                <><CheckCircle2 size={14} />Saved</>
+              {saveState === "saving" ? (
+                <>
+                  <Loader2 size={14} className="animate-spin" />
+                  Saving...
+                </>
+              ) : saveState === "saved" ? (
+                <>
+                  <CheckCircle2 size={14} />
+                  Saved
+                </>
               ) : (
-                <><Save size={14} />Save Form</>
+                <>
+                  <Save size={14} />
+                  Save Form
+                </>
               )}
             </button>
           </div>
         </div>
 
         {/* Unsaved changes banner */}
-        {isDirty && saveState === 'idle' && (
+        {isDirty && saveState === "idle" && (
           <div className="mb-4 flex items-center gap-2 px-4 py-2.5 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg text-sm text-yellow-800 dark:text-yellow-300">
             <AlertCircle size={15} />
             You have unsaved changes — click "Save Form" to keep them.
@@ -466,7 +534,7 @@ export default function FormEditorClient() {
             onChange={(rows) => setSummaryRows(rows)}
             grandTotal={grandTotal}
             arcItems={arcItems}
-            formType={existingForm?.formType ?? 'painting'}
+            formType={existingForm?.formType ?? "painting"}
           />
 
           {/* Section B — Measurement Sheet */}
@@ -475,7 +543,7 @@ export default function FormEditorClient() {
             onChange={(rows) => setMeasurementRows(rows)}
             totalArea={totalArea}
             arcItems={arcItems}
-            formType={existingForm?.formType ?? 'painting'}
+            formType={existingForm?.formType ?? "painting"}
           />
 
           {/* Signatures */}
@@ -486,16 +554,20 @@ export default function FormEditorClient() {
             <div className="flex items-center gap-2 text-sm">
               <FileText size={15} className="text-muted-foreground" />
               <span className="text-muted-foreground">
-                Grand Total:{' '}
+                Grand Total:{" "}
                 <span className="font-semibold font-tabular text-foreground">
-                  ₹{grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  ₹
+                  {grandTotal.toLocaleString("en-IN", {
+                    minimumFractionDigits: 2,
+                  })}
                 </span>
               </span>
               <span className="text-muted-foreground hidden sm:inline">·</span>
               <span className="text-muted-foreground hidden sm:inline">
-                Total Area:{' '}
+                Total Area:{" "}
                 <span className="font-semibold font-tabular text-foreground">
-                  {totalArea.toFixed(2)} {aggregateAreaUnitLabel(measurementRows.map((r) => r.uom))}
+                  {totalArea.toFixed(2)}{" "}
+                  {aggregateAreaUnitLabel(measurementRows.map((r) => r.uom))}
                 </span>
               </span>
             </div>
@@ -519,19 +591,30 @@ export default function FormEditorClient() {
                 ) : (
                   <FileDown size={14} />
                 )}
-                <span className="hidden sm:inline">{exportingPdf ? 'Exporting...' : 'Export PDF'}</span>
+                <span className="hidden sm:inline">
+                  {exportingPdf ? "Exporting..." : "Export PDF"}
+                </span>
               </button>
               <button
                 type="submit"
-                disabled={saveState === 'saving'}
+                disabled={saveState === "saving"}
                 className="flex items-center gap-2 px-5 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:opacity-90 transition-opacity scale-press disabled:opacity-60 min-w-[110px] justify-center"
               >
-                {saveState === 'saving' ? (
-                  <><Loader2 size={14} className="animate-spin" />Saving...</>
-                ) : saveState === 'saved' ? (
-                  <><CheckCircle2 size={14} />Saved</>
+                {saveState === "saving" ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    Saving...
+                  </>
+                ) : saveState === "saved" ? (
+                  <>
+                    <CheckCircle2 size={14} />
+                    Saved
+                  </>
                 ) : (
-                  <><Save size={14} />Save Form</>
+                  <>
+                    <Save size={14} />
+                    Save Form
+                  </>
                 )}
               </button>
             </div>
@@ -542,12 +625,16 @@ export default function FormEditorClient() {
       <CopyFormModal
         open={copyModalOpen}
         sourceJobId={jobId}
-        formId={existingForm?.id ?? ''}
-        formName={existingForm?.formName ?? ''}
+        formId={existingForm?.id ?? ""}
+        formName={existingForm?.formName ?? ""}
         jobs={jobs}
         onClose={() => setCopyModalOpen(false)}
         onCopied={(targetJobName, newFormName) => {
-          addToast('success', 'Form copied', `"${newFormName}" copied to "${targetJobName}".`);
+          addToast(
+            "success",
+            "Form copied",
+            `"${newFormName}" copied to "${targetJobName}".`,
+          );
         }}
       />
 

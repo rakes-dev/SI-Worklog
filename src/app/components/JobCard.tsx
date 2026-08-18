@@ -1,17 +1,26 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Eye, Pencil, Copy, Trash2, FileText, MapPin, User, Calendar,  } from 'lucide-react';
-import type { Job } from '@/types';
-import ConfirmModal from '@/components/ui/ConfirmModal';
-import { formatDate, formatCurrency } from '@/utils/helpers';
-import { useAppStore } from '@/store/useAppStore';
+import React, { useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  Eye,
+  Pencil,
+  Copy,
+  Trash2,
+  FileText,
+  MapPin,
+  User,
+  Calendar,
+} from "lucide-react";
+import type { Job } from "@/types";
+import ConfirmModal from "@/components/ui/ConfirmModal";
+import { formatDate, formatCurrency } from "@/utils/helpers";
+import { useAppStore } from "@/store/useAppStore";
 
 interface JobCardProps {
   job: Job;
   onDuplicate: (id: string) => void;
-  onToast: (type: 'success' | 'error', title: string, msg?: string) => void;
+  onToast: (type: "success" | "error", title: string, msg?: string) => void;
 }
 
 export default function JobCard({ job, onDuplicate, onToast }: JobCardProps) {
@@ -23,7 +32,7 @@ export default function JobCard({ job, onDuplicate, onToast }: JobCardProps) {
   const handleDelete = async () => {
     setIsDeleting(true);
     await deleteJob(job.id);
-    onToast('success', 'Job deleted', `"${job.siteName}" has been removed.`);
+    onToast("success", "Job deleted", `"${job.siteName}" has been removed.`);
     setShowConfirm(false);
     setIsDeleting(false);
   };
@@ -38,17 +47,19 @@ export default function JobCard({ job, onDuplicate, onToast }: JobCardProps) {
         className={`
           bg-card border border-border rounded-lg p-4 flex flex-col gap-3
           hover:border-primary/50 hover:shadow-md transition-all duration-200 cursor-pointer group
-          ${isDeleting ? 'opacity-50 pointer-events-none' : ''}
+          ${isDeleting ? "opacity-50 pointer-events-none" : ""}
         `}
         onClick={handleOpen}
       >
         {/* Header */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-foreground text-sm truncate">{job.empName}</h3>
+            <h3 className="font-semibold text-foreground text-sm truncate">
+              {job.empName}
+            </h3>
             <div className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground">
               <MapPin size={11} />
-              <span className="truncate">{job.siteName || 'No site set'}</span>
+              <span className="truncate">{job.siteName || "No site set"}</span>
             </div>
           </div>
         </div>
@@ -64,7 +75,7 @@ export default function JobCard({ job, onDuplicate, onToast }: JobCardProps) {
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <FileText size={11} className="flex-shrink-0" />
             <span>
-              {job.forms.length} form{job.forms.length !== 1 ? 's' : ''}
+              {job.forms.length} form{job.forms.length !== 1 ? "s" : ""}
             </span>
           </div>
         </div>

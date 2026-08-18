@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import React from 'react';
-import { X, Paintbrush, Hammer } from 'lucide-react';
-import type { FormType } from '@/types';
+import React from "react";
+import { X, Paintbrush, Hammer } from "lucide-react";
+import type { FormType } from "@/types";
 
 interface AddFormModalProps {
   open: boolean;
@@ -20,22 +20,29 @@ interface TemplateOption {
 
 const TEMPLATES: TemplateOption[] = [
   {
-    type: 'painting',
-    title: 'Painting Job Form',
-    description: 'Existing form template — includes Coat, Paint Type and area measurements (m² / ft² / rft).',
+    type: "painting",
+    title: "Painting Job Form",
+    description:
+      "Existing form template — includes Coat, Paint Type and area measurements (m² / ft² / rft).",
     icon: <Paintbrush size={26} />,
-    accent: 'bg-primary/10 text-primary',
+    accent: "bg-primary/10 text-primary",
   },
   {
-    type: 'carpenter',
-    title: 'Carpenter Job Form',
-    description: 'New template — the Coat column is removed and a Height (m) column is added for measurements.',
+    type: "carpenter",
+    title: "Carpenter Job Form",
+    description:
+      "New template — the Coat column is removed and a Height (m) column is added for measurements.",
     icon: <Hammer size={26} />,
-    accent: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+    accent:
+      "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
   },
 ];
 
-export default function AddFormModal({ open, onClose, onSelect }: AddFormModalProps) {
+export default function AddFormModal({
+  open,
+  onClose,
+  onSelect,
+}: AddFormModalProps) {
   if (!open) return null;
 
   return (
@@ -44,8 +51,12 @@ export default function AddFormModal({ open, onClose, onSelect }: AddFormModalPr
       <div className="relative bg-card border border-border rounded-xl shadow-2xl w-full max-w-lg fade-in">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div>
-            <h2 className="font-semibold text-foreground text-lg">Add New Form</h2>
-            <p className="text-sm text-muted-foreground mt-0.5">Choose a form template to create.</p>
+            <h2 className="font-semibold text-foreground text-lg">
+              Add New Form
+            </h2>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Choose a form template to create.
+            </p>
           </div>
           <button
             onClick={onClose}
@@ -63,12 +74,18 @@ export default function AddFormModal({ open, onClose, onSelect }: AddFormModalPr
               onClick={() => onSelect(tpl.type)}
               className="flex items-start gap-4 p-4 rounded-lg border border-border text-left hover:border-primary hover:bg-secondary/40 transition-colors scale-press group"
             >
-              <span className={`shrink-0 p-3 rounded-lg ${tpl.accent} transition-transform group-hover:scale-105`}>
+              <span
+                className={`shrink-0 p-3 rounded-lg ${tpl.accent} transition-transform group-hover:scale-105`}
+              >
                 {tpl.icon}
               </span>
               <span className="flex-1 min-w-0">
-                <span className="block font-semibold text-foreground">{tpl.title}</span>
-                <span className="block text-sm text-muted-foreground mt-1">{tpl.description}</span>
+                <span className="block font-semibold text-foreground">
+                  {tpl.title}
+                </span>
+                <span className="block text-sm text-muted-foreground mt-1">
+                  {tpl.description}
+                </span>
               </span>
             </button>
           ))}

@@ -1,22 +1,25 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import { useAuthStore } from '@/store/useAuthStore';
+import React, { useState } from "react";
+import { useAuthStore } from "@/store/useAuthStore";
 import {
   addAllowedUser,
   updateAllowedUserRole,
   removeAllowedUser,
   DEFAULT_ADMIN_EMAIL,
   type UserRole,
-} from '@/services/auth-users';
-import { Loader2, UserPlus, Trash2, Shield, ShieldCheck } from 'lucide-react';
+} from "@/services/auth-users";
+import { Loader2, UserPlus, Trash2, Shield, ShieldCheck } from "lucide-react";
 
 export default function UserManagement() {
   const { user, allowedUsers, refreshAccess } = useAuthStore();
-  const [email, setEmail] = useState('');
-  const [role, setRole] = useState<UserRole>('user');
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<UserRole>("user");
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
+  const [msg, setMsg] = useState<{
+    type: "error" | "success";
+    text: string;
+  } | null>(null);
 
   const myEmail = user?.email?.trim().toLowerCase();
 
@@ -26,10 +29,13 @@ export default function UserManagement() {
     try {
       await fn();
       await refreshAccess();
-      setMsg({ type: 'success', text: ok });
+      setMsg({ type: "success", text: ok });
     } catch (error) {
-      console.error('User management error:', error);
-      setMsg({ type: 'error', text: 'Operation failed. Check your Firestore permissions and that you are signed in as an admin.' });
+      console.error("User management error:", error);
+      setMsg({
+        type: "error",
+        text: "Operation failed. Check your Firestore permissions and that you are signed in as an admin.",
+      });
     } finally {
       setBusy(false);
     }
@@ -38,36 +44,47 @@ export default function UserManagement() {
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     const em = email.trim().toLowerCase();
-    if (!em || !em.includes('@')) {
-      setMsg({ type: 'error', text: 'Enter a valid email address.' });
+    if (!em || !em.includes("@")) {
+      setMsg({ type: "error", text: "Enter a valid email address." });
       return;
     }
     if (allowedUsers.some((u) => u.email === em)) {
-      setMsg({ type: 'error', text: `${em} is already in the access list.` });
+      setMsg({ type: "error", text: `${em} is already in the access list.` });
       return;
     }
-    await run(() => addAllowedUser(em, role, user?.email || ''), `Added ${em} as ${role}.`);
-    setEmail('');
+    await run(
+      () => addAllowedUser(em, role, user?.email || ""),
+      `Added ${em} as ${role}.`,
+    );
+    setEmail("");
   };
 
   const handleRoleChange = async (em: string, next: UserRole) => {
     if (em === myEmail) {
-      setMsg({ type: 'error', text: 'You cannot change your own role.' });
+      setMsg({ type: "error", text: "You cannot change your own role." });
       return;
     }
-    await run(() => updateAllowedUserRole(em, next), `Updated ${em} to ${next}.`);
+    await run(
+      () => updateAllowedUserRole(em, next),
+      `Updated ${em} to ${next}.`,
+    );
   };
 
   const handleRemove = async (em: string) => {
     if (em === myEmail || em === DEFAULT_ADMIN_EMAIL) {
-      setMsg({ type: 'error', text: 'You cannot remove yourself or the default admin.' });
+      setMsg({
+        type: "error",
+        text: "You cannot remove yourself or the default admin.",
+      });
       return;
     }
     await run(() => removeAllowedUser(em), `Removed ${em}.`);
   };
 
-  const sorted = [...allowedUsers].sort((a, b) => a.email.localeCompare(b.email));
-return (
+  const sorted = [...allowedUsers].sort((a, b) =>
+    a.email.localeCompare(b.email),
+  );
+  return (
     <div className="bg-card border border-border rounded-xl mt-6 overflow-hidden">
       <div className="px-5 py-4 border-b border-border flex items-center justify-between">
         <div>
@@ -78,7 +95,9 @@ return (
             Only emails on this list can sign in and use the app.
           </p>
         </div>
-        {busy && <Loader2 size={18} className="animate-spin text-muted-foreground" />}
+        {busy && (
+          <Loader2 size={18} className="animate-spin text-muted-foreground" />
+        )}
       </div>
 
       <div className="px-5 pt-4">
@@ -108,7 +127,9 @@ return (
           </button>
         </form>
         {msg && (
-          <p className={`mt-2 text-xs ${msg.type === 'error' ? 'text-red-500' : 'text-green-600 dark:text-green-400'}`}>
+          <p
+            className={`mt-2 text-xs ${msg.type === "error" ? "text-red-500" : "text-green-600 dark:text-green-400"}`}
+          >
             {msg.text}
           </p>
         )}
@@ -118,48 +139,76 @@ return (
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border">
-              <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">Email</th>
-              <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">Role</th>
-              <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wide w-32">Actions</th>
+              <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Email
+              </th>
+              <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Role
+              </th>
+              <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wide w-32">
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody>
             {sorted.map((u) => {
               const isMe = u.email === myEmail;
               return (
-                <tr key={u.email} className="border-b border-border last:border-0">
+                <tr
+                  key={u.email}
+                  className="border-b border-border last:border-0"
+                >
                   <td className="px-3 py-2 text-foreground">
                     {u.email}
-                    {isMe && <span className="ml-1.5 text-xs text-primary">(you)</span>}
+                    {isMe && (
+                      <span className="ml-1.5 text-xs text-primary">(you)</span>
+                    )}
                     {u.email === DEFAULT_ADMIN_EMAIL && (
-                      <span className="ml-1.5 text-xs text-muted-foreground">(default admin)</span>
+                      <span className="ml-1.5 text-xs text-muted-foreground">
+                        (default admin)
+                      </span>
                     )}
                   </td>
                   <td className="px-3 py-2">
                     <span
                       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                        u.role === 'admin'
-                          ? 'bg-primary/10 text-primary'
-                          : 'bg-secondary text-muted-foreground'
+                        u.role === "admin"
+                          ? "bg-primary/10 text-primary"
+                          : "bg-secondary text-muted-foreground"
                       }`}
                     >
-                      {u.role === 'admin' ? <ShieldCheck size={12} /> : <Shield size={12} />}
+                      {u.role === "admin" ? (
+                        <ShieldCheck size={12} />
+                      ) : (
+                        <Shield size={12} />
+                      )}
                       {u.role}
                     </span>
                   </td>
                   <td className="px-3 py-2 text-right">
                     <div className="flex items-center justify-end gap-1">
                       <button
-                        onClick={() => handleRoleChange(u.email, u.role === 'admin' ? 'user' : 'admin')}
+                        onClick={() =>
+                          handleRoleChange(
+                            u.email,
+                            u.role === "admin" ? "user" : "admin",
+                          )
+                        }
                         disabled={busy || isMe}
-                        title={u.role === 'admin' ? 'Make user' : 'Make admin'}
+                        title={u.role === "admin" ? "Make user" : "Make admin"}
                         className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-40"
                       >
-                        {u.role === 'admin' ? <Shield size={14} /> : <ShieldCheck size={14} />}
+                        {u.role === "admin" ? (
+                          <Shield size={14} />
+                        ) : (
+                          <ShieldCheck size={14} />
+                        )}
                       </button>
                       <button
                         onClick={() => handleRemove(u.email)}
-                        disabled={busy || isMe || u.email === DEFAULT_ADMIN_EMAIL}
+                        disabled={
+                          busy || isMe || u.email === DEFAULT_ADMIN_EMAIL
+                        }
                         title="Remove access"
                         className="p-1.5 rounded text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-40"
                       >

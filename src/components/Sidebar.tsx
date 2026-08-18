@@ -1,25 +1,74 @@
-'use client';
+"use client";
 
-import React from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Briefcase, FileText, Settings, Database, BarChart3, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useAppStore } from '@/store/useAppStore';
-import AppLogo from '@/components/ui/AppLogo';
-import Icon from '@/components/ui/AppIcon';
-
+import React from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
+  LayoutDashboard,
+  Briefcase,
+  FileText,
+  Settings,
+  Database,
+  BarChart3,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
+import { useAppStore } from "@/store/useAppStore";
+import { useAuthStore } from "@/store/useAuthStore";
+import AppLogo from "@/components/ui/AppLogo";
+import Icon from "@/components/ui/AppIcon";
 
 const NAV_ITEMS = [
-  { key: 'nav-dashboard', href: '/', label: 'Dashboard', icon: LayoutDashboard, badge: null },
-  { key: 'nav-jobs', href: '/jobs', label: 'Jobs', icon: Briefcase, badge: null },
-  { key: 'nav-forms', href: '/form-editor', label: 'Form Editor', icon: FileText, badge: null },
-  { key: 'nav-arc', href: '/arc', label: 'ARC Rates', icon: Database, badge: null },
-  { key: 'nav-admin', href: '/admin', label: 'Admin', icon: BarChart3, badge: null },
+  {
+    key: "nav-dashboard",
+    href: "/",
+    label: "Dashboard",
+    icon: LayoutDashboard,
+    badge: null,
+    roles: ["admin", "user"],
+  },
+  {
+    key: "nav-jobs",
+    href: "/jobs",
+    label: "Jobs",
+    icon: Briefcase,
+    badge: null,
+    roles: ["admin", "user"],
+  },
+  {
+    key: "nav-forms",
+    href: "/form-editor",
+    label: "Form Editor",
+    icon: FileText,
+    badge: null,
+    roles: ["admin", "user"],
+  },
+  {
+    key: "nav-arc",
+    href: "/arc",
+    label: "ARC Rates",
+    icon: Database,
+    badge: null,
+    roles: ["admin"],
+  },
+  {
+    key: "nav-admin",
+    href: "/admin",
+    label: "Admin",
+    icon: BarChart3,
+    badge: null,
+    roles: ["admin"],
+  },
 ];
 
 export default function Sidebar() {
   const { sidebarCollapsed, toggleSidebar } = useAppStore();
+  const { role } = useAuthStore();
   const pathname = usePathname();
+
+  const visibleNavItems = NAV_ITEMS.filter((item) =>
+    item.roles.includes(role || "user"),
+  );
 
   return (
     <>
@@ -28,32 +77,33 @@ export default function Sidebar() {
         data-sidebar
         className={`
           hidden lg:flex flex-col bg-card border-r border-border sidebar-transition
-          ${sidebarCollapsed ? 'w-sidebar-collapsed' : 'w-sidebar'}
+          ${sidebarCollapsed ? "w-sidebar-collapsed" : "w-sidebar"}
           flex-shrink-0 z-20
         `}
       >
         {/* Logo */}
         <div
           className={`flex items-center h-topbar border-b border-border px-3 gap-3 ${
-            sidebarCollapsed ? 'justify-center' : ''
+            sidebarCollapsed ? "justify-center" : ""
           }`}
         >
           <AppLogo size={32} />
           {!sidebarCollapsed && (
             <span className="font-semibold text-base text-foreground tracking-tight">
-SI WorkLog
+              SI WorkLog
             </span>
           )}
         </div>
 
         {/* Nav */}
         <nav className="flex-1 py-3 flex flex-col gap-1 px-2">
-          {NAV_ITEMS?.map((item) => {
+          {visibleNavItems?.map((item) => {
             const isActive =
-              item?.href === '/'
-                ? pathname === '/'
-                : pathname === item?.href || pathname?.startsWith(item?.href + '/') ||
-                  (item?.href === '/jobs' && pathname === '/job-detail');
+              item?.href === "/"
+                ? pathname === "/"
+                : pathname === item?.href ||
+                  pathname?.startsWith(item?.href + "/") ||
+                  (item?.href === "/jobs" && pathname === "/job-detail");
             const Icon = item?.icon;
             return (
               <Link
@@ -65,9 +115,10 @@ SI WorkLog
                   transition-all duration-150 group relative
                   ${
                     isActive
-                      ? 'bg-primary/10 text-primary' :'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                   }
-                  ${sidebarCollapsed ? 'justify-center' : ''}
+                  ${sidebarCollapsed ? "justify-center" : ""}
                 `}
               >
                 <Icon size={18} className="flex-shrink-0" />
@@ -88,7 +139,7 @@ SI WorkLog
           <Link
             href="#settings"
             className={`flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground transition-all ${
-              sidebarCollapsed ? 'justify-center' : ''
+              sidebarCollapsed ? "justify-center" : ""
             }`}
           >
             <Settings size={18} />
@@ -97,29 +148,34 @@ SI WorkLog
           <button
             onClick={toggleSidebar}
             className={`flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground transition-all ${
-              sidebarCollapsed ? 'justify-center' : ''
+              sidebarCollapsed ? "justify-center" : ""
             }`}
           >
-            {sidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+            {sidebarCollapsed ? (
+              <ChevronRight size={18} />
+            ) : (
+              <ChevronLeft size={18} />
+            )}
             {!sidebarCollapsed && <span>Collapse</span>}
           </button>
         </div>
       </aside>
       {/* Mobile bottom tab bar */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-card border-t border-border z-30 flex no-print">
-        {NAV_ITEMS?.map((item) => {
+        {visibleNavItems?.map((item) => {
           const isActive =
-            item?.href === '/'
-              ? pathname === '/'
-              : pathname === item?.href || pathname?.startsWith(item?.href + '/') ||
-                (item?.href === '/jobs' && pathname === '/job-detail');
+            item?.href === "/"
+              ? pathname === "/"
+              : pathname === item?.href ||
+                pathname?.startsWith(item?.href + "/") ||
+                (item?.href === "/jobs" && pathname === "/job-detail");
           const Icon = item?.icon;
           return (
             <Link
               key={`mob-${item?.key}`}
               href={item?.href}
               className={`flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-xs font-medium transition-colors ${
-                isActive ? 'text-primary' : 'text-muted-foreground'
+                isActive ? "text-primary" : "text-muted-foreground"
               }`}
             >
               <Icon size={20} />

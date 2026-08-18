@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import React, { memo, useMemo } from 'react';
-import AppIcon from './AppIcon';
-import AppImage from './AppImage';
+import React, { memo, useMemo } from "react";
+import AppIcon from "./AppIcon";
+import AppImage from "./AppImage";
 
 interface AppLogoProps {
   src?: string; // Image source (optional)
@@ -13,18 +13,19 @@ interface AppLogoProps {
 }
 
 const AppLogo = memo(function AppLogo({
-  src = '/assets/images/app_logo.png',
-  iconName = 'SparklesIcon',
+  src = "/assets/images/app_logo.png",
+  iconName = "SparklesIcon",
   size = 64,
-  className = '',
+  className = "",
   onClick,
 }: AppLogoProps) {
   // Memoize className calculation
   const containerClassName = useMemo(() => {
-    const classes = ['flex items-center'];
-    if (onClick) classes.push('cursor-pointer hover:opacity-80 transition-opacity');
+    const classes = ["flex items-center"];
+    if (onClick)
+      classes.push("cursor-pointer hover:opacity-80 transition-opacity");
     if (className) classes.push(className);
-    return classes.join(' ');
+    return classes.join(" ");
   }, [onClick, className]);
 
   return (
@@ -33,12 +34,12 @@ const AppLogo = memo(function AppLogo({
       {src ? (
         <AppImage
           src={src}
-          alt="Logo" 
+          alt="Logo"
           width={size}
           height={size}
           className="flex-shrink-0"
           priority={true}
-          unoptimized={src.endsWith('.svg')}
+          unoptimized={src.endsWith(".svg")}
         />
       ) : (
         <AppIcon name={iconName} size={size} className="flex-shrink-0" />

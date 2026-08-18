@@ -1,23 +1,29 @@
-'use client';
+"use client";
 
-import React, { useState, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
-import { Plus, Search, Filter, Upload, Download, RefreshCw } from 'lucide-react';
-import { useAppStore } from '@/store/useAppStore';
-import DashboardStats from './DashboardStats';
-import JobCard from './JobCard';
-import NewJobModal from './NewJobModal';
-import ToastContainer from '@/components/ui/Toast';
-import { useToast } from '@/hooks/useToast';
-import { dbService, } from '@/services/db';
-import { downloadJSON } from '@/utils/helpers';
-
+import React, { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import {
+  Plus,
+  Search,
+  Filter,
+  Upload,
+  Download,
+  RefreshCw,
+} from "lucide-react";
+import { useAppStore } from "@/store/useAppStore";
+import DashboardStats from "./DashboardStats";
+import JobCard from "./JobCard";
+import NewJobModal from "./NewJobModal";
+import ToastContainer from "@/components/ui/Toast";
+import { useToast } from "@/hooks/useToast";
+import { dbService } from "@/services/db";
+import { downloadJSON } from "@/utils/helpers";
 
 export default function DashboardClient() {
   const router = useRouter();
   const { jobs, loadJobs, duplicateJob } = useAppStore();
   const { toasts, addToast, removeToast } = useToast();
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
   const [showNewJob, setShowNewJob] = useState(false);
   const [importing, setImporting] = useState(false);
 
@@ -30,7 +36,7 @@ export default function DashboardClient() {
           j.siteName.toLowerCase().includes(q) ||
           j.empName.toLowerCase().includes(q) ||
           j.siteAddress.toLowerCase().includes(q) ||
-          j.forms.some((f) => f.suitPublicAreaName.toLowerCase().includes(q))
+          j.forms.some((f) => f.suitPublicAreaName.toLowerCase().includes(q)),
       );
     }
     return list;
@@ -39,22 +45,22 @@ export default function DashboardClient() {
   const handleDuplicate = async (id: string) => {
     try {
       const newJob = await duplicateJob(id);
-      addToast('success', 'Job duplicated', `"${newJob.siteName}" created.`);
+      addToast("success", "Job duplicated", `"${newJob.siteName}" created.`);
     } catch {
-      addToast('error', 'Duplicate failed', 'Could not duplicate this job.');
+      addToast("error", "Duplicate failed", "Could not duplicate this job.");
     }
   };
 
   const handleExport = async () => {
     const data = await dbService.exportAllJobs();
     downloadJSON(data, `paintpro-export-${Date.now()}.json`);
-    addToast('success', 'Export complete', 'All jobs saved as JSON.');
+    addToast("success", "Export complete", "All jobs saved as JSON.");
   };
 
   const handleImport = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json';
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json";
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
@@ -63,9 +69,9 @@ export default function DashboardClient() {
       const result = await dbService.importJobs(text);
       await loadJobs();
       addToast(
-        result.errors > 0 ? 'warning' : 'success',
+        result.errors > 0 ? "warning" : "success",
         `Imported ${result.imported} jobs`,
-        result.errors > 0 ? `${result.errors} errors skipped.` : undefined
+        result.errors > 0 ? `${result.errors} errors skipped.` : undefined,
       );
       setImporting(false);
     };
@@ -79,7 +85,8 @@ export default function DashboardClient() {
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Dashboard</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {jobs.length} job{jobs.length !== 1 ? 's' : ''} · last updated just now
+            {jobs.length} job{jobs.length !== 1 ? "s" : ""} · last updated just
+            now
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -123,7 +130,10 @@ export default function DashboardClient() {
       {/* Search + Filters */}
       <div className="flex flex-col sm:flex-row gap-3 mb-5">
         <div className="relative flex-1">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Search
+            size={15}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+          />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -133,7 +143,6 @@ export default function DashboardClient() {
         </div>
       </div>
 
-
       {/* Job Cards Grid */}
       {filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -141,10 +150,12 @@ export default function DashboardClient() {
             <Filter size={28} className="text-muted-foreground" />
           </div>
           <h3 className="font-semibold text-foreground text-lg mb-1">
-            {search ? 'No jobs match your search' : 'No jobs yet'}
+            {search ? "No jobs match your search" : "No jobs yet"}
           </h3>
           <p className="text-muted-foreground text-sm max-w-sm">
-            {search ?'Try adjusting your search.' :'Create your first painting job to get started. Each job can contain multiple Standard Interior forms.'}
+            {search
+              ? "Try adjusting your search."
+              : "Create your first painting job to get started. Each job can contain multiple Standard Interior forms."}
           </p>
           {!search && (
             <button
@@ -182,7 +193,7 @@ export default function DashboardClient() {
         open={showNewJob}
         onClose={() => setShowNewJob(false)}
         onCreated={(job) => {
-          addToast('success', 'Job created', `"${job.siteName}" is ready.`);
+          addToast("success", "Job created", `"${job.siteName}" is ready.`);
           router.push(`/job-detail?id=${job.id}`);
         }}
       />

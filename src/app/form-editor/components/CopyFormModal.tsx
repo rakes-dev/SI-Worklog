@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import { X, Copy, Loader2 } from 'lucide-react';
-import { useAppStore } from '@/store/useAppStore';
-import type { Job } from '@/types';
+import React, { useState } from "react";
+import { X, Copy, Loader2 } from "lucide-react";
+import { useAppStore } from "@/store/useAppStore";
+import type { Job } from "@/types";
 
 interface CopyFormModalProps {
   open: boolean;
@@ -27,28 +27,28 @@ export default function CopyFormModal({
   const { copyFormToJob } = useAppStore();
   const [targetId, setTargetId] = useState<string | null>(null);
   const [copying, setCopying] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState("");
 
   const candidates = jobs
     .filter((j) => j.id !== sourceJobId)
-    .sort((a, b) => (a.siteName || '').localeCompare(b.siteName || ''));
+    .sort((a, b) => (a.siteName || "").localeCompare(b.siteName || ""));
 
   const handleCopy = async () => {
     if (!targetId) {
-      setErrorMsg('Please select a target job first.');
+      setErrorMsg("Please select a target job first.");
       return;
     }
     setCopying(true);
-    setErrorMsg('');
+    setErrorMsg("");
     try {
       await copyFormToJob(sourceJobId, formId, targetId);
       const target = jobs.find((j) => j.id === targetId);
-      onCopied(target?.siteName || 'Job', `${formName} (Copy)`);
+      onCopied(target?.siteName || "Job", `${formName} (Copy)`);
       setTargetId(null);
       onClose();
     } catch (error) {
-      console.error('Copy form to job failed:', error);
-      setErrorMsg('Copy failed. Please try again.');
+      console.error("Copy form to job failed:", error);
+      setErrorMsg("Copy failed. Please try again.");
     } finally {
       setCopying(false);
     }
@@ -62,8 +62,12 @@ export default function CopyFormModal({
       <div className="relative bg-card border border-border rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col fade-in">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div>
-            <h2 className="font-semibold text-foreground text-lg">Copy Form to Another Job</h2>
-            <p className="text-sm text-muted-foreground mt-0.5 truncate">{formName}</p>
+            <h2 className="font-semibold text-foreground text-lg">
+              Copy Form to Another Job
+            </h2>
+            <p className="text-sm text-muted-foreground mt-0.5 truncate">
+              {formName}
+            </p>
           </div>
           <button
             onClick={onClose}
@@ -88,23 +92,25 @@ export default function CopyFormModal({
                     type="button"
                     onClick={() => {
                       setTargetId(job.id);
-                      setErrorMsg('');
+                      setErrorMsg("");
                     }}
                     className={`flex items-center justify-between gap-2 px-3 py-2.5 rounded-md border text-left transition-colors scale-press ${
                       selected
-                        ? 'border-primary bg-primary/10 text-foreground'
-                        : 'border-border hover:bg-secondary'
+                        ? "border-primary bg-primary/10 text-foreground"
+                        : "border-border hover:bg-secondary"
                     }`}
                   >
                     <div className="min-w-0">
-                      <div className="text-sm font-medium text-foreground truncate">{job.siteName}</div>
+                      <div className="text-sm font-medium text-foreground truncate">
+                        {job.siteName}
+                      </div>
                       <div className="text-xs text-muted-foreground truncate">
                         {job.empName} · {job.forms?.length ?? 0} forms
                       </div>
                     </div>
                     <span
                       className={`shrink-0 w-4 h-4 rounded-full border ${
-                        selected ? 'border-primary bg-primary' : 'border-border'
+                        selected ? "border-primary bg-primary" : "border-border"
                       }`}
                     />
                   </button>
@@ -128,8 +134,12 @@ export default function CopyFormModal({
             disabled={copying || !targetId}
             className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed scale-press"
           >
-            {copying ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />}
-            {copying ? 'Copying...' : 'Copy Form'}
+            {copying ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Copy size={14} />
+            )}
+            {copying ? "Copying..." : "Copy Form"}
           </button>
         </div>
       </div>

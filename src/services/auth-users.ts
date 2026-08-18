@@ -1,11 +1,18 @@
-'use client';
+"use client";
 
-import { collection, deleteDoc, doc, getDocs, setDoc, updateDoc } from 'firebase/firestore';
-import { getFirestoreDb } from '@/services/firebase';
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  setDoc,
+  updateDoc,
+} from "firebase/firestore";
+import { getFirestoreDb } from "@/services/firebase";
 
-export const DEFAULT_ADMIN_EMAIL = 'rakesh.sardar.12@gmail.com';
+export const DEFAULT_ADMIN_EMAIL = "rakesh.sardar.12@gmail.com";
 
-export type UserRole = 'user' | 'admin';
+export type UserRole = "user" | "admin";
 
 export interface AllowedUser {
   email: string;
@@ -15,7 +22,7 @@ export interface AllowedUser {
   createdAt?: string;
 }
 
-const COLLECTION = 'app_users';
+const COLLECTION = "app_users";
 
 function normEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -30,32 +37,39 @@ export async function fetchAllowedUsers(): Promise<AllowedUser[]> {
   const snap = await getDocs(collection(db, COLLECTION));
   const users: AllowedUser[] = snap.docs.map((d) => ({
     email: String(d.id).toLowerCase(),
-    ...(d.data() as Omit<AllowedUser, 'email'>),
+    ...(d.data() as Omit<AllowedUser, "email">),
   }));
   if (!users.some((u) => u.email === DEFAULT_ADMIN_EMAIL)) {
-    users.push({ email: DEFAULT_ADMIN_EMAIL, role: 'admin' });
+    users.push({ email: DEFAULT_ADMIN_EMAIL, role: "admin" });
   }
   return users;
 }
 
 /** Add the given email to the allowlist (admin action). */
-export async function addAllowedUser(email: string, role: UserRole, addedBy: string): Promise<void> {
+export async function addAllowedUser(
+  email: string,
+  role: UserRole,
+  addedBy: string,
+): Promise<void> {
   const db = getFirestoreDb();
   await setDoc(
     doc(db, COLLECTION, normEmail(email)),
     {
       email: normEmail(email),
       role,
-      displayName: '',
+      displayName: "",
       addedBy,
       createdAt: new Date().toISOString(),
     },
-    { merge: true }
+    { merge: true },
   );
 }
 
 /** Change a user's role (admin action). */
-export async function updateAllowedUserRole(email: string, role: UserRole): Promise<void> {
+export async function updateAllowedUserRole(
+  email: string,
+  role: UserRole,
+): Promise<void> {
   const db = getFirestoreDb();
   await updateDoc(doc(db, COLLECTION, normEmail(email)), { role });
 }

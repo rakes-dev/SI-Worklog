@@ -1,16 +1,20 @@
-'use client';
+"use client";
 
-import React from 'react';
-import { Plus, Trash2, Copy, Info, ChevronUp, ChevronDown } from 'lucide-react';
-import type { SummaryRow, ArcItem } from '@/types';
-import { calcSummaryRow, defaultSummaryRow, formatCurrency } from '@/utils/helpers';
+import React from "react";
+import { Plus, Trash2, Copy, Info, ChevronUp, ChevronDown } from "lucide-react";
+import type { SummaryRow, ArcItem } from "@/types";
+import {
+  calcSummaryRow,
+  defaultSummaryRow,
+  formatCurrency,
+} from "@/utils/helpers";
 
 interface SummaryTableProps {
   rows: SummaryRow[];
   onChange: (rows: SummaryRow[]) => void;
   grandTotal: number;
   arcItems?: ArcItem[];
-  formType?: 'painting' | 'carpenter';
+  formType?: "painting" | "carpenter";
 }
 
 export default function SummaryTable({
@@ -18,14 +22,18 @@ export default function SummaryTable({
   onChange,
   grandTotal,
   arcItems = [],
-  formType = 'painting',
+  formType = "painting",
 }: SummaryTableProps) {
-  const isCarpenter = formType === 'carpenter';
+  const isCarpenter = formType === "carpenter";
   const totalCols = isCarpenter ? 8 : 9;
   const [draggedRowId, setDraggedRowId] = React.useState<string | null>(null);
   const [overRowId, setOverRowId] = React.useState<string | null>(null);
 
-  const updateRow = (id: string, field: keyof SummaryRow, value: string | number) => {
+  const updateRow = (
+    id: string,
+    field: keyof SummaryRow,
+    value: string | number,
+  ) => {
     const updated = rows.map((r) => {
       if (r.id !== id) return r;
       const next = { ...r, [field]: value };
@@ -41,11 +49,13 @@ export default function SummaryTable({
   const reorderRows = (sourceId: string, targetId: string) => {
     const sourceIndex = rows.findIndex((row) => row.id === sourceId);
     const targetIndex = rows.findIndex((row) => row.id === targetId);
-    if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return;
+    if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex)
+      return;
 
     const updated = [...rows];
     const [movedRow] = updated.splice(sourceIndex, 1);
-    const adjustedTargetIndex = sourceIndex < targetIndex ? targetIndex - 1 : targetIndex;
+    const adjustedTargetIndex =
+      sourceIndex < targetIndex ? targetIndex - 1 : targetIndex;
     updated.splice(adjustedTargetIndex, 0, movedRow);
     onChange(renumberRows(updated));
   };
@@ -84,16 +94,20 @@ export default function SummaryTable({
 
   const numInput = (
     rowId: string,
-    field: 'qty' | 'rate',
-    value: number | ''
+    field: "qty" | "rate",
+    value: number | "",
   ) => (
     <input
       type="number"
       step="0.01"
       min="0"
-      value={value === '' ? '' : value}
+      value={value === "" ? "" : value}
       onChange={(e) =>
-        updateRow(rowId, field, e.target.value === '' ? '' : parseFloat(e.target.value) || 0)
+        updateRow(
+          rowId,
+          field,
+          e.target.value === "" ? "" : parseFloat(e.target.value) || 0,
+        )
       }
       className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-right text-xs font-tabular text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
     />
@@ -103,7 +117,9 @@ export default function SummaryTable({
     <div className="bg-card border border-border rounded-lg overflow-hidden">
       <div className="flex items-center justify-between px-5 py-3 border-b border-border">
         <div>
-          <h3 className="font-semibold text-foreground text-sm">Section A — Summary</h3>
+          <h3 className="font-semibold text-foreground text-sm">
+            Section A — Summary
+          </h3>
           <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
             Complaint source, paint type, quantities and rates.
             <span className="inline-flex items-center gap-0.5 text-primary font-medium">
@@ -126,49 +142,76 @@ export default function SummaryTable({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-secondary/50">
-              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-center w-8">Sl.</th>
-              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-left min-w-[140px]">Complaint Source</th>
-              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-left min-w-[120px]">Paint Type</th>
+              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-center w-8">
+                Sl.
+              </th>
+              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-left min-w-[140px]">
+                Complaint Source
+              </th>
+              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-left min-w-[120px]">
+                Paint Type
+              </th>
               {!isCarpenter && (
-                <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-center min-w-[80px]">Coat</th>
+                <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-center min-w-[80px]">
+                  Coat
+                </th>
               )}
-              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-center min-w-[100px]">ARC No.</th>
-              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-right min-w-[70px]">Qty</th>
-              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-right min-w-[80px]">Rate (₹)</th>
-              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-right min-w-[90px]">Amount (₹)</th>
+              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-center min-w-[100px]">
+                ARC No.
+              </th>
+              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-right min-w-[70px]">
+                Qty
+              </th>
+              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-right min-w-[80px]">
+                Rate (₹)
+              </th>
+              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-right min-w-[90px]">
+                Amount (₹)
+              </th>
               <th className="px-2 py-2 w-24" />
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={totalCols} className="px-4 py-8 text-center text-muted-foreground text-sm">
+                <td
+                  colSpan={totalCols}
+                  className="px-4 py-8 text-center text-muted-foreground text-sm"
+                >
                   No rows yet — click "Add Row" to start
                 </td>
               </tr>
             ) : (
               rows.map((row) => {
                 // Filter ARC items based on the current row's paintType
-                const query = row.paintType ? row.paintType.toLowerCase().trim() : '';
+                const query = row.paintType
+                  ? row.paintType.toLowerCase().trim()
+                  : "";
                 const filteredArcItems = query
                   ? arcItems.filter(
                       (item) =>
-                        (item.job_type && item.job_type.toLowerCase().includes(query)) ||
-                        (item.description && item.description.toLowerCase().includes(query))
+                        (item.job_type &&
+                          item.job_type.toLowerCase().includes(query)) ||
+                        (item.description &&
+                          item.description.toLowerCase().includes(query)),
                     )
                   : arcItems;
 
                 return (
                   <tr
                     key={row.id}
-                    className={`border-b border-border transition-transform duration-150 ease-out group ${overRowId === row.id ? 'bg-secondary/30 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]' : 'hover:bg-secondary/20'}`}
-                    style={{ willChange: 'transform' }}
+                    className={`border-b border-border transition-transform duration-150 ease-out group ${overRowId === row.id ? "bg-secondary/30 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]" : "hover:bg-secondary/20"}`}
+                    style={{ willChange: "transform" }}
                   >
-                    <td className="px-2 py-1.5 text-center text-xs text-muted-foreground font-tabular">{row.slNo}</td>
+                    <td className="px-2 py-1.5 text-center text-xs text-muted-foreground font-tabular">
+                      {row.slNo}
+                    </td>
                     <td className="px-1 py-1.5">
                       <input
                         value={row.complaintSource}
-                        onChange={(e) => updateRow(row.id, 'complaintSource', e.target.value)}
+                        onChange={(e) =>
+                          updateRow(row.id, "complaintSource", e.target.value)
+                        }
                         className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
                         placeholder="Engineer Dept."
                       />
@@ -176,7 +219,9 @@ export default function SummaryTable({
                     <td className="px-1 py-1.5">
                       <input
                         value={row.paintType}
-                        onChange={(e) => updateRow(row.id, 'paintType', e.target.value)}
+                        onChange={(e) =>
+                          updateRow(row.id, "paintType", e.target.value)
+                        }
                         className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
                         placeholder="e.g. Emulsion"
                       />
@@ -185,7 +230,9 @@ export default function SummaryTable({
                       <td className="px-1 py-1.5">
                         <input
                           value={row.coat}
-                          onChange={(e) => updateRow(row.id, 'coat', e.target.value)}
+                          onChange={(e) =>
+                            updateRow(row.id, "coat", e.target.value)
+                          }
                           className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-center text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
                           placeholder="1st"
                         />
@@ -197,17 +244,22 @@ export default function SummaryTable({
                         value={row.arcNo}
                         onChange={(e) => {
                           const val = e.target.value;
-                          const matched = arcItems.find((item) => item.arc_no === val);
+                          const matched = arcItems.find(
+                            (item) => item.arc_no === val,
+                          );
                           if (matched) {
-                            const rateValue: number | '' =
-                              typeof matched.final_rate === 'number' ? matched.final_rate : '';
+                            const rateValue: number | "" =
+                              typeof matched.final_rate === "number"
+                                ? matched.final_rate
+                                : "";
                             const updated = rows.map((r) => {
                               if (r.id !== row.id) return r;
                               const next: SummaryRow = {
                                 ...r,
                                 arcNo: val,
-                                paintType: matched.job_type || matched.description,
-                                coat: matched.coat ? String(matched.coat) : '',
+                                paintType:
+                                  matched.job_type || matched.description,
+                                coat: matched.coat ? String(matched.coat) : "",
                                 rate: rateValue,
                               };
                               next.amount = calcSummaryRow(next);
@@ -215,7 +267,7 @@ export default function SummaryTable({
                             });
                             onChange(updated);
                           } else {
-                            updateRow(row.id, 'arcNo', val);
+                            updateRow(row.id, "arcNo", val);
                           }
                         }}
                         className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-center text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
@@ -224,13 +276,18 @@ export default function SummaryTable({
                       <datalist id={`arc-options-${row.id}`}>
                         {filteredArcItems.map((item) => (
                           <option key={item.id} value={item.arc_no}>
-                            {item.job_type || item.description.substring(0, 30)} (₹{item.final_rate})
+                            {item.job_type || item.description.substring(0, 30)}{" "}
+                            (₹{item.final_rate})
                           </option>
                         ))}
                       </datalist>
                     </td>
-                    <td className="px-1 py-1.5">{numInput(row.id, 'qty', row.qty)}</td>
-                    <td className="px-1 py-1.5">{numInput(row.id, 'rate', row.rate)}</td>
+                    <td className="px-1 py-1.5">
+                      {numInput(row.id, "qty", row.qty)}
+                    </td>
+                    <td className="px-1 py-1.5">
+                      {numInput(row.id, "rate", row.rate)}
+                    </td>
                     <td className="px-2 py-1.5 text-right text-xs font-tabular font-semibold text-foreground">
                       {formatCurrency(row.amount)}
                     </td>
@@ -279,7 +336,10 @@ export default function SummaryTable({
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-border bg-secondary/40">
-              <td colSpan={isCarpenter ? 6 : 7} className="px-4 py-2.5 text-right text-sm font-semibold text-foreground">
+              <td
+                colSpan={isCarpenter ? 6 : 7}
+                className="px-4 py-2.5 text-right text-sm font-semibold text-foreground"
+              >
                 Grand Total
               </td>
               <td className="px-2 py-2.5 text-right text-sm font-bold font-tabular text-primary">

@@ -1,42 +1,42 @@
-import React from 'react';
-import type { Metadata, Viewport } from 'next';
-import { DM_Sans, IBM_Plex_Mono } from 'next/font/google';
-import PwaRegister from '@/components/PwaRegister';
-import '../styles/tailwind.css';
+import React from "react";
+import type { Metadata, Viewport } from "next";
+import { DM_Sans, IBM_Plex_Mono } from "next/font/google";
+import PwaRegister from "@/components/PwaRegister";
+import "../styles/tailwind.css";
 
 const dmSans = DM_Sans({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-dm-sans',
-  display: 'swap',
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-dm-sans",
+  display: "swap",
 });
 
 const ibmPlexMono = IBM_Plex_Mono({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
-  variable: '--font-ibm-plex-mono',
-  display: 'swap',
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-ibm-plex-mono",
+  display: "swap",
 });
 
 export const viewport: Viewport = {
-  width: 'device-width',
+  width: "device-width",
   initialScale: 1,
-  themeColor: '#2563EB',
+  themeColor: "#2563EB",
 };
 
 export const metadata: Metadata = {
-  title: 'SI WorkLog — Interior Painting Job Management',
+  title: "SI WorkLog — Interior Painting Job Management",
   description:
-    'Offline-capable PWA for painting supervisors to record measurements, manage jobs, and generate A4 printouts that match Standard Interior paper forms.',
-  manifest: '/manifest.json',
+    "Offline-capable PWA for painting supervisors to record measurements, manage jobs, and generate A4 printouts that match Standard Interior paper forms.",
+  manifest: "/manifest.json",
   icons: {
-    icon: [{ url: '/favicon.ico', type: 'image/x-icon' }],
-    apple: '/icons/icon-192.png',
+    icon: [{ url: "/favicon.ico", type: "image/x-icon" }],
+    apple: "/icons/icon-192.png",
   },
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'default',
-    title: 'SI WorkLog',
+    statusBarStyle: "default",
+    title: "SI WorkLog",
   },
 };
 
@@ -49,8 +49,17 @@ export default function RootLayout({
         <PwaRegister />
         {children}
 
-        <script type="module" async src="https://static.rocket.new/rocket-web.js?_cfg=https%3A%2F%2Fpaintpro2488back.builtwithrocket.new&_be=https%3A%2F%2Fappanalytics.rocket.new&_v=0.1.19" />
-        <script type="module" defer src="https://static.rocket.new/rocket-shot.js?v=0.0.2" /></body>
+        <script
+          type="module"
+          async
+          src="https://static.rocket.new/rocket-web.js?_cfg=https%3A%2F%2Fpaintpro2488back.builtwithrocket.new&_be=https%3A%2F%2Fappanalytics.rocket.new&_v=0.1.19"
+        />
+        <script
+          type="module"
+          defer
+          src="https://static.rocket.new/rocket-shot.js?v=0.0.2"
+        />
+      </body>
     </html>
   );
 }

@@ -6,10 +6,19 @@ import {
   getDocs,
   setDoc,
   writeBatch,
-} from 'firebase/firestore';
-import { ensureFirebaseAuth, getFirestoreDb } from '@/services/firebase';
-import { ensureFirestoreSchema } from '@/services/firestore-schema';
-import type { ArcItem, Job, JobStatus, MeasurementRow, PaintForm, SignatureEntry, SummaryRow, FormType } from '@/types';
+} from "firebase/firestore";
+import { ensureFirebaseAuth, getFirestoreDb } from "@/services/firebase";
+import { ensureFirestoreSchema } from "@/services/firestore-schema";
+import type {
+  ArcItem,
+  Job,
+  JobStatus,
+  MeasurementRow,
+  PaintForm,
+  SignatureEntry,
+  SummaryRow,
+  FormType,
+} from "@/types";
 import {
   calcGrandTotal,
   calcMeasurementRow,
@@ -21,57 +30,59 @@ import {
   defaultSignatures,
   defaultSummaryRow,
   generateId,
-} from '@/utils/helpers';
+} from "@/utils/helpers";
 
-const COLLECTION_JOBS = 'jobs';
-const COLLECTION_ARC = 'arc';
+const COLLECTION_JOBS = "jobs";
+const COLLECTION_ARC = "arc";
 
 type FirestoreJobData = Partial<Job> & {
   forms?: Array<Partial<PaintForm>>;
 };
 
 function isJobStatus(value: unknown): value is JobStatus {
-  return value === 'Draft' || value === 'Pending' || value === 'Approved';
+  return value === "Draft" || value === "Pending" || value === "Approved";
 }
 
 function isFormType(value: unknown): value is FormType {
-  return value === 'painting' || value === 'carpenter';
+  return value === "painting" || value === "carpenter";
 }
 
-function coerceString(value: unknown, fallback = ''): string {
-  return typeof value === 'string' ? value : fallback;
+function coerceString(value: unknown, fallback = ""): string {
+  return typeof value === "string" ? value : fallback;
 }
 
 function coerceRequiredString(value: unknown, fallback: string): string {
-  return typeof value === 'string' && value ? value : fallback;
+  return typeof value === "string" && value ? value : fallback;
 }
 
 // Coerce a field that is now a string but may hold legacy values in Firestore
 // as numbers (e.g. coat stored as 2). Numeric legacy values are preserved as
 // their string representation so no existing data is lost during migration.
 function coerceStringFromLegacy(value: unknown): string {
-  if (typeof value === 'string') return value;
-  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
-  return '';
+  if (typeof value === "string") return value;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return "";
 }
 
-function coerceNumberOrEmpty(value: unknown): number | '' {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value === 'string') {
+function coerceNumberOrEmpty(value: unknown): number | "" {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
     const trimmed = value.trim();
-    if (!trimmed) return '';
+    if (!trimmed) return "";
     const parsed = Number(trimmed);
-    return Number.isFinite(parsed) ? parsed : '';
+    return Number.isFinite(parsed) ? parsed : "";
   }
-  return '';
+  return "";
 }
 
 function coerceNumber(value: unknown, fallback = 0): number {
   const normalized = coerceNumberOrEmpty(value);
-  return typeof normalized === 'number' ? normalized : fallback;
+  return typeof normalized === "number" ? normalized : fallback;
 }
 
-function normalizeSignatureEntry(value: Partial<SignatureEntry> | undefined): SignatureEntry {
+function normalizeSignatureEntry(
+  value: Partial<SignatureEntry> | undefined,
+): SignatureEntry {
   return {
     signature: coerceString(value?.signature),
     name: coerceString(value?.name),
@@ -79,13 +90,19 @@ function normalizeSignatureEntry(value: Partial<SignatureEntry> | undefined): Si
   };
 }
 
-function normalizeSummaryRow(value: Partial<SummaryRow> | undefined, index: number): SummaryRow {
+function normalizeSummaryRow(
+  value: Partial<SummaryRow> | undefined,
+  index: number,
+): SummaryRow {
   const fallback = defaultSummaryRow(index + 1);
   const row: SummaryRow = {
     ...fallback,
-    id: coerceRequiredString(value?.id, generateId('sr')),
+    id: coerceRequiredString(value?.id, generateId("sr")),
     slNo: coerceNumber(value?.slNo, index + 1),
-    complaintSource: coerceString(value?.complaintSource, fallback.complaintSource),
+    complaintSource: coerceString(
+      value?.complaintSource,
+      fallback.complaintSource,
+    ),
     paintType: coerceString(value?.paintType),
     // coat is now a string. Legacy Firestore docs may still hold a number —
     // preserve it as its string representation instead of discarding it.
@@ -101,12 +118,12 @@ function normalizeSummaryRow(value: Partial<SummaryRow> | undefined, index: numb
 
 function normalizeMeasurementRow(
   value: Partial<MeasurementRow> | undefined,
-  index: number
+  index: number,
 ): MeasurementRow {
   const fallback = defaultMeasurementRow(index + 1);
   const row: MeasurementRow = {
     ...fallback,
-    id: coerceRequiredString(value?.id, generateId('mr')),
+    id: coerceRequiredString(value?.id, generateId("mr")),
     slNo: coerceNumber(value?.slNo, index + 1),
     jobType: coerceString(value?.jobType),
     location: coerceString(value?.location),
@@ -128,31 +145,43 @@ function normalizeMeasurementRow(
 function normalizePaintForm(
   value: Partial<PaintForm> | undefined,
   index: number,
-  jobName: string
+  jobName: string,
 ): PaintForm {
-  const fallback = defaultForm(jobName || 'New Job', index + 1);
+  const fallback = defaultForm(jobName || "New Job", index + 1);
   const summaryRows = Array.isArray(value?.summaryRows)
-    ? value.summaryRows.map((row, rowIndex) => normalizeSummaryRow(row, rowIndex))
+    ? value.summaryRows.map((row, rowIndex) =>
+        normalizeSummaryRow(row, rowIndex),
+      )
     : fallback.summaryRows;
   const measurementRows = Array.isArray(value?.measurementRows)
-    ? value.measurementRows.map((row, rowIndex) => normalizeMeasurementRow(row, rowIndex))
+    ? value.measurementRows.map((row, rowIndex) =>
+        normalizeMeasurementRow(row, rowIndex),
+      )
     : fallback.measurementRows;
   const signatures = value?.signatures
     ? {
-        standardInterior: normalizeSignatureEntry(value.signatures.standardInterior),
+        standardInterior: normalizeSignatureEntry(
+          value.signatures.standardInterior,
+        ),
         requestedBy: normalizeSignatureEntry(value.signatures.requestedBy),
-        qualityCheckHK: normalizeSignatureEntry(value.signatures.qualityCheckHK),
-        qualityCheckEngg: normalizeSignatureEntry(value.signatures.qualityCheckEngg),
-        measurementCheck: normalizeSignatureEntry(value.signatures.measurementCheck),
+        qualityCheckHK: normalizeSignatureEntry(
+          value.signatures.qualityCheckHK,
+        ),
+        qualityCheckEngg: normalizeSignatureEntry(
+          value.signatures.qualityCheckEngg,
+        ),
+        measurementCheck: normalizeSignatureEntry(
+          value.signatures.measurementCheck,
+        ),
       }
     : defaultSignatures();
 
   const form: PaintForm = {
     ...fallback,
     ...value,
-    id: coerceRequiredString(value?.id, generateId('form')),
+    id: coerceRequiredString(value?.id, generateId("form")),
     formName: coerceString(value?.formName, fallback.formName),
-    formType: isFormType(value?.formType) ? value.formType : 'painting',
+    formType: isFormType(value?.formType) ? value.formType : "painting",
     suitPublicAreaName: coerceString(value?.suitPublicAreaName),
     date: coerceString(value?.date, fallback.date),
     workStartDate: coerceString(value?.workStartDate),
@@ -180,7 +209,9 @@ function normalizePaintForm(
 function normalizeJob(value: FirestoreJobData): Job {
   const fallback = defaultJob();
   const forms = Array.isArray(value.forms)
-    ? value.forms.map((form, index) => normalizePaintForm(form, index, coerceString(value.siteName)))
+    ? value.forms.map((form, index) =>
+        normalizePaintForm(form, index, coerceString(value.siteName)),
+      )
     : [];
   const job: Job = {
     ...fallback,
@@ -196,7 +227,10 @@ function normalizeJob(value: FirestoreJobData): Job {
     updatedAt: coerceString(value.updatedAt, fallback.updatedAt),
   };
 
-  job.totalAmount = job.forms.reduce((sum, form) => sum + (form.grandTotal || 0), 0);
+  job.totalAmount = job.forms.reduce(
+    (sum, form) => sum + (form.grandTotal || 0),
+    0,
+  );
   return job;
 }
 
@@ -210,7 +244,7 @@ function arcRef(id: string) {
 
 function normalizeArcItem(value: Partial<ArcItem>): ArcItem {
   return {
-    id: coerceRequiredString(value.id, generateId('arc')),
+    id: coerceRequiredString(value.id, generateId("arc")),
     arc_no: coerceString(value.arc_no),
     coat: coerceStringFromLegacy(value.coat),
     description: coerceString(value.description),
@@ -225,7 +259,24 @@ async function getAllJobsFromFirestore(): Promise<Job[]> {
   ensureFirestoreSchema().catch(() => {});
   const db = getFirestoreDb();
   const snapshot = await getDocs(collection(db, COLLECTION_JOBS));
-  return snapshot.docs.map((item) => normalizeJob(item.data() as FirestoreJobData));
+  return snapshot.docs.map((item) =>
+    normalizeJob(item.data() as FirestoreJobData),
+  );
+}
+
+async function getUserJobsFromFirestore(userEmail: string): Promise<Job[]> {
+  await ensureFirebaseAuth();
+  ensureFirestoreSchema().catch(() => {});
+  const db = getFirestoreDb();
+  const snapshot = await getDocs(collection(db, COLLECTION_JOBS));
+  const jobs = snapshot.docs.map((item) =>
+    normalizeJob(item.data() as FirestoreJobData),
+  );
+  // Filter jobs: show if created by this user or if no userId is set (legacy jobs)
+  const normalizedEmail = userEmail.trim().toLowerCase();
+  return jobs.filter(
+    (job) => !job.userId || job.userId.toLowerCase() === normalizedEmail,
+  );
 }
 
 export const dbService = {
@@ -234,7 +285,16 @@ export const dbService = {
   async getAllJobs(): Promise<Job[]> {
     const jobs = await getAllJobsFromFirestore();
     return jobs.sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+  },
+
+  async getUserJobs(userEmail: string): Promise<Job[]> {
+    const jobs = await getUserJobsFromFirestore(userEmail);
+    return jobs.sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
   },
 
@@ -253,7 +313,7 @@ export const dbService = {
     const normalized = normalizeJob(job);
     // Add timeout to prevent infinite hanging
     const timeout = new Promise<void>((_, reject) =>
-      setTimeout(() => reject(new Error('Firestore write timed out')), 10000)
+      setTimeout(() => reject(new Error("Firestore write timed out")), 10000),
     );
     await Promise.race([
       setDoc(jobRef(normalized.id), {
@@ -268,20 +328,23 @@ export const dbService = {
     await ensureFirebaseAuth();
     ensureFirestoreSchema().catch(() => {});
     const timeout = new Promise<void>((_, reject) =>
-      setTimeout(() => reject(new Error('Firestore delete timed out')), 10000)
+      setTimeout(() => reject(new Error("Firestore delete timed out")), 10000),
     );
-    await Promise.race([
-      deleteDoc(jobRef(id)),
-      timeout,
-    ]);
+    await Promise.race([deleteDoc(jobRef(id)), timeout]);
   },
 
   async exportAllJobs(): Promise<string> {
     const jobs = await this.getAllJobs();
-    return JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), jobs }, null, 2);
+    return JSON.stringify(
+      { version: 1, exportedAt: new Date().toISOString(), jobs },
+      null,
+      2,
+    );
   },
 
-  async importJobs(jsonString: string): Promise<{ imported: number; errors: number }> {
+  async importJobs(
+    jsonString: string,
+  ): Promise<{ imported: number; errors: number }> {
     let imported = 0;
     let errors = 0;
 
@@ -289,7 +352,8 @@ export const dbService = {
       await ensureFirebaseAuth();
       await ensureFirestoreSchema();
       const data = JSON.parse(jsonString);
-      const jobs: FirestoreJobData[] = data.jobs || (Array.isArray(data) ? data : []);
+      const jobs: FirestoreJobData[] =
+        data.jobs || (Array.isArray(data) ? data : []);
       const db = getFirestoreDb();
       let batch = writeBatch(db);
       let queued = 0;
@@ -331,7 +395,9 @@ export const dbService = {
     ensureFirestoreSchema().catch(() => {});
     const db = getFirestoreDb();
     const snapshot = await getDocs(collection(db, COLLECTION_ARC));
-    return snapshot.docs.map((item) => normalizeArcItem(item.data() as Partial<ArcItem>));
+    return snapshot.docs.map((item) =>
+      normalizeArcItem(item.data() as Partial<ArcItem>),
+    );
   },
 
   async saveArcItem(item: ArcItem): Promise<void> {
@@ -339,7 +405,7 @@ export const dbService = {
     ensureFirestoreSchema().catch(() => {});
     const normalized = normalizeArcItem(item);
     const timeout = new Promise<void>((_, reject) =>
-      setTimeout(() => reject(new Error('Firestore write timed out')), 10000)
+      setTimeout(() => reject(new Error("Firestore write timed out")), 10000),
     );
     await Promise.race([
       setDoc(arcRef(normalized.id), {
@@ -353,7 +419,7 @@ export const dbService = {
     await ensureFirebaseAuth();
     ensureFirestoreSchema().catch(() => {});
     const timeout = new Promise<void>((_, reject) =>
-      setTimeout(() => reject(new Error('Firestore delete timed out')), 10000)
+      setTimeout(() => reject(new Error("Firestore delete timed out")), 10000),
     );
     await Promise.race([deleteDoc(arcRef(id)), timeout]);
   },

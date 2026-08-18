@@ -1,11 +1,10 @@
-'use client';
+"use client";
 
-import React from 'react';
-import { Briefcase, DollarSign, FileText } from 'lucide-react';
-import type { Job } from '@/types';
-import { formatCurrency } from '@/utils/helpers';
-import Icon from '@/components/ui/AppIcon';
-
+import React from "react";
+import { Briefcase, DollarSign, FileText } from "lucide-react";
+import type { Job } from "@/types";
+import { formatCurrency } from "@/utils/helpers";
+import Icon from "@/components/ui/AppIcon";
 
 interface DashboardStatsProps {
   jobs: Job[];
@@ -18,30 +17,30 @@ export default function DashboardStats({ jobs }: DashboardStatsProps) {
 
   const stats = [
     {
-      key: 'stat-total',
-      label: 'Total Jobs',
+      key: "stat-total",
+      label: "Total Jobs",
       value: total,
       icon: Briefcase,
-      color: 'text-blue-600 dark:text-blue-400',
-      bg: 'bg-blue-50 dark:bg-blue-900/20',
+      color: "text-blue-600 dark:text-blue-400",
+      bg: "bg-blue-50 dark:bg-blue-900/20",
       isCurrency: false,
     },
     {
-      key: 'stat-forms',
-      label: 'Total Forms',
+      key: "stat-forms",
+      label: "Total Forms",
       value: totalForms,
       icon: FileText,
-      color: 'text-purple-600 dark:text-purple-400',
-      bg: 'bg-purple-50 dark:bg-purple-900/20',
+      color: "text-purple-600 dark:text-purple-400",
+      bg: "bg-purple-50 dark:bg-purple-900/20",
       isCurrency: false,
     },
     {
-      key: 'stat-value',
-      label: 'Total Job Value',
+      key: "stat-value",
+      label: "Total Job Value",
       value: totalValue,
       icon: DollarSign,
-      color: 'text-emerald-600 dark:text-emerald-400',
-      bg: 'bg-emerald-50 dark:bg-emerald-900/20',
+      color: "text-emerald-600 dark:text-emerald-400",
+      bg: "bg-emerald-50 dark:bg-emerald-900/20",
       isCurrency: true,
       wide: true,
     },
@@ -56,15 +55,21 @@ export default function DashboardStats({ jobs }: DashboardStatsProps) {
             key={s.key}
             className="bg-card border border-border rounded-lg p-4 flex flex-col gap-2"
           >
-            <div className={`w-8 h-8 rounded-md flex items-center justify-center ${s.bg}`}>
+            <div
+              className={`w-8 h-8 rounded-md flex items-center justify-center ${s.bg}`}
+            >
               <Icon size={16} className={s.color} />
             </div>
             <div>
               <p className="text-xs font-medium text-muted-foreground tracking-wide uppercase">
                 {s.label}
               </p>
-              <p className={`text-xl font-bold font-tabular text-foreground mt-0.5`}>
-                {s.isCurrency ? `₹${formatCurrency(s.value as number)}` : s.value}
+              <p
+                className={`text-xl font-bold font-tabular text-foreground mt-0.5`}
+              >
+                {s.isCurrency
+                  ? `₹${formatCurrency(s.value as number)}`
+                  : s.value}
               </p>
             </div>
           </div>

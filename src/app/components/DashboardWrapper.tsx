@@ -1,6 +1,6 @@
-import React, { Suspense } from 'react';
-import DashboardClient from './DashboardClient';
-import { Loader2 } from 'lucide-react';
+import React, { Suspense } from "react";
+import DashboardClient from "./DashboardClient";
+import { Loader2 } from "lucide-react";
 
 export default function DashboardWrapper() {
   return (
@@ -9,7 +9,9 @@ export default function DashboardWrapper() {
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="flex flex-col items-center gap-3">
             <Loader2 size={32} className="animate-spin text-primary" />
-            <p className="text-muted-foreground text-sm">Loading dashboard...</p>
+            <p className="text-muted-foreground text-sm">
+              Loading dashboard...
+            </p>
           </div>
         </div>
       }

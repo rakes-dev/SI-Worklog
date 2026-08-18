@@ -1,37 +1,49 @@
-import type { Job, PaintForm, SummaryRow, MeasurementRow, FormSignatures, FormType } from '@/types';
+import type {
+  Job,
+  PaintForm,
+  SummaryRow,
+  MeasurementRow,
+  FormSignatures,
+  FormType,
+} from "@/types";
 
 export function generateId(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 9999).toString().padStart(4, '0')}`;
+  return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 9999)
+    .toString()
+    .padStart(4, "0")}`;
 }
 
 export function formatDate(iso: string): string {
-  if (!iso) return '';
+  if (!iso) return "";
   const d = new Date(iso);
-  const day = String(d.getDate()).padStart(2, '0');
-  const mon = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, "0");
+  const mon = String(d.getMonth() + 1).padStart(2, "0");
   const yr = d.getFullYear();
   return `${day}/${mon}/${yr}`;
 }
 
 export function todayISO(): string {
-  return new Date().toISOString().split('T')[0];
+  return new Date().toISOString().split("T")[0];
 }
 
 export function formatCurrency(n: number): string {
-  return n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return n.toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 export function calcSummaryRow(row: SummaryRow): number {
-  const qty = typeof row.qty === 'number' ? row.qty : 0;
-  const rate = typeof row.rate === 'number' ? row.rate : 0;
+  const qty = typeof row.qty === "number" ? row.qty : 0;
+  const rate = typeof row.rate === "number" ? row.rate : 0;
   return parseFloat((qty * rate).toFixed(2));
 }
 
 export function calcMeasurementRow(row: MeasurementRow): number {
-  const l = typeof row.length === 'number' ? row.length : 0;
-  const w = typeof row.width === 'number' ? row.width : 0;
-  const h = typeof row.height === 'number' ? row.height : 0;
-  const n = typeof row.no === 'number' ? row.no : 0;
+  const l = typeof row.length === "number" ? row.length : 0;
+  const w = typeof row.width === "number" ? row.width : 0;
+  const h = typeof row.height === "number" ? row.height : 0;
+  const n = typeof row.no === "number" ? row.no : 0;
 
   // Feet dimensions kept at full precision (trimmed to 5 decimals) so the
   // calculated total uses the ACTUAL value; only the final total is rounded.
@@ -90,17 +102,32 @@ export function feetToMeters(feet: number): number {
 
 /** True when the unit of measurement is "sqft" (case/whitespace/punctuation insensitive). */
 export function isSqftUom(uom?: string): boolean {
-  return (uom ?? '').trim().toLowerCase().replace(/[\s._-]/g, '') === 'sqft';
+  return (
+    (uom ?? "")
+      .trim()
+      .toLowerCase()
+      .replace(/[\s._-]/g, "") === "sqft"
+  );
 }
 
 /** True when the unit of measurement is "rft" (running feet). */
 export function isRftUom(uom?: string): boolean {
-  return (uom ?? '').trim().toLowerCase().replace(/[\s._-]/g, '') === 'rft';
+  return (
+    (uom ?? "")
+      .trim()
+      .toLowerCase()
+      .replace(/[\s._-]/g, "") === "rft"
+  );
 }
 
 /** True when the unit of measurement is "cft" (cubic feet). */
 export function isCftUom(uom?: string): boolean {
-  return (uom ?? '').trim().toLowerCase().replace(/[\s._-]/g, '') === 'cft';
+  return (
+    (uom ?? "")
+      .trim()
+      .toLowerCase()
+      .replace(/[\s._-]/g, "") === "cft"
+  );
 }
 
 /** True when linear dimensions (m → ft) should be used for this UOM. */
@@ -110,9 +137,9 @@ export function isFtBasedUom(uom?: string): boolean {
 
 /** Human-readable unit label strictly per measurement row UOM. */
 export function calcAreaUnitLabel(uom?: string): string {
-  if (isRftUom(uom)) return 'rft';
-  if (isCftUom(uom)) return 'cft';
-  return isSqftUom(uom) ? 'ft²' : 'm²';
+  if (isRftUom(uom)) return "rft";
+  if (isCftUom(uom)) return "cft";
+  return isSqftUom(uom) ? "ft²" : "m²";
 }
 
 /** Unit label across a set of rows (e.g. a form). Mixed units → joined, e.g. "m²/ft²". */
@@ -125,11 +152,11 @@ export function aggregateAreaUnitLabel(uoms: (string | undefined)[]): string {
     else has.m2 = true; // empty / default rows are treated as m²
   }
   const parts: string[] = [];
-  if (has.m2) parts.push('m²');
-  if (has.rft) parts.push('rft');
-  if (has.cft) parts.push('cft');
-  if (has.ft2) parts.push('ft²');
-  return parts.length ? parts.join('/') : 'm²';
+  if (has.m2) parts.push("m²");
+  if (has.rft) parts.push("rft");
+  if (has.cft) parts.push("cft");
+  if (has.ft2) parts.push("ft²");
+  return parts.length ? parts.join("/") : "m²";
 }
 
 /**
@@ -139,26 +166,29 @@ export function aggregateAreaUnitLabel(uoms: (string | undefined)[]): string {
 export function linearUnitLabel(uoms: (string | undefined)[]): string {
   const hasFt = uoms.some((u) => isFtBasedUom(u));
   const hasM = uoms.some((u) => !isFtBasedUom(u));
-  if (hasFt && hasM) return 'm/ft';
-  return hasFt ? 'ft' : 'm';
+  if (hasFt && hasM) return "m/ft";
+  return hasFt ? "ft" : "m";
 }
 
 /** Format a number trimmed of trailing zeros, up to maxDecimals (no forced rounding for display). */
 export function trimNumber(value: number, maxDecimals = 5): string {
-  if (!Number.isFinite(value)) return '';
+  if (!Number.isFinite(value)) return "";
   return parseFloat(value.toFixed(maxDecimals)).toString();
 }
 
 /** Cell value for a linear column: shows feet when the row UOM is feet-based, otherwise meters. */
-export function linearCellValue(uom: string | undefined, value: number | ''): string {
-  if (value === '') return '';
+export function linearCellValue(
+  uom: string | undefined,
+  value: number | "",
+): string {
+  if (value === "") return "";
   if (isFtBasedUom(uom)) return trimNumber(metersToFeet(value));
   return trimNumber(value);
 }
 
 /** "ft" for feet-based UOMs, otherwise "m" — used to append a per-cell unit suffix. */
-export function linearUnitSuffix(uom?: string): 'ft' | 'm' {
-  return isFtBasedUom(uom) ? 'ft' : 'm';
+export function linearUnitSuffix(uom?: string): "ft" | "m" {
+  return isFtBasedUom(uom) ? "ft" : "m";
 }
 
 export function calcGrandTotal(rows: SummaryRow[]): number {
@@ -178,15 +208,15 @@ function isBlankSummaryRow(row: SummaryRow): boolean {
     !row.paintType.trim() &&
     !row.coat.trim() &&
     !row.arcNo.trim() &&
-    (row.qty === '' || row.qty === 0) &&
-    (row.rate === '' || row.rate === 0) &&
+    (row.qty === "" || row.qty === 0) &&
+    (row.rate === "" || row.rate === 0) &&
     row.amount === 0
   );
 }
 
 export function syncSummaryRowsWithMeasurements(
   summaryRows: SummaryRow[],
-  measurementRows: MeasurementRow[]
+  measurementRows: MeasurementRow[],
 ): SummaryRow[] {
   const groupedRows = new Map<
     string,
@@ -194,17 +224,17 @@ export function syncSummaryRowsWithMeasurements(
       jobType: string;
       totalArea: number;
       arcNo: string;
-      rate: number | '';
+      rate: number | "";
       coat: string;
     }
   >();
   const jobTypeOrder: string[] = [];
 
   measurementRows.forEach((row) => {
-    const jobType = (row.jobType ?? '').trim();
+    const jobType = (row.jobType ?? "").trim();
     if (!jobType) return;
 
-    const arcNo = (row.arcNo ?? '').trim();
+    const arcNo = (row.arcNo ?? "").trim();
     // Split the summary Qty per job type + ARC no. Rows without an ARC no are
     // kept together under just the (job type) name.
     const key = `${normalizeText(jobType)}::${normalizeText(arcNo)}`;
@@ -212,16 +242,18 @@ export function syncSummaryRowsWithMeasurements(
     const existing = groupedRows.get(key);
 
     if (existing) {
-      existing.totalArea = parseFloat((existing.totalArea + totalArea).toFixed(2));
+      existing.totalArea = parseFloat(
+        (existing.totalArea + totalArea).toFixed(2),
+      );
       return;
     }
 
     groupedRows.set(key, {
       jobType,
       totalArea: parseFloat(totalArea.toFixed(2)),
-      arcNo: row.arcNo ?? '',
-      rate: row.rate ?? '',
-      coat: row.coat ?? '',
+      arcNo: row.arcNo ?? "",
+      rate: row.rate ?? "",
+      coat: row.coat ?? "",
     });
     jobTypeOrder.push(key);
   });
@@ -233,12 +265,15 @@ export function syncSummaryRowsWithMeasurements(
   const takeRowForJobType = (jobType: string): SummaryRow | undefined => {
     const normalized = normalizeText(jobType);
     return availableRows.find(
-      (row) => !usedRowIds.has(row.id) && normalizeText(row.paintType) === normalized
+      (row) =>
+        !usedRowIds.has(row.id) && normalizeText(row.paintType) === normalized,
     );
   };
 
   const takeBlankRow = (): SummaryRow | undefined =>
-    availableRows.find((row) => !usedRowIds.has(row.id) && isBlankSummaryRow(row));
+    availableRows.find(
+      (row) => !usedRowIds.has(row.id) && isBlankSummaryRow(row),
+    );
 
   jobTypeOrder.forEach((groupKey) => {
     const group = groupedRows.get(groupKey);
@@ -252,11 +287,13 @@ export function syncSummaryRowsWithMeasurements(
     const baseRow = matchedRow ?? defaultSummaryRow(syncedRows.length + 1);
     const row: SummaryRow = {
       ...baseRow,
-      complaintSource: baseRow.complaintSource.trim() ? baseRow.complaintSource : 'Engineer Dept.',
+      complaintSource: baseRow.complaintSource.trim()
+        ? baseRow.complaintSource
+        : "Engineer Dept.",
       paintType: group.jobType,
       coat: group.coat || baseRow.coat,
       arcNo: group.arcNo || baseRow.arcNo,
-      rate: group.rate !== '' ? group.rate : baseRow.rate,
+      rate: group.rate !== "" ? group.rate : baseRow.rate,
       qty: group.totalArea,
       amount: 0,
     };
@@ -276,10 +313,10 @@ export function syncSummaryRowsWithMeasurements(
   }));
 }
 
-const defaultSig = (): import('@/types').SignatureEntry => ({
-  signature: '',
-  name: '',
-  date: '',
+const defaultSig = (): import("@/types").SignatureEntry => ({
+  signature: "",
+  name: "",
+  date: "",
 });
 
 export function defaultSignatures(): FormSignatures {
@@ -294,32 +331,32 @@ export function defaultSignatures(): FormSignatures {
 
 export function defaultSummaryRow(slNo: number): SummaryRow {
   return {
-    id: generateId('sr'),
+    id: generateId("sr"),
     slNo,
-    complaintSource: 'Engineer Dept.',
-    paintType: '',
-    coat: '',
-    arcNo: '',
-    qty: '',
-    rate: '',
+    complaintSource: "Engineer Dept.",
+    paintType: "",
+    coat: "",
+    arcNo: "",
+    qty: "",
+    rate: "",
     amount: 0,
   };
 }
 
 export function defaultMeasurementRow(slNo: number): MeasurementRow {
   return {
-    id: generateId('mr'),
+    id: generateId("mr"),
     slNo,
-    jobType: '',
-    location: '',
-    coat: '',
-    height: '',
-    arcNo: '',
-    rate: '',
-    uom: '',
-    length: '',
-    width: '',
-    no: '',
+    jobType: "",
+    location: "",
+    coat: "",
+    height: "",
+    arcNo: "",
+    rate: "",
+    uom: "",
+    length: "",
+    width: "",
+    no: "",
     totalArea: 0,
   };
 }
@@ -327,24 +364,28 @@ export function defaultMeasurementRow(slNo: number): MeasurementRow {
 export function defaultForm(
   jobName: string,
   formIndex: number,
-  formType: FormType = 'painting'
+  formType: FormType = "painting",
 ): PaintForm {
   return {
-    id: generateId('form'),
+    id: generateId("form"),
     formName:
-      formType === 'carpenter'
+      formType === "carpenter"
         ? `Carpenter Form ${formIndex} — ${jobName}`
         : `Form ${formIndex} — ${jobName}`,
     formType,
-    suitPublicAreaName: '',
+    suitPublicAreaName: "",
     date: todayISO(),
-    workStartDate: '',
-    workEndDate: '',
-    submittedToOffice: '',
-    delay: '',
+    workStartDate: "",
+    workEndDate: "",
+    submittedToOffice: "",
+    delay: "",
     totalSheets: 1,
     sheetNo: formIndex,
-    summaryRows: [defaultSummaryRow(1), defaultSummaryRow(2), defaultSummaryRow(3)],
+    summaryRows: [
+      defaultSummaryRow(1),
+      defaultSummaryRow(2),
+      defaultSummaryRow(3),
+    ],
     grandTotal: 0,
     measurementRows: [
       defaultMeasurementRow(1),
@@ -361,13 +402,13 @@ export function defaultForm(
 }
 
 export function defaultJob(): Job {
-  const id = generateId('job');
+  const id = generateId("job");
   return {
     id,
-    empName: '',
-    siteName: '',
-    siteAddress: '',
-    remarks: '',
+    empName: "",
+    siteName: "",
+    siteAddress: "",
+    remarks: "",
     forms: [],
     totalAmount: 0,
     createdAt: new Date().toISOString(),
@@ -377,19 +418,25 @@ export function defaultJob(): Job {
 
 export function statusColor(status: string): string {
   switch (status) {
-    case 'Draft': return 'bg-muted text-muted-foreground';
-    case 'Pending': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300';
-    case 'Submitted': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300';
-    case 'Approved': return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
-    case 'Rejected': return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-900';
-    default: return 'bg-muted text-muted-foreground';
+    case "Draft":
+      return "bg-muted text-muted-foreground";
+    case "Pending":
+      return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300";
+    case "Submitted":
+      return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300";
+    case "Approved":
+      return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300";
+    case "Rejected":
+      return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-900";
+    default:
+      return "bg-muted text-muted-foreground";
   }
 }
 
 export function downloadJSON(data: string, filename: string): void {
-  const blob = new Blob([data], { type: 'application/json' });
+  const blob = new Blob([data], { type: "application/json" });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
+  const a = document.createElement("a");
   a.href = url;
   a.download = filename;
   a.click();

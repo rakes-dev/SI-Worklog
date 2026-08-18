@@ -1,14 +1,14 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import { isFtBasedUom, metersToFeet, trimNumber } from '@/utils/helpers';
+import React, { useState } from "react";
+import { isFtBasedUom, metersToFeet, trimNumber } from "@/utils/helpers";
 
 interface MeasInputProps {
-  value: number | '';
-  field: 'no' | 'length' | 'width' | 'height';
+  value: number | "";
+  field: "no" | "length" | "width" | "height";
   uom?: string;
   disabled?: boolean;
-  onChange: (v: number | '') => void;
+  onChange: (v: number | "") => void;
 }
 
 /**
@@ -21,9 +21,15 @@ interface MeasInputProps {
  *  - when the cell is focused again the meter value is restored so the user can
  *    edit/correct it in meters; if it is edited or erased it updates accordingly.
  */
-export default function MeasInput({ value, field, uom, disabled = false, onChange }: MeasInputProps) {
+export default function MeasInput({
+  value,
+  field,
+  uom,
+  disabled = false,
+  onChange,
+}: MeasInputProps) {
   const [text, setText] = useState<string | null>(null);
-  const isFeet = field !== 'no' && isFtBasedUom(uom);
+  const isFeet = field !== "no" && isFtBasedUom(uom);
 
   // While not editing, show the value in FEET for feet-based UOMs (the entered
   // meter value is converted and replaces the cell content). While editing, the
@@ -31,9 +37,9 @@ export default function MeasInput({ value, field, uom, disabled = false, onChang
   const display =
     text !== null
       ? text
-      : value === ''
-        ? ''
-        : field === 'no'
+      : value === ""
+        ? ""
+        : field === "no"
           ? String(value)
           : isFeet
             ? trimNumber(metersToFeet(value))
@@ -43,16 +49,16 @@ export default function MeasInput({ value, field, uom, disabled = false, onChang
     if (disabled) return;
     const raw = e.target.value;
     setText(raw);
-    if (raw === '') {
-      onChange('');
+    if (raw === "") {
+      onChange("");
       return;
     }
     const n = parseFloat(raw);
     if (Number.isNaN(n)) {
-      onChange('');
+      onChange("");
       return;
     }
-    if (field === 'no') {
+    if (field === "no") {
       onChange(Math.round(n));
     } else {
       // The user enters the measurement in METERS — store the original value
@@ -65,7 +71,7 @@ export default function MeasInput({ value, field, uom, disabled = false, onChang
   return (
     <input
       type="number"
-      step={field === 'no' ? '1' : '0.01'}
+      step={field === "no" ? "1" : "0.01"}
       min="0"
       value={display}
       disabled={disabled}
@@ -73,12 +79,18 @@ export default function MeasInput({ value, field, uom, disabled = false, onChang
       onFocus={(e) => {
         // Begin editing in METERS (the temporary value); the feet value is
         // shown after blur so the user can correct the meter entry.
-        setText(value === '' ? '' : field === 'no' ? String(value) : trimNumber(value, 6));
+        setText(
+          value === ""
+            ? ""
+            : field === "no"
+              ? String(value)
+              : trimNumber(value, 6),
+        );
         e.target.select();
       }}
       onBlur={() => setText(null)}
       className={`w-full px-1.5 py-1 bg-input border border-transparent rounded text-right text-xs font-tabular text-foreground focus:outline-none focus:border-ring focus:bg-card transition ${
-        disabled ? 'opacity-40 cursor-not-allowed' : ''
+        disabled ? "opacity-40 cursor-not-allowed" : ""
       }`}
     />
   );
