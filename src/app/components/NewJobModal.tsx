@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { X, Loader2 } from 'lucide-react';
-import { useAppStore } from '@/store/useAppStore';
-import { defaultJob, generateId } from '@/utils/helpers';
-import type { Job } from '@/types';
-import ToastContainer from '@/components/ui/Toast';
-import { useToast } from '@/hooks/useToast';
+import React, { useState } from "react";
+import { useForm } from "react-hook-form";
+import { X, Loader2 } from "lucide-react";
+import { useAppStore } from "@/store/useAppStore";
+import { defaultJob, generateId } from "@/utils/helpers";
+import type { Job } from "@/types";
+import ToastContainer from "@/components/ui/Toast";
+import { useToast } from "@/hooks/useToast";
 
 interface NewJobModalProps {
   open: boolean;
@@ -22,7 +22,11 @@ interface FormValues {
   remarks: string;
 }
 
-export default function NewJobModal({ open, onClose, onCreated }: NewJobModalProps) {
+export default function NewJobModal({
+  open,
+  onClose,
+  onCreated,
+}: NewJobModalProps) {
   const { addJob } = useAppStore();
   const { toasts, addToast, removeToast } = useToast();
   const [saving, setSaving] = useState(false);
@@ -34,10 +38,10 @@ export default function NewJobModal({ open, onClose, onCreated }: NewJobModalPro
     formState: { errors },
   } = useForm<FormValues>({
     defaultValues: {
-      empName: '',
-      siteName: '',
-      siteAddress: '',
-      remarks: '',
+      empName: "",
+      siteName: "",
+      siteAddress: "",
+      remarks: "",
     },
   });
 
@@ -47,15 +51,19 @@ export default function NewJobModal({ open, onClose, onCreated }: NewJobModalPro
       const job: Job = {
         ...defaultJob(),
         ...values,
-        id: generateId('job'),
+        id: generateId("job"),
       };
       await addJob(job);
       onCreated(job);
       reset();
       onClose();
     } catch (error) {
-      console.error('Failed to create job:', error);
-      addToast('error', 'Failed to create job', 'Please check your connection and try again.');
+      console.error("Failed to create job:", error);
+      addToast(
+        "error",
+        "Failed to create job",
+        "Please check your connection and try again.",
+      );
     } finally {
       setSaving(false);
     }
@@ -70,19 +78,27 @@ export default function NewJobModal({ open, onClose, onCreated }: NewJobModalPro
         <div className="relative bg-card border border-border rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto fade-in">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border">
             <h2 className="font-semibold text-foreground text-lg">New Job</h2>
-            <button onClick={onClose} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+            >
               <X size={18} />
             </button>
           </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="p-5 flex flex-col gap-4">
+          <form
+            onSubmit={handleSubmit(onSubmit)}
+            className="p-5 flex flex-col gap-4"
+          >
             {/* Employee Name */}
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-foreground">
                 Employee Name <span className="text-red-500">*</span>
               </label>
               <input
-                {...register('empName', { required: 'Employee name is required' })}
+                {...register("empName", {
+                  required: "Employee name is required",
+                })}
                 className="w-full px-3 py-2 rounded-md border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring transition"
                 placeholder="e.g. Rajesh Kumar"
               />
@@ -97,12 +113,14 @@ export default function NewJobModal({ open, onClose, onCreated }: NewJobModalPro
                 Site Name <span className="text-red-500">*</span>
               </label>
               <input
-                {...register('siteName', { required: 'Site name is required' })}
+                {...register("siteName", { required: "Site name is required" })}
                 className="w-full px-3 py-2 rounded-md border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring transition"
                 placeholder="e.g. Hotel ABC Renovation"
               />
               {errors.siteName && (
-                <p className="text-xs text-red-500">{errors.siteName.message}</p>
+                <p className="text-xs text-red-500">
+                  {errors.siteName.message}
+                </p>
               )}
             </div>
 
@@ -112,20 +130,26 @@ export default function NewJobModal({ open, onClose, onCreated }: NewJobModalPro
                 Site Address <span className="text-red-500">*</span>
               </label>
               <input
-                {...register('siteAddress', { required: 'Site address is required' })}
+                {...register("siteAddress", {
+                  required: "Site address is required",
+                })}
                 className="w-full px-3 py-2 rounded-md border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring transition"
                 placeholder="e.g. 12 MG Road, Bangalore"
               />
               {errors.siteAddress && (
-                <p className="text-xs text-red-500">{errors.siteAddress.message}</p>
+                <p className="text-xs text-red-500">
+                  {errors.siteAddress.message}
+                </p>
               )}
             </div>
 
             {/* Remarks */}
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-foreground">Remarks</label>
+              <label className="text-sm font-medium text-foreground">
+                Remarks
+              </label>
               <textarea
-                {...register('remarks')}
+                {...register("remarks")}
                 rows={2}
                 className="w-full px-3 py-2 rounded-md border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring transition resize-none"
                 placeholder="Any additional notes..."
@@ -152,7 +176,7 @@ export default function NewJobModal({ open, onClose, onCreated }: NewJobModalPro
                     Creating...
                   </>
                 ) : (
-                  'Create Job'
+                  "Create Job"
                 )}
               </button>
             </div>

@@ -1,6 +1,20 @@
-import { getApp, getApps, initializeApp, type FirebaseApp } from 'firebase/app';
-import { enableMultiTabIndexedDbPersistence, getFirestore, type Firestore } from 'firebase/firestore';
-import { getAuth, signInAnonymously, signInWithPopup, signInWithEmailAndPassword, signOut, GoogleAuthProvider, onAuthStateChanged, type Auth, type User } from 'firebase/auth';
+import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
+import {
+  enableMultiTabIndexedDbPersistence,
+  getFirestore,
+  type Firestore,
+} from "firebase/firestore";
+import {
+  getAuth,
+  signInAnonymously,
+  signInWithPopup,
+  signInWithEmailAndPassword,
+  signOut,
+  GoogleAuthProvider,
+  onAuthStateChanged,
+  type Auth,
+  type User,
+} from "firebase/auth";
 
 type FirebaseConfig = {
   apiKey: string;
@@ -20,31 +34,37 @@ let authBootstrapPromise: Promise<void> | null = null;
 
 function readFirebaseConfig(): FirebaseConfig {
   return {
-    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? '',
-    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ?? '',
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? '',
-    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ?? '',
-    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ?? '',
-    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID ?? '',
-    measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID ?? '',
+    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? "",
+    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ?? "",
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? "",
+    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ?? "",
+    messagingSenderId:
+      process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ?? "",
+    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID ?? "",
+    measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID ?? "",
   };
 }
 
 function validateFirebaseConfig(config: FirebaseConfig): void {
   const requiredKeys: (keyof FirebaseConfig)[] = [
-    'apiKey',
-    'authDomain',
-    'projectId',
-    'storageBucket',
-    'messagingSenderId',
-    'appId',
+    "apiKey",
+    "authDomain",
+    "projectId",
+    "storageBucket",
+    "messagingSenderId",
+    "appId",
   ];
   const missing = requiredKeys.filter((key) => !config[key]);
   if (missing.length > 0) {
     throw new Error(
       `Missing Firebase env vars: ${missing
-        .map((key) => `NEXT_PUBLIC_FIREBASE_${String(key).replace(/[A-Z]/g, (m) => `_${m}`).toUpperCase()}`)
-        .join(', ')}`
+        .map(
+          (key) =>
+            `NEXT_PUBLIC_FIREBASE_${String(key)
+              .replace(/[A-Z]/g, (m) => `_${m}`)
+              .toUpperCase()}`,
+        )
+        .join(", ")}`,
     );
   }
 }
@@ -64,13 +84,16 @@ export function getFirestoreDb(): Firestore {
 
   firestoreDb = getFirestore(getFirebaseApp());
 
-  if (typeof window !== 'undefined' && !persistenceEnabled) {
+  if (typeof window !== "undefined" && !persistenceEnabled) {
     persistenceEnabled = true;
     enableMultiTabIndexedDbPersistence(firestoreDb).catch((error: unknown) => {
-      const code = typeof error === 'object' && error && 'code' in error ? String(error.code) : '';
-      if (code !== 'failed-precondition' && code !== 'unimplemented') {
+      const code =
+        typeof error === "object" && error && "code" in error
+          ? String(error.code)
+          : "";
+      if (code !== "failed-precondition" && code !== "unimplemented") {
         // Keep Firestore usable even when persistence cannot be enabled.
-        console.warn('Firestore persistence could not be enabled.', error);
+        console.warn("Firestore persistence could not be enabled.", error);
       }
     });
   }
@@ -86,7 +109,7 @@ export function getFirebaseAuth(): Auth {
 }
 
 export async function ensureFirebaseAuth(): Promise<void> {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
 
   const auth = getFirebaseAuth();
 
@@ -95,8 +118,10 @@ export async function ensureFirebaseAuth(): Promise<void> {
   if (!authBootstrapPromise) {
     authBootstrapPromise = (async () => {
       try {
-        const authStateReady = (auth as { authStateReady?: () => Promise<void> }).authStateReady;
-        if (typeof authStateReady === 'function') {
+        const authStateReady = (
+          auth as { authStateReady?: () => Promise<void> }
+        ).authStateReady;
+        if (typeof authStateReady === "function") {
           await authStateReady.call(auth);
         }
 
@@ -104,7 +129,10 @@ export async function ensureFirebaseAuth(): Promise<void> {
           await signInAnonymously(auth);
         }
       } catch (error) {
-        console.warn('Firebase anonymous auth could not be initialized.', error);
+        console.warn(
+          "Firebase anonymous auth could not be initialized.",
+          error,
+        );
       }
     })().finally(() => {
       authBootstrapPromise = null;
@@ -116,8 +144,8 @@ export async function ensureFirebaseAuth(): Promise<void> {
 
 export function getGoogleAuthProvider(): GoogleAuthProvider {
   const provider = new GoogleAuthProvider();
-  provider.addScope('profile');
-  provider.addScope('email');
+  provider.addScope("profile");
+  provider.addScope("email");
   return provider;
 }
 
@@ -134,13 +162,22 @@ export async function signOutUser(): Promise<void> {
 }
 
 /** Sign in with email + password. */
-export async function signInWithEmailPassword(email: string, password: string): Promise<User> {
+export async function signInWithEmailPassword(
+  email: string,
+  password: string,
+): Promise<User> {
   const auth = getFirebaseAuth();
-  const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
+  const credential = await signInWithEmailAndPassword(
+    auth,
+    email.trim(),
+    password,
+  );
   return credential.user;
 }
 
 /** Subscribe to auth state changes. Returns an unsubscribe function. */
-export function onAuthStateChange(callback: (user: User | null) => void): () => void {
+export function onAuthStateChange(
+  callback: (user: User | null) => void,
+): () => void {
   return onAuthStateChanged(getFirebaseAuth(), callback);
 }

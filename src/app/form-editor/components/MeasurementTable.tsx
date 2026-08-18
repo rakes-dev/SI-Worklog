@@ -1,42 +1,49 @@
-'use client';
+"use client";
 
-import React, { useMemo } from 'react';
-import { Plus, Trash2, Copy, ChevronUp, ChevronDown } from 'lucide-react';
-import type { MeasurementRow, ArcItem } from '@/types';
-import { calcMeasurementRow, calcAreaUnitLabel, aggregateAreaUnitLabel, linearUnitLabel, isCftUom, defaultMeasurementRow } from '@/utils/helpers';
-import MeasInput from './MeasInput';
+import React, { useMemo } from "react";
+import { Plus, Trash2, Copy, ChevronUp, ChevronDown } from "lucide-react";
+import type { MeasurementRow, ArcItem } from "@/types";
+import {
+  calcMeasurementRow,
+  calcAreaUnitLabel,
+  aggregateAreaUnitLabel,
+  linearUnitLabel,
+  isCftUom,
+  defaultMeasurementRow,
+} from "@/utils/helpers";
+import MeasInput from "./MeasInput";
 
 const LOCATION_SUGGESTIONS = [
-  'Bed side table',
-  'Sofa table',
-  'Round table',
-  'Chair',
-  'Sofa chair',
-  'Hall Ceiling',
-  'Bedroom Ceiling',
-  'Washroom Ceiling',
-  'Shower Ceiling',
-  'W/C Ceiling',
-  'luggage Area Ceiling',
-  'TV Cabinet',
-  'Wardrobe',
-  'Writing Table',
-  'Telephone Table',
-  'AC grill',
-  'Door',
-  'Door frame',
-  'Basin Counter',
-  'Tv Wall frame',
-  'Coat Stand',
-  'Magazine Self',
-  'Washroom Sliding door',
-  'Iron Stand',
-  'Tea Counter',
-  'Public Area Staircase',
-  'Public Area Railing',
-  'Public Area Drain grill',
-  'Public Area Pillar',
-  'Public Area Pipe',
+  "Bed side table",
+  "Sofa table",
+  "Round table",
+  "Chair",
+  "Sofa chair",
+  "Hall Ceiling",
+  "Bedroom Ceiling",
+  "Washroom Ceiling",
+  "Shower Ceiling",
+  "W/C Ceiling",
+  "luggage Area Ceiling",
+  "TV Cabinet",
+  "Wardrobe",
+  "Writing Table",
+  "Telephone Table",
+  "AC grill",
+  "Door",
+  "Door frame",
+  "Basin Counter",
+  "Tv Wall frame",
+  "Coat Stand",
+  "Magazine Self",
+  "Washroom Sliding door",
+  "Iron Stand",
+  "Tea Counter",
+  "Public Area Staircase",
+  "Public Area Railing",
+  "Public Area Drain grill",
+  "Public Area Pillar",
+  "Public Area Pipe",
 ];
 
 interface MeasurementTableProps {
@@ -44,7 +51,7 @@ interface MeasurementTableProps {
   onChange: (rows: MeasurementRow[]) => void;
   totalArea: number;
   arcItems?: ArcItem[];
-  formType?: 'painting' | 'carpenter';
+  formType?: "painting" | "carpenter";
 }
 
 export default function MeasurementTable({
@@ -52,24 +59,24 @@ export default function MeasurementTable({
   onChange,
   totalArea,
   arcItems = [],
-  formType = 'painting',
+  formType = "painting",
 }: MeasurementTableProps) {
   const [draggedRowId, setDraggedRowId] = React.useState<string | null>(null);
   const [overRowId, setOverRowId] = React.useState<string | null>(null);
-  const isCarpenter = formType === 'carpenter';
+  const isCarpenter = formType === "carpenter";
   const linUnit = linearUnitLabel(rows.map((r) => r.uom));
 
   const hasFilledMeasurementValues = (row: MeasurementRow) => {
     return (
-      (row.jobType ?? '').trim() !== '' ||
-      row.location.trim() !== '' ||
+      (row.jobType ?? "").trim() !== "" ||
+      row.location.trim() !== "" ||
       (isCarpenter
-        ? typeof row.height === 'number' && row.height > 0
-        : row.coat.trim() !== '') ||
-      (row.arcNo ?? '').trim() !== '' ||
-      (typeof row.length === 'number' && row.length > 0) ||
-      (typeof row.width === 'number' && row.width > 0) ||
-      (typeof row.no === 'number' && row.no > 0)
+        ? typeof row.height === "number" && row.height > 0
+        : row.coat.trim() !== "") ||
+      (row.arcNo ?? "").trim() !== "" ||
+      (typeof row.length === "number" && row.length > 0) ||
+      (typeof row.width === "number" && row.width > 0) ||
+      (typeof row.no === "number" && row.no > 0)
     );
   };
 
@@ -87,11 +94,13 @@ export default function MeasurementTable({
   const reorderRows = (sourceId: string, targetId: string) => {
     const sourceIndex = rows.findIndex((row) => row.id === sourceId);
     const targetIndex = rows.findIndex((row) => row.id === targetId);
-    if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return;
+    if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex)
+      return;
 
     const updated = [...rows];
     const [movedRow] = updated.splice(sourceIndex, 1);
-    const adjustedTargetIndex = sourceIndex < targetIndex ? targetIndex - 1 : targetIndex;
+    const adjustedTargetIndex =
+      sourceIndex < targetIndex ? targetIndex - 1 : targetIndex;
     updated.splice(adjustedTargetIndex, 0, movedRow);
     onChange(renumberRows(updated));
   };
@@ -106,7 +115,11 @@ export default function MeasurementTable({
     if (idx >= 0 && idx < rows.length - 1) reorderRows(id, rows[idx + 1].id);
   };
 
-  const updateRow = (id: string, field: keyof MeasurementRow, value: string | number) => {
+  const updateRow = (
+    id: string,
+    field: keyof MeasurementRow,
+    value: string | number,
+  ) => {
     const updated = rows.map((r) => {
       if (r.id !== id) return r;
       const next = { ...r, [field]: value };
@@ -117,18 +130,25 @@ export default function MeasurementTable({
   };
 
   const addRow = () => {
-    onChange(appendTrailingEmptyRow([...rows, defaultMeasurementRow(rows.length + 1)]));
+    onChange(
+      appendTrailingEmptyRow([...rows, defaultMeasurementRow(rows.length + 1)]),
+    );
   };
 
   const deleteRow = (id: string) => {
-    onChange(rows.filter((r) => r.id !== id).map((r, i) => ({ ...r, slNo: i + 1 })));
+    onChange(
+      rows.filter((r) => r.id !== id).map((r, i) => ({ ...r, slNo: i + 1 })),
+    );
   };
 
   const duplicateRow = (id: string) => {
     const src = rows.find((r) => r.id === id);
     if (!src) return;
     onChange(
-      appendTrailingEmptyRow([...rows, { ...src, id: `mr-${Date.now()}`, slNo: rows.length + 1 }])
+      appendTrailingEmptyRow([
+        ...rows,
+        { ...src, id: `mr-${Date.now()}`, slNo: rows.length + 1 },
+      ]),
     );
   };
 
@@ -143,12 +163,12 @@ export default function MeasurementTable({
 
   const textInput = (
     rowId: string,
-    field: 'jobType' | 'location' | 'coat',
+    field: "jobType" | "location" | "coat",
     value: string,
     placeholder: string,
     className: string,
     listId?: string,
-    maxLength?: number
+    maxLength?: number,
   ) => (
     <input
       list={listId}
@@ -163,8 +183,8 @@ export default function MeasurementTable({
   const handleArcSelect = (rowId: string, val: string) => {
     const matched = arcItems.find((item) => item.arc_no === val);
     if (matched) {
-      const rateValue: number | '' =
-        typeof matched.final_rate === 'number' ? matched.final_rate : '';
+      const rateValue: number | "" =
+        typeof matched.final_rate === "number" ? matched.final_rate : "";
       const updated = rows.map((r) => {
         if (r.id !== rowId) return r;
         const next = {
@@ -180,14 +200,14 @@ export default function MeasurementTable({
       });
       onChange(appendTrailingEmptyRow(updated));
     } else {
-      updateRow(rowId, 'arcNo', val);
+      updateRow(rowId, "arcNo", val);
     }
   };
 
   const arcInput = (row: MeasurementRow) => (
     <input
       list={`arc-options-${row.id}`}
-      value={row.arcNo ?? ''}
+      value={row.arcNo ?? ""}
       onChange={(e) => handleArcSelect(row.id, e.target.value)}
       className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-center text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
       placeholder="ARC-001"
@@ -198,9 +218,14 @@ export default function MeasurementTable({
     <div className="bg-card border border-border rounded-lg overflow-hidden">
       <div className="flex items-center justify-between px-5 py-3 border-b border-border">
         <div>
-          <h3 className="font-semibold text-foreground text-sm">Section B — Measurement Sheet</h3>
+          <h3 className="font-semibold text-foreground text-sm">
+            Section B — Measurement Sheet
+          </h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Select an ARC No. to auto-fill Job Type, Coat & Rate — Summary updates automatically. Total Area = Length × Width × No. (If only Length is given, it's treated as a circle: Area = π × (Length/2)² × No.)
+            Select an ARC No. to auto-fill Job Type, Coat & Rate — Summary
+            updates automatically. Total Area = Length × Width × No. (If only
+            Length is given, it's treated as a circle: Area = π × (Length/2)² ×
+            No.)
           </p>
         </div>
         <button
@@ -217,12 +242,20 @@ export default function MeasurementTable({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-secondary/50">
-              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-center w-8">Sl.</th>
-              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-center min-w-[100px]">ARC No.</th>
-              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-left min-w-[140px]">Job Type</th>
-              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-left min-w-[160px]">Location</th>
+              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-center w-8">
+                Sl.
+              </th>
+              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-center min-w-[100px]">
+                ARC No.
+              </th>
+              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-left min-w-[140px]">
+                Job Type
+              </th>
+              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-left min-w-[160px]">
+                Location
+              </th>
               <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-center min-w-[80px]">
-                {isCarpenter ? `Height (${linUnit})` : 'Coat'}
+                {isCarpenter ? `Height (${linUnit})` : "Coat"}
               </th>
               <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-right min-w-[80px]">
                 Length ({linUnit})
@@ -230,15 +263,22 @@ export default function MeasurementTable({
               <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-right min-w-[80px]">
                 Width ({linUnit})
               </th>
-              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-right min-w-[60px]">No.</th>
-              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-right min-w-[100px]">Total Area</th>
+              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-right min-w-[60px]">
+                No.
+              </th>
+              <th className="px-2 py-2 text-xs font-medium text-muted-foreground text-right min-w-[100px]">
+                Total Area
+              </th>
               <th className="px-2 py-2 w-24" />
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={10} className="px-4 py-8 text-center text-muted-foreground text-sm">
+                <td
+                  colSpan={10}
+                  className="px-4 py-8 text-center text-muted-foreground text-sm"
+                >
                   No rows yet — click "Add Row" to start
                 </td>
               </tr>
@@ -246,16 +286,19 @@ export default function MeasurementTable({
               rows.map((row) => (
                 <tr
                   key={row.id}
-                  className={`border-b border-border transition-transform duration-150 ease-out group ${overRowId === row.id ? 'bg-secondary/30 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]' : 'hover:bg-secondary/20'}`}
-                  style={{ willChange: 'transform' }}
+                  className={`border-b border-border transition-transform duration-150 ease-out group ${overRowId === row.id ? "bg-secondary/30 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]" : "hover:bg-secondary/20"}`}
+                  style={{ willChange: "transform" }}
                 >
-                  <td className="px-2 py-1.5 text-center text-xs text-muted-foreground font-tabular">{row.slNo}</td>
+                  <td className="px-2 py-1.5 text-center text-xs text-muted-foreground font-tabular">
+                    {row.slNo}
+                  </td>
                   <td className="px-1 py-1.5">
                     {arcInput(row)}
                     <datalist id={`arc-options-${row.id}`}>
                       {arcItems.map((item) => (
                         <option key={item.id} value={item.arc_no}>
-                          {item.job_type || item.description.substring(0, 30)} (₹{item.final_rate})
+                          {item.job_type || item.description.substring(0, 30)}{" "}
+                          (₹{item.final_rate})
                         </option>
                       ))}
                     </datalist>
@@ -263,11 +306,11 @@ export default function MeasurementTable({
                   <td className="px-1 py-1.5">
                     {textInput(
                       row.id,
-                      'jobType',
-                      row.jobType ?? '',
-                      'e.g. Civil Repair',
-                      'w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-foreground focus:outline-none focus:border-ring focus:bg-card transition',
-                      `jobtype-options-${row.id}`
+                      "jobType",
+                      row.jobType ?? "",
+                      "e.g. Civil Repair",
+                      "w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-foreground focus:outline-none focus:border-ring focus:bg-card transition",
+                      `jobtype-options-${row.id}`,
                     )}
                     <datalist id={`jobtype-options-${row.id}`}>
                       {uniqueJobTypes.map((jt, i) => (
@@ -278,11 +321,11 @@ export default function MeasurementTable({
                   <td className="px-1 py-1.5">
                     {textInput(
                       row.id,
-                      'location',
+                      "location",
                       row.location,
-                      'e.g. Bed side table',
-                      'w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-foreground focus:outline-none focus:border-ring focus:bg-card transition',
-                      `location-options-${row.id}`
+                      "e.g. Bed side table",
+                      "w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-foreground focus:outline-none focus:border-ring focus:bg-card transition",
+                      `location-options-${row.id}`,
                     )}
                     <datalist id={`location-options-${row.id}`}>
                       {LOCATION_SUGGESTIONS.map((loc, i) => (
@@ -297,15 +340,15 @@ export default function MeasurementTable({
                         uom={row.uom}
                         value={row.height}
                         disabled={!isCftUom(row.uom)}
-                        onChange={(v) => updateRow(row.id, 'height', v)}
+                        onChange={(v) => updateRow(row.id, "height", v)}
                       />
                     ) : (
                       textInput(
                         row.id,
-                        'coat',
+                        "coat",
                         row.coat,
-                        '1st',
-                        'w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-center text-foreground focus:outline-none focus:border-ring focus:bg-card transition'
+                        "1st",
+                        "w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-center text-foreground focus:outline-none focus:border-ring focus:bg-card transition",
                       )
                     )}
                   </td>
@@ -314,7 +357,7 @@ export default function MeasurementTable({
                       field="length"
                       uom={row.uom}
                       value={row.length}
-                      onChange={(v) => updateRow(row.id, 'length', v)}
+                      onChange={(v) => updateRow(row.id, "length", v)}
                     />
                   </td>
                   <td className="px-1 py-1.5">
@@ -322,11 +365,16 @@ export default function MeasurementTable({
                       field="width"
                       uom={row.uom}
                       value={row.width}
-                      onChange={(v) => updateRow(row.id, 'width', v)}
+                      onChange={(v) => updateRow(row.id, "width", v)}
                     />
                   </td>
                   <td className="px-1 py-1.5">
-                    <MeasInput field="no" uom="" value={row.no} onChange={(v) => updateRow(row.id, 'no', v)} />
+                    <MeasInput
+                      field="no"
+                      uom=""
+                      value={row.no}
+                      onChange={(v) => updateRow(row.id, "no", v)}
+                    />
                   </td>
                   <td className="px-2 py-1.5 text-right text-xs font-tabular font-semibold text-foreground">
                     {row.totalArea.toFixed(2)} {calcAreaUnitLabel(row.uom)}
@@ -375,11 +423,15 @@ export default function MeasurementTable({
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-border bg-secondary/40">
-              <td colSpan={8} className="px-4 py-2.5 text-right text-sm font-semibold text-foreground">
+              <td
+                colSpan={8}
+                className="px-4 py-2.5 text-right text-sm font-semibold text-foreground"
+              >
                 Total Area
               </td>
               <td className="px-2 py-2.5 text-right text-sm font-bold font-tabular text-primary">
-                {totalArea.toFixed(2)} {aggregateAreaUnitLabel(rows.map((r) => r.uom))}
+                {totalArea.toFixed(2)}{" "}
+                {aggregateAreaUnitLabel(rows.map((r) => r.uom))}
               </td>
               <td />
             </tr>

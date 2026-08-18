@@ -1,6 +1,6 @@
-import React, { Suspense } from 'react';
-import JobDetailClient from './JobDetailClient';
-import { Loader2 } from 'lucide-react';
+import React, { Suspense } from "react";
+import JobDetailClient from "./JobDetailClient";
+import { Loader2 } from "lucide-react";
 
 export default function JobDetailWrapper() {
   return (

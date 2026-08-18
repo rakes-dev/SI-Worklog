@@ -1,24 +1,32 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { Pencil, Save, X, Loader2 } from 'lucide-react';
-import type { Job } from '@/types';
-import { useAppStore } from '@/store/useAppStore';
+import React, { useState } from "react";
+import { useForm } from "react-hook-form";
+import { Pencil, Save, X, Loader2 } from "lucide-react";
+import type { Job } from "@/types";
+import { useAppStore } from "@/store/useAppStore";
 
 interface JobInfoPanelProps {
   job: Job;
   onSaved: () => void;
 }
 
-type FormValues = Omit<Job, 'id' | 'forms' | 'totalAmount' | 'createdAt' | 'updatedAt'>;
+type FormValues = Omit<
+  Job,
+  "id" | "forms" | "totalAmount" | "createdAt" | "updatedAt"
+>;
 
 export default function JobInfoPanel({ job, onSaved }: JobInfoPanelProps) {
   const { updateJob } = useAppStore();
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<FormValues>({
     defaultValues: {
       empName: job.empName,
       siteName: job.siteName,
@@ -30,11 +38,15 @@ export default function JobInfoPanel({ job, onSaved }: JobInfoPanelProps) {
   const onSubmit = async (values: FormValues) => {
     setSaving(true);
     try {
-      await updateJob({ ...job, ...values, updatedAt: new Date().toISOString() });
+      await updateJob({
+        ...job,
+        ...values,
+        updatedAt: new Date().toISOString(),
+      });
       setEditing(false);
       onSaved();
     } catch (error) {
-      console.error('Failed to update job:', error);
+      console.error("Failed to update job:", error);
     } finally {
       setSaving(false);
     }
@@ -55,15 +67,17 @@ export default function JobInfoPanel({ job, onSaved }: JobInfoPanelProps) {
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
           {[
-            { label: 'Employee Name', value: job.empName },
-            { label: 'Site Name', value: job.siteName },
-            { label: 'Site Address', value: job.siteAddress },
+            { label: "Employee Name", value: job.empName },
+            { label: "Site Name", value: job.siteName },
+            { label: "Site Address", value: job.siteAddress },
           ].map((item, i) => (
             <div key={`info-${i}`} className="flex flex-col gap-0.5">
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                 {item.label}
               </span>
-              <span className="text-sm text-foreground">{item.value || '—'}</span>
+              <span className="text-sm text-foreground">
+                {item.value || "—"}
+              </span>
             </div>
           ))}
           {job.remarks && (
@@ -85,7 +99,10 @@ export default function JobInfoPanel({ job, onSaved }: JobInfoPanelProps) {
         <h2 className="font-semibold text-foreground">Edit Job Information</h2>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => { reset(); setEditing(false); }}
+            onClick={() => {
+              reset();
+              setEditing(false);
+            }}
             className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
           >
             <X size={16} />
@@ -99,36 +116,77 @@ export default function JobInfoPanel({ job, onSaved }: JobInfoPanelProps) {
               Employee Name <span className="text-red-500">*</span>
             </label>
             <input
-              {...register('empName', { required: 'Required' })}
+              {...register("empName", { required: "Required" })}
               className="px-3 py-2 rounded-md border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             />
-            {errors.empName && <p className="text-xs text-red-500">{errors.empName.message}</p>}
+            {errors.empName && (
+              <p className="text-xs text-red-500">{errors.empName.message}</p>
+            )}
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
               Site Name <span className="text-red-500">*</span>
             </label>
-            <input {...register('siteName', { required: 'Required' })} className="px-3 py-2 rounded-md border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-            {errors.siteName && <p className="text-xs text-red-500">{errors.siteName.message}</p>}
+            <input
+              {...register("siteName", { required: "Required" })}
+              className="px-3 py-2 rounded-md border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            {errors.siteName && (
+              <p className="text-xs text-red-500">{errors.siteName.message}</p>
+            )}
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
               Site Address <span className="text-red-500">*</span>
             </label>
-            <input {...register('siteAddress', { required: 'Required' })} className="px-3 py-2 rounded-md border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-            {errors.siteAddress && <p className="text-xs text-red-500">{errors.siteAddress.message}</p>}
+            <input
+              {...register("siteAddress", { required: "Required" })}
+              className="px-3 py-2 rounded-md border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            {errors.siteAddress && (
+              <p className="text-xs text-red-500">
+                {errors.siteAddress.message}
+              </p>
+            )}
           </div>
           <div className="flex flex-col gap-1 sm:col-span-2 lg:col-span-3">
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Remarks</label>
-            <textarea {...register('remarks')} rows={2} className="px-3 py-2 rounded-md border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none" />
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Remarks
+            </label>
+            <textarea
+              {...register("remarks")}
+              rows={2}
+              className="px-3 py-2 rounded-md border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+            />
           </div>
         </div>
         <div className="flex justify-end gap-2">
-          <button type="button" onClick={() => { reset(); setEditing(false); }} className="px-4 py-2 text-sm font-medium rounded-md border border-border text-foreground hover:bg-secondary transition-colors">
+          <button
+            type="button"
+            onClick={() => {
+              reset();
+              setEditing(false);
+            }}
+            className="px-4 py-2 text-sm font-medium rounded-md border border-border text-foreground hover:bg-secondary transition-colors"
+          >
             Cancel
           </button>
-          <button type="submit" disabled={saving} className="px-5 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:opacity-90 transition-opacity scale-press disabled:opacity-60 flex items-center gap-2 min-w-[100px] justify-center">
-            {saving ? <><Loader2 size={14} className="animate-spin" />Saving...</> : <><Save size={14} />Save Changes</>}
+          <button
+            type="submit"
+            disabled={saving}
+            className="px-5 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:opacity-90 transition-opacity scale-press disabled:opacity-60 flex items-center gap-2 min-w-[100px] justify-center"
+          >
+            {saving ? (
+              <>
+                <Loader2 size={14} className="animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save size={14} />
+                Save Changes
+              </>
+            )}
           </button>
         </div>
       </form>

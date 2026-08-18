@@ -1,18 +1,34 @@
-'use client';
+"use client";
 
-import React, { useState, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
-import { Plus, Search, Filter, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useAppStore } from '@/store/useAppStore';
-import JobCard from '@/app/components/JobCard';
-import NewJobModal from '@/app/components/NewJobModal';
-import ToastContainer from '@/components/ui/Toast';
-import { useToast } from '@/hooks/useToast';
-
+import React, { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import {
+  Plus,
+  Search,
+  Filter,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
+import { useAppStore } from "@/store/useAppStore";
+import JobCard from "@/app/components/JobCard";
+import NewJobModal from "@/app/components/NewJobModal";
+import ToastContainer from "@/components/ui/Toast";
+import { useToast } from "@/hooks/useToast";
 
 const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 
 export default function JobsClient() {
@@ -23,7 +39,7 @@ export default function JobsClient() {
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth()); // 0-indexed
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
   const [showNewJob, setShowNewJob] = useState(false);
 
   const handlePrevMonth = () => {
@@ -63,7 +79,7 @@ export default function JobsClient() {
           j.siteName.toLowerCase().includes(q) ||
           j.empName.toLowerCase().includes(q) ||
           j.siteAddress.toLowerCase().includes(q) ||
-          j.forms.some((f) => f.suitPublicAreaName.toLowerCase().includes(q))
+          j.forms.some((f) => f.suitPublicAreaName.toLowerCase().includes(q)),
       );
     }
 
@@ -73,9 +89,9 @@ export default function JobsClient() {
   const handleDuplicate = async (id: string) => {
     try {
       const newJob = await duplicateJob(id);
-      addToast('success', 'Job duplicated', `"${newJob.siteName}" created.`);
+      addToast("success", "Job duplicated", `"${newJob.siteName}" created.`);
     } catch {
-      addToast('error', 'Duplicate failed', 'Could not duplicate this job.');
+      addToast("error", "Duplicate failed", "Could not duplicate this job.");
     }
   };
 
@@ -94,7 +110,8 @@ export default function JobsClient() {
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Jobs</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {filtered.length} job{filtered.length !== 1 ? 's' : ''} in {MONTH_NAMES[selectedMonth]} {selectedYear}
+            {filtered.length} job{filtered.length !== 1 ? "s" : ""} in{" "}
+            {MONTH_NAMES[selectedMonth]} {selectedYear}
           </p>
         </div>
         <button
@@ -119,7 +136,9 @@ export default function JobsClient() {
         <span className="text-sm font-medium text-foreground min-w-[130px] text-center">
           {MONTH_NAMES[selectedMonth]} {selectedYear}
           {isCurrentMonth && (
-            <span className="ml-2 text-xs text-primary font-normal">(Current)</span>
+            <span className="ml-2 text-xs text-primary font-normal">
+              (Current)
+            </span>
           )}
         </span>
         <button
@@ -127,8 +146,8 @@ export default function JobsClient() {
           disabled={isCurrentMonth}
           className={`p-1 rounded transition-colors ${
             isCurrentMonth
-              ? 'text-muted-foreground/30 cursor-not-allowed'
-              : 'hover:bg-secondary text-muted-foreground hover:text-foreground'
+              ? "text-muted-foreground/30 cursor-not-allowed"
+              : "hover:bg-secondary text-muted-foreground hover:text-foreground"
           }`}
           title="Next month"
         >
@@ -138,7 +157,10 @@ export default function JobsClient() {
 
       {/* Search */}
       <div className="relative mb-4">
-        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <Search
+          size={15}
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+        />
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -147,7 +169,6 @@ export default function JobsClient() {
         />
       </div>
 
-
       {/* Job Cards Grid */}
       {filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -155,14 +176,16 @@ export default function JobsClient() {
             <Filter size={28} className="text-muted-foreground" />
           </div>
           <h3 className="font-semibold text-foreground text-lg mb-1">
-            {search ?'No jobs match your search'
+            {search
+              ? "No jobs match your search"
               : `No jobs in ${MONTH_NAMES[selectedMonth]} ${selectedYear}`}
           </h3>
           <p className="text-muted-foreground text-sm max-w-sm">
-            {search ?'Try adjusting your search.'
+            {search
+              ? "Try adjusting your search."
               : isCurrentMonth
-              ? 'Create your first job for this month to get started.'
-              : 'Use the month navigator to browse other months.'}
+                ? "Create your first job for this month to get started."
+                : "Use the month navigator to browse other months."}
           </p>
           {!search && isCurrentMonth && (
             <button
@@ -200,7 +223,7 @@ export default function JobsClient() {
         open={showNewJob}
         onClose={() => setShowNewJob(false)}
         onCreated={(job) => {
-          addToast('success', 'Job created', `"${job.siteName}" is ready.`);
+          addToast("success", "Job created", `"${job.siteName}" is ready.`);
           router.push(`/job-detail?id=${job.id}`);
         }}
       />

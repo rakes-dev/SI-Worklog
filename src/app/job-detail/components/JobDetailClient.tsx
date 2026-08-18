@@ -1,15 +1,15 @@
-'use client';
+"use client";
 
-import React from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
-import { ChevronLeft, Printer } from 'lucide-react';
-import Link from 'next/link';
-import { useAppStore } from '@/store/useAppStore';
-import JobInfoPanel from './JobInfoPanel';
-import FormsTable from './FormsTable';
-import ToastContainer from '@/components/ui/Toast';
-import { useToast } from '@/hooks/useToast';
-import { formatCurrency } from '@/utils/helpers';
+import React from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { ChevronLeft, Printer } from "lucide-react";
+import Link from "next/link";
+import { useAppStore } from "@/store/useAppStore";
+import JobInfoPanel from "./JobInfoPanel";
+import FormsTable from "./FormsTable";
+import ToastContainer from "@/components/ui/Toast";
+import { useToast } from "@/hooks/useToast";
+import { formatCurrency } from "@/utils/helpers";
 
 export default function JobDetailClient() {
   const params = useSearchParams();
@@ -17,7 +17,7 @@ export default function JobDetailClient() {
   const { jobs, loadJobs } = useAppStore();
   const { toasts, addToast, removeToast } = useToast();
 
-  const jobId = params?.get('id');
+  const jobId = params?.get("id");
   const job = jobs?.find((j) => j?.id === jobId);
 
   if (!jobId || !job) {
@@ -26,7 +26,9 @@ export default function JobDetailClient() {
         <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4">
           <Printer size={28} className="text-muted-foreground" />
         </div>
-        <h2 className="text-xl font-semibold text-foreground mb-2">Job not found</h2>
+        <h2 className="text-xl font-semibold text-foreground mb-2">
+          Job not found
+        </h2>
         <p className="text-muted-foreground text-sm mb-5">
           This job may have been deleted or the link is invalid.
         </p>
@@ -54,13 +56,16 @@ export default function JobDetailClient() {
             <span className="text-foreground font-medium">{job?.siteName}</span>
           </div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold text-foreground">{job?.siteName}</h1>
+            <h1 className="text-2xl font-semibold text-foreground">
+              {job?.siteName}
+            </h1>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
-            {job?.empName} · {job?.forms?.length} form{job?.forms?.length !== 1 ? 's' : ''} ·{' '}
+            {job?.empName} · {job?.forms?.length} form
+            {job?.forms?.length !== 1 ? "s" : ""} ·{" "}
             <span className="font-tabular font-semibold text-foreground">
               ₹{formatCurrency(job?.totalAmount)}
-            </span>{' '}
+            </span>{" "}
             total
           </p>
         </div>
@@ -80,7 +85,7 @@ export default function JobDetailClient() {
           job={job}
           onSaved={() => {
             loadJobs();
-            addToast('success', 'Job updated', 'Changes saved successfully.');
+            addToast("success", "Job updated", "Changes saved successfully.");
           }}
         />
       </div>

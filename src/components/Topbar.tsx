@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { Sun, Moon, WifiOff, Download, Menu } from 'lucide-react';
-import { useAppStore } from '@/store/useAppStore';
-import AppLogo from '@/components/ui/AppLogo';
+import React, { useState, useEffect } from "react";
+import { Sun, Moon, WifiOff, Download, Menu } from "lucide-react";
+import { useAppStore } from "@/store/useAppStore";
+import AppLogo from "@/components/ui/AppLogo";
 
 export default function Topbar() {
   const { theme, toggleTheme, toggleSidebar } = useAppStore();
@@ -14,19 +14,19 @@ export default function Topbar() {
     setIsOffline(!navigator.onLine);
     const handleOnline = () => setIsOffline(false);
     const handleOffline = () => setIsOffline(true);
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
 
     const handleBeforeInstall = (e: Event) => {
       e.preventDefault();
       setInstallPrompt(e);
     };
-    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+    window.addEventListener("beforeinstallprompt", handleBeforeInstall);
 
     return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
     };
   }, []);
 
@@ -54,7 +54,9 @@ export default function Topbar() {
       {/* Mobile logo */}
       <div className="lg:hidden flex items-center gap-2">
         <AppLogo size={28} />
-        <span className="font-semibold text-sm text-foreground">SI WorkLog</span>
+        <span className="font-semibold text-sm text-foreground">
+          SI WorkLog
+        </span>
       </div>
 
       <div className="flex-1" />
@@ -84,7 +86,7 @@ export default function Topbar() {
         className="p-2 rounded-md text-muted-foreground hover:bg-secondary transition-colors"
         aria-label="Toggle theme"
       >
-        {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+        {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
       </button>
     </header>
   );
@@ -94,6 +96,6 @@ export default function Topbar() {
 declare global {
   interface BeforeInstallPromptEvent extends Event {
     prompt?: () => Promise<void>;
-    userChoice?: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+    userChoice?: Promise<{ outcome: "accepted" | "dismissed" }>;
   }
 }

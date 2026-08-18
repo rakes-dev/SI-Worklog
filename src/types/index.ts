@@ -1,5 +1,5 @@
-export type JobStatus = 'Draft' | 'Pending' | 'Approved';
-export type FormType = 'painting' | 'carpenter';
+export type JobStatus = "Draft" | "Pending" | "Approved";
+export type FormType = "painting" | "carpenter";
 
 export interface SummaryRow {
   id: string;
@@ -8,8 +8,8 @@ export interface SummaryRow {
   paintType: string;
   coat: string;
   arcNo: string;
-  qty: number | '';
-  rate: number | '';
+  qty: number | "";
+  rate: number | "";
   amount: number;
 }
 
@@ -19,13 +19,13 @@ export interface MeasurementRow {
   jobType: string;
   location: string;
   coat: string;
-  height: number | '';
+  height: number | "";
   arcNo: string;
-  rate: number | '';
+  rate: number | "";
   uom: string;
-  length: number | '';
-  width: number | '';
-  no: number | '';
+  length: number | "";
+  width: number | "";
+  no: number | "";
   totalArea: number;
 }
 
@@ -78,6 +78,7 @@ export interface Job {
   remarks: string;
   forms: PaintForm[];
   totalAmount: number;
+  userId?: string; // Email of the user who created this job
   createdAt: string;
   updatedAt: string;
 }
@@ -87,14 +88,14 @@ export interface ArcItem {
   arc_no: string;
   coat: string;
   description: string;
-  final_rate: number | '';
+  final_rate: number | "";
   uom: string;
   job_type: string;
 }
 
 export interface AppState {
   jobs: Job[];
-  theme: 'light' | 'dark';
+  theme: "light" | "dark";
   sidebarCollapsed: boolean;
   isOffline: boolean;
 }

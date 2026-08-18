@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import React from 'react';
+import React from "react";
 
 const SIG_LABELS: { key: string; label: string }[] = [
-  { key: 'standardInterior', label: 'Standard Interior' },
-  { key: 'requestedBy', label: 'Requested By' },
-  { key: 'qualityCheckHK', label: 'Quality Check by HK' },
-  { key: 'qualityCheckEngg', label: 'Quality Check by Engg' },
-  { key: 'measurementCheck', label: 'Measurement Check' },
+  { key: "standardInterior", label: "Standard Interior" },
+  { key: "requestedBy", label: "Requested By" },
+  { key: "qualityCheckHK", label: "Quality Check by HK" },
+  { key: "qualityCheckEngg", label: "Quality Check by Engg" },
+  { key: "measurementCheck", label: "Measurement Check" },
 ];
 
 function SigBox({ label }: { label: string }) {
@@ -31,10 +31,7 @@ export default function SignatureSection() {
       <h3 className="font-semibold text-foreground text-sm mb-4">Signatures</h3>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {SIG_LABELS.map((s) => (
-          <SigBox
-            key={`sig-${s.key}`}
-            label={s.label}
-          />
+          <SigBox key={`sig-${s.key}`} label={s.label} />
         ))}
       </div>
     </div>
