@@ -32,8 +32,9 @@ export default function MeasInput({
   const isFeet = field !== "no" && isFtBasedUom(uom);
 
   // While not editing, show the value in FEET for feet-based UOMs (the entered
-  // meter value is converted and replaces the cell content). While editing, the
-  // meter value is shown so corrections are made in meters.
+  // meter value is converted and replaces the cell content) — always with 2
+  // decimal places. While editing, the meter value is shown so corrections are
+  // made in meters.
   const display =
     text !== null
       ? text
@@ -42,8 +43,8 @@ export default function MeasInput({
         : field === "no"
           ? String(value)
           : isFeet
-            ? trimNumber(metersToFeet(value))
-            : trimNumber(value);
+            ? metersToFeet(value).toFixed(2)
+            : value.toFixed(2);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (disabled) return;
