@@ -33,11 +33,11 @@ export function calcMeasurementRow(row: MeasurementRow): number {
   const h = typeof row.height === 'number' ? row.height : 0;
   const n = typeof row.no === 'number' ? row.no : 0;
 
-  // Feet dimensions (2 decimals) — match the values shown in the cells so the
-  // computed total equals the product the user sees.
-  const lf = parseFloat((l * M_TO_FT).toFixed(2));
-  const wf = parseFloat((w * M_TO_FT).toFixed(2));
-  const hf = parseFloat((h * M_TO_FT).toFixed(2));
+  // Feet dimensions kept at full precision (trimmed to 5 decimals) so the
+  // calculated total uses the ACTUAL value; only the final total is rounded.
+  const lf = parseFloat((l * M_TO_FT).toFixed(5));
+  const wf = parseFloat((w * M_TO_FT).toFixed(5));
+  const hf = parseFloat((h * M_TO_FT).toFixed(5));
 
   // RFT — running feet (linear measurement). Length is entered in meters, so
   // convert to feet and multiply by the number of pieces. Width is not used.
@@ -143,11 +143,17 @@ export function linearUnitLabel(uoms: (string | undefined)[]): string {
   return hasFt ? 'ft' : 'm';
 }
 
+/** Format a number trimmed of trailing zeros, up to maxDecimals (no forced rounding for display). */
+export function trimNumber(value: number, maxDecimals = 5): string {
+  if (!Number.isFinite(value)) return '';
+  return parseFloat(value.toFixed(maxDecimals)).toString();
+}
+
 /** Cell value for a linear column: shows feet when the row UOM is feet-based, otherwise meters. */
 export function linearCellValue(uom: string | undefined, value: number | ''): string {
   if (value === '') return '';
-  if (isFtBasedUom(uom)) return metersToFeet(value).toFixed(2);
-  return value.toFixed(2);
+  if (isFtBasedUom(uom)) return trimNumber(metersToFeet(value));
+  return trimNumber(value);
 }
 
 /** "ft" for feet-based UOMs, otherwise "m" — used to append a per-cell unit suffix. */

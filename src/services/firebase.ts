@@ -1,6 +1,6 @@
 import { getApp, getApps, initializeApp, type FirebaseApp } from 'firebase/app';
 import { enableMultiTabIndexedDbPersistence, getFirestore, type Firestore } from 'firebase/firestore';
-import { getAuth, signInAnonymously, type Auth } from 'firebase/auth';
+import { getAuth, signInAnonymously, signInWithPopup, signInWithEmailAndPassword, signOut, GoogleAuthProvider, onAuthStateChanged, type Auth, type User } from 'firebase/auth';
 
 type FirebaseConfig = {
   apiKey: string;
@@ -112,4 +112,35 @@ export async function ensureFirebaseAuth(): Promise<void> {
   }
 
   await authBootstrapPromise;
+}
+
+export function getGoogleAuthProvider(): GoogleAuthProvider {
+  const provider = new GoogleAuthProvider();
+  provider.addScope('profile');
+  provider.addScope('email');
+  return provider;
+}
+
+/** Sign in with a Google popup and return the authenticated user. */
+export async function signInWithGoogle(): Promise<User> {
+  const auth = getFirebaseAuth();
+  const credential = await signInWithPopup(auth, getGoogleAuthProvider());
+  return credential.user;
+}
+
+/** Sign the current user out. */
+export async function signOutUser(): Promise<void> {
+  await signOut(getFirebaseAuth());
+}
+
+/** Sign in with email + password. */
+export async function signInWithEmailPassword(email: string, password: string): Promise<User> {
+  const auth = getFirebaseAuth();
+  const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
+  return credential.user;
+}
+
+/** Subscribe to auth state changes. Returns an unsubscribe function. */
+export function onAuthStateChange(callback: (user: User | null) => void): () => void {
+  return onAuthStateChanged(getFirebaseAuth(), callback);
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { isFtBasedUom, metersToFeet } from '@/utils/helpers';
+import { isFtBasedUom, metersToFeet, trimNumber } from '@/utils/helpers';
 
 interface MeasInputProps {
   value: number | '';
@@ -36,8 +36,8 @@ export default function MeasInput({ value, field, uom, disabled = false, onChang
         : field === 'no'
           ? String(value)
           : isFeet
-            ? metersToFeet(value).toFixed(2)
-            : value.toFixed(2);
+            ? trimNumber(metersToFeet(value))
+            : trimNumber(value);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (disabled) return;
@@ -55,10 +55,10 @@ export default function MeasInput({ value, field, uom, disabled = false, onChang
     if (field === 'no') {
       onChange(Math.round(n));
     } else {
-      // The user enters the measurement in METERS — store it as-is (the temp
-      // value). The cell display converts it to feet; the meter value is kept
-      // until the cell is focused/edited again or erased.
-      onChange(parseFloat(n.toFixed(2)));
+      // The user enters the measurement in METERS — store the original value
+      // with high precision (6 decimals). The cell display shows the converted
+      // feet (trimmed); the meter value is kept until edited or erased.
+      onChange(parseFloat(n.toFixed(6)));
     }
   };
 
@@ -73,7 +73,7 @@ export default function MeasInput({ value, field, uom, disabled = false, onChang
       onFocus={(e) => {
         // Begin editing in METERS (the temporary value); the feet value is
         // shown after blur so the user can correct the meter entry.
-        setText(value === '' ? '' : field === 'no' ? String(value) : value.toFixed(2));
+        setText(value === '' ? '' : field === 'no' ? String(value) : trimNumber(value, 6));
         e.target.select();
       }}
       onBlur={() => setText(null)}

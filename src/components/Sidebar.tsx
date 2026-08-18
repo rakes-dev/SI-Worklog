@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Briefcase, FileText, Settings, Database, ChevronLeft, ChevronRight,  } from 'lucide-react';
+import { LayoutDashboard, Briefcase, FileText, Settings, Database, BarChart3, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 import AppLogo from '@/components/ui/AppLogo';
 import Icon from '@/components/ui/AppIcon';
@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { key: 'nav-jobs', href: '/jobs', label: 'Jobs', icon: Briefcase, badge: null },
   { key: 'nav-forms', href: '/form-editor', label: 'Form Editor', icon: FileText, badge: null },
   { key: 'nav-arc', href: '/arc', label: 'ARC Rates', icon: Database, badge: null },
+  { key: 'nav-admin', href: '/admin', label: 'Admin', icon: BarChart3, badge: null },
 ];
 
 export default function Sidebar() {
