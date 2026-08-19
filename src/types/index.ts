@@ -79,6 +79,9 @@ export interface Job {
   forms: PaintForm[];
   totalAmount: number;
   userId?: string; // Email of the user who created this job
+  // Soft delete — jobs are never hard-deleted.
+  isDeleted?: boolean;
+  deletedAt?: string;
   createdAt: string;
   updatedAt: string;
 }

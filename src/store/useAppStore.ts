@@ -17,6 +17,7 @@ interface AppStore {
   addJob: (job: Job) => Promise<void>;
   updateJob: (job: Job) => Promise<void>;
   deleteJob: (id: string) => Promise<void>;
+  restoreJob: (id: string) => Promise<void>;
   duplicateJob: (id: string) => Promise<Job>;
   addForm: (jobId: string, form: PaintForm) => Promise<void>;
   updateForm: (jobId: string, form: PaintForm) => Promise<void>;
@@ -131,9 +132,49 @@ export const useAppStore = create<AppStore>()(
       },
 
       deleteJob: async (id) => {
-        set((s) => ({ jobs: s.jobs.filter((j) => j.id !== id) }));
-        dbService.deleteJob(id).catch((error) => {
-          console.warn("Firestore sync failed for job deletion:", error);
+        const job = get().jobs.find((j) => j.id === id);
+        if (!job) return;
+        // Soft delete: keep the job but mark it as deleted so it can be restored.
+        const nowIso = new Date().toISOString();
+        set((s) => ({
+          jobs: s.jobs.map((j) =>
+            j.id === id
+              ? { ...j, isDeleted: true, deletedAt: nowIso, updatedAt: nowIso }
+              : j,
+          ),
+        }));
+        dbService
+          .saveJob(
+            recalcJobTotal({
+              ...job,
+              isDeleted: true,
+              deletedAt: nowIso,
+              updatedAt: nowIso,
+            }),
+          )
+          .catch((error) => {
+            console.warn(
+              "Firestore sync failed for job soft-delete (local save preserved):",
+              error,
+            );
+          });
+      },
+
+      restoreJob: async (id) => {
+        const job = get().jobs.find((j) => j.id === id);
+        if (!job) return;
+        const updated: Job = {
+          ...job,
+          isDeleted: false,
+          deletedAt: undefined,
+          updatedAt: new Date().toISOString(),
+        };
+        set((s) => ({ jobs: s.jobs.map((j) => (j.id === id ? updated : j)) }));
+        dbService.saveJob(recalcJobTotal(updated)).catch((error) => {
+          console.warn(
+            "Firestore sync failed for job restore (local save preserved):",
+            error,
+          );
         });
       },
 

@@ -117,7 +117,7 @@ export default function JobCard({ job, onDuplicate, onToast }: JobCardProps) {
           </button>
           <button
             onClick={() => setShowConfirm(true)}
-            title="Delete job — this cannot be undone"
+            title="Delete job (moves to trash)"
             className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors scale-press"
           >
             <Trash2 size={14} />
@@ -128,8 +128,8 @@ export default function JobCard({ job, onDuplicate, onToast }: JobCardProps) {
       <ConfirmModal
         open={showConfirm}
         title="Delete Job"
-        message={`Are you sure you want to delete "${job.siteName}"? All forms and measurements will be permanently removed.`}
-        confirmLabel="Delete Job"
+        message={`Move "${job.siteName}" to the trash? It will be removed from your lists but can be restored anytime — jobs are never permanently deleted.`}
+        confirmLabel="Move to Trash"
         onConfirm={handleDelete}
         onCancel={() => setShowConfirm(false)}
         destructive

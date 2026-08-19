@@ -9,12 +9,14 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
+  RotateCcw,
 } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import JobCard from "@/app/components/JobCard";
 import NewJobModal from "@/app/components/NewJobModal";
 import ToastContainer from "@/components/ui/Toast";
 import { useToast } from "@/hooks/useToast";
+import { formatDate } from "@/utils/helpers";
 
 const MONTH_NAMES = [
   "January",
@@ -33,7 +35,7 @@ const MONTH_NAMES = [
 
 export default function JobsClient() {
   const router = useRouter();
-  const { jobs, duplicateJob } = useAppStore();
+  const { jobs, duplicateJob, restoreJob } = useAppStore();
   const { toasts, addToast, removeToast } = useToast();
 
   const now = new Date();
@@ -69,7 +71,11 @@ export default function JobsClient() {
   const filtered = useMemo(() => {
     let list = jobs.filter((j) => {
       const d = new Date(j.createdAt);
-      return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
+      return (
+        !j.isDeleted &&
+        d.getMonth() === selectedMonth &&
+        d.getFullYear() === selectedYear
+      );
     });
 
     if (search.trim()) {
@@ -99,9 +105,29 @@ export default function JobsClient() {
   const monthJobs = useMemo(() => {
     return jobs.filter((j) => {
       const d = new Date(j.createdAt);
-      return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
+      return (
+        !j.isDeleted &&
+        d.getMonth() === selectedMonth &&
+        d.getFullYear() === selectedYear
+      );
     });
   }, [jobs, selectedMonth, selectedYear]);
+
+  // Soft-deleted jobs kept for restore (never hard-deleted).
+  const deletedJobs = useMemo(() => jobs.filter((j) => j.isDeleted), [jobs]);
+
+  const handleRestore = async (id: string) => {
+    try {
+      await restoreJob(id);
+      addToast(
+        "success",
+        "Job restored",
+        "The job has been moved back to your list.",
+      );
+    } catch {
+      addToast("error", "Restore failed", "Could not restore this job.");
+    }
+  };
 
   return (
     <div className="min-h-full p-4 lg:p-6 xl:p-8 pb-20 lg:pb-8 max-w-screen-2xl mx-auto">
@@ -207,6 +233,50 @@ export default function JobsClient() {
               onToast={addToast}
             />
           ))}
+        </div>
+      )}
+
+      {/* Trash — soft-deleted jobs (never hard-deleted; restorable) */}
+      {deletedJobs.length > 0 && (
+        <div className="mt-10">
+          <h2 className="text-lg font-semibold text-foreground mb-3">
+            Trash ({deletedJobs.length})
+          </h2>
+          <p className="text-xs text-muted-foreground mb-3 max-w-lg">
+            These jobs have been removed from your lists. They are kept in your
+            data and can be restored anytime — jobs are never permanently
+            deleted.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {deletedJobs.map((job) => (
+              <div
+                key={job.id}
+                className="bg-card border border-border rounded-lg p-4 flex flex-col gap-2.5"
+              >
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-foreground text-sm truncate">
+                    {job.siteName}
+                  </h3>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {job.empName}
+                  </div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {job.forms?.length ?? 0} form
+                    {job.forms?.length === 1 ? "" : "s"}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Deleted: {job.deletedAt ? formatDate(job.deletedAt) : "—"}
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleRestore(job.id)}
+                  className="flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium text-primary bg-primary/10 hover:bg-primary/20 rounded-md transition-colors"
+                >
+                  <RotateCcw size={13} /> Restore
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

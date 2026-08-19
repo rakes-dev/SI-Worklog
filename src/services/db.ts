@@ -221,6 +221,8 @@ function normalizeJob(value: FirestoreJobData): Job {
     siteName: coerceString(value.siteName),
     siteAddress: coerceString(value.siteAddress),
     remarks: coerceString(value.remarks),
+    isDeleted: value.isDeleted === true,
+    deletedAt: coerceString(value.deletedAt) || undefined,
     forms,
     totalAmount: 0,
     createdAt: coerceString(value.createdAt, fallback.createdAt),

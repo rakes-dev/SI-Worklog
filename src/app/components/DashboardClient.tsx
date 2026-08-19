@@ -28,7 +28,7 @@ export default function DashboardClient() {
   const [importing, setImporting] = useState(false);
 
   const filtered = useMemo(() => {
-    let list = jobs;
+    let list = jobs.filter((j) => !j.isDeleted);
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(
