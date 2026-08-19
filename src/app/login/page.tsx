@@ -9,13 +9,15 @@ import { Loader2, ArrowLeft } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { status, accessError, signInGoogle, signInEmail } = useAuthStore();
+  const { status, role, authorized, accessError, signInGoogle, signInEmail } = useAuthStore();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   useEffect(() => {
-    if (status === "authenticated") router.replace("/admin");
-  }, [status, router]);
+    if (status === "authenticated" && authorized !== null) {
+      router.replace(role === "admin" ? "/admin" : "/");
+    }
+  }, [status, authorized, role, router]);
 
   const busy = status === "loading";
   const canSubmit = email.trim() !== "" && password !== "";

@@ -43,7 +43,7 @@ export const useAppStore = create<AppStore>()(
   persist(
     (set, get) => ({
       jobs: [],
-      theme: "dark",
+      theme: "light",
       sidebarCollapsed: false,
       isLoaded: false,
 
@@ -353,6 +353,12 @@ export const useAppStore = create<AppStore>()(
     }),
     {
       name: "paintpro-storage",
+      version: 1,
+      // Default theme is now light — reset any previously persisted dark theme.
+      migrate: (persistedState) => {
+        const prev = (persistedState ?? {}) as Partial<AppStore>;
+        return { ...prev, theme: "light" } as AppStore;
+      },
       partialize: (s) => ({
         theme: s.theme,
         sidebarCollapsed: s.sidebarCollapsed,

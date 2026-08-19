@@ -9,9 +9,11 @@ import {
   aggregateAreaUnitLabel,
   linearUnitLabel,
   isCftUom,
+  isRftUom,
   defaultMeasurementRow,
 } from "@/utils/helpers";
 import MeasInput from "./MeasInput";
+import FtInInput from "./FtInInput";
 
 const LOCATION_SUGGESTIONS = [
   "Bed side table",
@@ -65,6 +67,8 @@ export default function MeasurementTable({
   const [overRowId, setOverRowId] = React.useState<string | null>(null);
   const isCarpenter = formType === "carpenter";
   const linUnit = linearUnitLabel(rows.map((r) => r.uom));
+  // cft / rft rows use feet+inches inputs for length/width/height.
+  const isFtIn = (uom?: string) => isCftUom(uom) || isRftUom(uom);
 
   const hasFilledMeasurementValues = (row: MeasurementRow) => {
     return (
@@ -335,13 +339,21 @@ export default function MeasurementTable({
                   </td>
                   <td className="px-1 py-1.5">
                     {isCarpenter ? (
-                      <MeasInput
-                        field="height"
-                        uom={row.uom}
-                        value={row.height}
-                        disabled={!isCftUom(row.uom)}
-                        onChange={(v) => updateRow(row.id, "height", v)}
-                      />
+                      isFtIn(row.uom) ? (
+                        <FtInInput
+                          disabled={!isCftUom(row.uom)}
+                          value={row.height}
+                          onChange={(v) => updateRow(row.id, "height", v)}
+                        />
+                      ) : (
+                        <MeasInput
+                          field="height"
+                          uom={row.uom}
+                          value={row.height}
+                          disabled={!isCftUom(row.uom)}
+                          onChange={(v) => updateRow(row.id, "height", v)}
+                        />
+                      )
                     ) : (
                       textInput(
                         row.id,
@@ -353,20 +365,28 @@ export default function MeasurementTable({
                     )}
                   </td>
                   <td className="px-1 py-1.5">
-                    <MeasInput
-                      field="length"
-                      uom={row.uom}
-                      value={row.length}
-                      onChange={(v) => updateRow(row.id, "length", v)}
-                    />
+                    {isFtIn(row.uom) ? (
+                      <FtInInput value={row.length} onChange={(v) => updateRow(row.id, "length", v)} />
+                    ) : (
+                      <MeasInput
+                        field="length"
+                        uom={row.uom}
+                        value={row.length}
+                        onChange={(v) => updateRow(row.id, "length", v)}
+                      />
+                    )}
                   </td>
                   <td className="px-1 py-1.5">
-                    <MeasInput
-                      field="width"
-                      uom={row.uom}
-                      value={row.width}
-                      onChange={(v) => updateRow(row.id, "width", v)}
-                    />
+                    {isFtIn(row.uom) ? (
+                      <FtInInput value={row.width} onChange={(v) => updateRow(row.id, "width", v)} />
+                    ) : (
+                      <MeasInput
+                        field="width"
+                        uom={row.uom}
+                        value={row.width}
+                        onChange={(v) => updateRow(row.id, "width", v)}
+                      />
+                    )}
                   </td>
                   <td className="px-1 py-1.5">
                     <MeasInput
