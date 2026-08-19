@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { Plus, Trash2, Copy, Info, ChevronUp, ChevronDown } from "lucide-react";
 import type { SummaryRow, ArcItem } from "@/types";
 import {
@@ -92,26 +92,45 @@ export default function SummaryTable({
     onChange([...rows, dup]);
   };
 
-  const numInput = (
-    rowId: string,
-    field: "qty" | "rate",
-    value: number | "",
-  ) => (
-    <input
-      type="number"
-      step="0.01"
-      min="0"
-      value={value === "" ? "" : value}
-      onChange={(e) =>
-        updateRow(
-          rowId,
-          field,
-          e.target.value === "" ? "" : parseFloat(e.target.value) || 0,
-        )
-      }
-      className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-right text-xs font-tabular text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
-    />
-  );
+  interface SummaryNumInputProps {
+    rowId: string;
+    field: "qty" | "rate";
+    value: number | "";
+  }
+
+  /** Numeric cell for qty / rate — always displays 2 decimal places once
+   *  the user leaves the field (blur). While typing, the raw text is shown
+   *  so `1` → `1.00`, `.3` → `0.30`, `2.3` → `2.30`. */
+  const SummaryNumInput = ({ rowId, field, value }: SummaryNumInputProps) => {
+    const [text, setText] = useState<string | null>(null);
+
+    const display =
+      text !== null ? text : value === "" ? "" : value.toFixed(2);
+
+    return (
+      <input
+        type="number"
+        step="0.01"
+        min="0"
+        value={display}
+        onChange={(e) => {
+          const raw = e.target.value;
+          setText(raw);
+          updateRow(
+            rowId,
+            field,
+            raw === "" ? "" : parseFloat(raw) || 0,
+          );
+        }}
+        onFocus={(e) => {
+          setText(value === "" ? "" : String(value));
+          e.target.select();
+        }}
+        onBlur={() => setText(null)}
+        className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-right text-xs font-tabular text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
+      />
+    );
+  };
 
   return (
     <div className="bg-card border border-border rounded-lg overflow-hidden">
@@ -283,10 +302,10 @@ export default function SummaryTable({
                       </datalist>
                     </td>
                     <td className="px-1 py-1.5">
-                      {numInput(row.id, "qty", row.qty)}
+                      <SummaryNumInput rowId={row.id} field="qty" value={row.qty} />
                     </td>
                     <td className="px-1 py-1.5">
-                      {numInput(row.id, "rate", row.rate)}
+                      <SummaryNumInput rowId={row.id} field="rate" value={row.rate} />
                     </td>
                     <td className="px-2 py-1.5 text-right text-xs font-tabular font-semibold text-foreground">
                       {formatCurrency(row.amount)}

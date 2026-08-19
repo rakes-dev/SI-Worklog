@@ -182,8 +182,8 @@ export function linearCellValue(
   value: number | "",
 ): string {
   if (value === "") return "";
-  if (isFtBasedUom(uom)) return trimNumber(metersToFeet(value));
-  return trimNumber(value);
+  if (isFtBasedUom(uom)) return metersToFeet(value).toFixed(2);
+  return value.toFixed(2);
 }
 
 /** "ft" for feet-based UOMs, otherwise "m" — used to append a per-cell unit suffix. */
