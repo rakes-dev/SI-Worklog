@@ -222,7 +222,7 @@ function normalizeJob(value: FirestoreJobData): Job {
     siteAddress: coerceString(value.siteAddress),
     remarks: coerceString(value.remarks),
     isDeleted: value.isDeleted === true,
-    deletedAt: coerceString(value.deletedAt) || undefined,
+    deletedAt: coerceString(value.deletedAt),
     forms,
     totalAmount: 0,
     createdAt: coerceString(value.createdAt, fallback.createdAt),
@@ -234,6 +234,28 @@ function normalizeJob(value: FirestoreJobData): Job {
     0,
   );
   return job;
+}
+
+/**
+ * Recursively remove `undefined` values from an object so Firestore accepts it.
+ * Firestore throws "Unsupported field value: undefined" when any field is undefined.
+ */
+function sanitizeForFirestore<T>(value: T): T {
+  if (value === undefined) return undefined as unknown as T;
+  if (value === null) return value;
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeForFirestore(item)) as unknown as T;
+  }
+  if (typeof value === "object") {
+    const result: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
+      if (val !== undefined) {
+        result[key] = sanitizeForFirestore(val);
+      }
+    }
+    return result as T;
+  }
+  return value;
 }
 
 function jobRef(id: string) {
@@ -313,17 +335,16 @@ export const dbService = {
     // Fire schema init in background — non-blocking
     ensureFirestoreSchema().catch(() => {});
     const normalized = normalizeJob(job);
+    // Remove undefined values — Firestore rejects them
+    const sanitized = sanitizeForFirestore({
+      ...normalized,
+      updatedAt: new Date().toISOString(),
+    });
     // Add timeout to prevent infinite hanging
     const timeout = new Promise<void>((_, reject) =>
       setTimeout(() => reject(new Error("Firestore write timed out")), 10000),
     );
-    await Promise.race([
-      setDoc(jobRef(normalized.id), {
-        ...normalized,
-        updatedAt: new Date().toISOString(),
-      }),
-      timeout,
-    ]);
+    await Promise.race([setDoc(jobRef(normalized.id), sanitized), timeout]);
   },
 
   async deleteJob(id: string): Promise<void> {
@@ -363,10 +384,12 @@ export const dbService = {
       for (const rawJob of jobs) {
         try {
           const normalized = normalizeJob(rawJob);
-          batch.set(jobRef(normalized.id), {
+          // Remove undefined values — Firestore rejects them
+          const sanitized = sanitizeForFirestore({
             ...normalized,
             updatedAt: new Date().toISOString(),
           });
+          batch.set(jobRef(normalized.id), sanitized);
           queued++;
           imported++;
 
@@ -406,15 +429,12 @@ export const dbService = {
     // Firestore rules allow unauthenticated writes — no auth dependency needed.
     ensureFirestoreSchema().catch(() => {});
     const normalized = normalizeArcItem(item);
+    // Remove undefined values — Firestore rejects them
+    const sanitized = sanitizeForFirestore(normalized);
     const timeout = new Promise<void>((_, reject) =>
       setTimeout(() => reject(new Error("Firestore write timed out")), 10000),
     );
-    await Promise.race([
-      setDoc(arcRef(normalized.id), {
-        ...normalized,
-      }),
-      timeout,
-    ]);
+    await Promise.race([setDoc(arcRef(normalized.id), sanitized), timeout]);
   },
 
   async deleteArcItem(id: string): Promise<void> {
@@ -433,7 +453,9 @@ export const dbService = {
     const batch = writeBatch(db);
     for (const item of items) {
       const normalized = normalizeArcItem(item);
-      batch.set(arcRef(normalized.id), { ...normalized });
+      // Remove undefined values — Firestore rejects them
+      const sanitized = sanitizeForFirestore(normalized);
+      batch.set(arcRef(normalized.id), sanitized);
     }
     await batch.commit();
   },
