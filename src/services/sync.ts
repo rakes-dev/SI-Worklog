@@ -67,6 +67,11 @@ class SyncService {
     return this.getQueue().length;
   }
 
+  /** IDs of jobs currently waiting to be synced. */
+  getPendingJobIds(): string[] {
+    return this.getQueue().map((item) => item.job.id);
+  }
+
   /** Whether a sync flush is currently in progress. */
   isSyncing(): boolean {
     return this.syncing;

@@ -79,8 +79,20 @@ export const useAppStore = create<AppStore>()(
           if (isAdmin) {
             dbService
               .getAllJobs()
-              .then((jobs) => {
-                if (jobs.length > 0) set({ jobs });
+              .then((serverJobs) => {
+                // Merge: keep local jobs that have pending syncs (not yet on server),
+                // and use server data for everything else.
+                const localJobs = get().jobs;
+                const pendingIds = new Set(
+                  syncService
+                    .getPendingJobIds()
+                    .map((id) => id),
+                );
+                const merged = [
+                  ...localJobs.filter((j) => pendingIds.has(j.id)),
+                  ...serverJobs.filter((j) => !pendingIds.has(j.id)),
+                ];
+                if (merged.length > 0) set({ jobs: merged });
               })
               .catch((error) => {
                 console.warn(
@@ -91,8 +103,20 @@ export const useAppStore = create<AppStore>()(
           } else if (user?.email) {
             dbService
               .getUserJobs(user.email)
-              .then((jobs) => {
-                if (jobs.length > 0) set({ jobs });
+              .then((serverJobs) => {
+                // Merge: keep local jobs that have pending syncs (not yet on server),
+                // and use server data for everything else.
+                const localJobs = get().jobs;
+                const pendingIds = new Set(
+                  syncService
+                    .getPendingJobIds()
+                    .map((id) => id),
+                );
+                const merged = [
+                  ...localJobs.filter((j) => pendingIds.has(j.id)),
+                  ...serverJobs.filter((j) => !pendingIds.has(j.id)),
+                ];
+                if (merged.length > 0) set({ jobs: merged });
               })
               .catch((error) => {
                 console.warn(

@@ -7,7 +7,7 @@ import {
   setDoc,
   writeBatch,
 } from "firebase/firestore";
-import { ensureFirebaseAuth, getFirestoreDb } from "@/services/firebase";
+import { getFirestoreDb } from "@/services/firebase";
 import { ensureFirestoreSchema } from "@/services/firestore-schema";
 import type {
   ArcItem,
@@ -257,7 +257,7 @@ function normalizeArcItem(value: Partial<ArcItem>): ArcItem {
 }
 
 async function getAllJobsFromFirestore(): Promise<Job[]> {
-  await ensureFirebaseAuth();
+  // Firestore rules allow unauthenticated reads — no auth dependency needed.
   ensureFirestoreSchema().catch(() => {});
   const db = getFirestoreDb();
   const snapshot = await getDocs(collection(db, COLLECTION_JOBS));
@@ -267,7 +267,7 @@ async function getAllJobsFromFirestore(): Promise<Job[]> {
 }
 
 async function getUserJobsFromFirestore(userEmail: string): Promise<Job[]> {
-  await ensureFirebaseAuth();
+  // Firestore rules allow unauthenticated reads — no auth dependency needed.
   ensureFirestoreSchema().catch(() => {});
   const db = getFirestoreDb();
   const snapshot = await getDocs(collection(db, COLLECTION_JOBS));
@@ -301,7 +301,7 @@ export const dbService = {
   },
 
   async getJob(id: string): Promise<Job | undefined> {
-    await ensureFirebaseAuth();
+    // Firestore rules allow unauthenticated reads — no auth dependency needed.
     ensureFirestoreSchema().catch(() => {});
     const snapshot = await getDoc(jobRef(id));
     if (!snapshot.exists()) return undefined;
@@ -309,7 +309,7 @@ export const dbService = {
   },
 
   async saveJob(job: Job): Promise<void> {
-    await ensureFirebaseAuth();
+    // Firestore rules allow unauthenticated writes — no auth dependency needed.
     // Fire schema init in background — non-blocking
     ensureFirestoreSchema().catch(() => {});
     const normalized = normalizeJob(job);
@@ -327,7 +327,7 @@ export const dbService = {
   },
 
   async deleteJob(id: string): Promise<void> {
-    await ensureFirebaseAuth();
+    // Firestore rules allow unauthenticated writes — no auth dependency needed.
     ensureFirestoreSchema().catch(() => {});
     const timeout = new Promise<void>((_, reject) =>
       setTimeout(() => reject(new Error("Firestore delete timed out")), 10000),
@@ -351,7 +351,7 @@ export const dbService = {
     let errors = 0;
 
     try {
-      await ensureFirebaseAuth();
+      // Firestore rules allow unauthenticated writes — no auth dependency needed.
       await ensureFirestoreSchema();
       const data = JSON.parse(jsonString);
       const jobs: FirestoreJobData[] =
@@ -393,7 +393,7 @@ export const dbService = {
   // === ARC Collection ===
 
   async getAllArcItems(): Promise<ArcItem[]> {
-    await ensureFirebaseAuth();
+    // Firestore rules allow unauthenticated reads — no auth dependency needed.
     ensureFirestoreSchema().catch(() => {});
     const db = getFirestoreDb();
     const snapshot = await getDocs(collection(db, COLLECTION_ARC));
@@ -403,7 +403,7 @@ export const dbService = {
   },
 
   async saveArcItem(item: ArcItem): Promise<void> {
-    await ensureFirebaseAuth();
+    // Firestore rules allow unauthenticated writes — no auth dependency needed.
     ensureFirestoreSchema().catch(() => {});
     const normalized = normalizeArcItem(item);
     const timeout = new Promise<void>((_, reject) =>
@@ -418,7 +418,7 @@ export const dbService = {
   },
 
   async deleteArcItem(id: string): Promise<void> {
-    await ensureFirebaseAuth();
+    // Firestore rules allow unauthenticated writes — no auth dependency needed.
     ensureFirestoreSchema().catch(() => {});
     const timeout = new Promise<void>((_, reject) =>
       setTimeout(() => reject(new Error("Firestore delete timed out")), 10000),
@@ -427,7 +427,7 @@ export const dbService = {
   },
 
   async saveAllArcItems(items: ArcItem[]): Promise<void> {
-    await ensureFirebaseAuth();
+    // Firestore rules allow unauthenticated writes — no auth dependency needed.
     ensureFirestoreSchema().catch(() => {});
     const db = getFirestoreDb();
     const batch = writeBatch(db);
