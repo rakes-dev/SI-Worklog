@@ -1,22 +1,15 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Sun, Moon, WifiOff, Download, Menu } from "lucide-react";
+import { Sun, Moon, WifiOff, Download, Menu, RefreshCw, CloudUpload } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import AppLogo from "@/components/ui/AppLogo";
 
 export default function Topbar() {
-  const { theme, toggleTheme, toggleSidebar } = useAppStore();
-  const [isOffline, setIsOffline] = useState(false);
+  const { theme, toggleTheme, toggleSidebar, isOnline, pendingSyncCount, isSyncing } = useAppStore();
   const [installPrompt, setInstallPrompt] = useState<Event | null>(null);
 
   useEffect(() => {
-    setIsOffline(!navigator.onLine);
-    const handleOnline = () => setIsOffline(false);
-    const handleOffline = () => setIsOffline(true);
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-
     const handleBeforeInstall = (e: Event) => {
       e.preventDefault();
       setInstallPrompt(e);
@@ -24,8 +17,6 @@ export default function Topbar() {
     window.addEventListener("beforeinstallprompt", handleBeforeInstall);
 
     return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
       window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
     };
   }, []);
@@ -61,11 +52,25 @@ export default function Topbar() {
 
       <div className="flex-1" />
 
-      {/* Offline indicator */}
-      {isOffline && (
+      {/* Sync status */}
+      {!isOnline && (
         <div className="flex items-center gap-1.5 px-2.5 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 rounded-full text-xs font-medium">
           <WifiOff size={12} />
           <span>Offline</span>
+        </div>
+      )}
+
+      {isOnline && pendingSyncCount > 0 && (
+        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-full text-xs font-medium">
+          <CloudUpload size={12} />
+          <span>{pendingSyncCount} pending</span>
+        </div>
+      )}
+
+      {isOnline && isSyncing && (
+        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded-full text-xs font-medium">
+          <RefreshCw size={12} className="animate-spin" />
+          <span>Syncing...</span>
         </div>
       )}
 
