@@ -203,6 +203,16 @@ function normalizeText(value: string): string {
   return value.trim().toLowerCase();
 }
 
+/**
+ * Normalize a free-text value (site name, site address, employee name, area
+ * name, etc.) into a case-insensitive comparison key. Values differing only in
+ * letter case ("ITC ROYAL" vs "Itc royal") produce the same key so they can be
+ * grouped, deduped, and filtered together.
+ */
+export function normalizeKey(value: string | null | undefined): string {
+  return (value || "").trim().toLowerCase();
+}
+
 function isBlankSummaryRow(row: SummaryRow): boolean {
   return (
     !row.paintType.trim() &&

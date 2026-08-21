@@ -16,7 +16,8 @@ import {
 import { useAppStore } from "@/store/useAppStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import UserManagement from "./UserManagement";
-import { formatCurrency } from "@/utils/helpers";
+import MasterSummary from "./MasterSummary";
+import { formatCurrency, normalizeKey } from "@/utils/helpers";
 import {
   Loader2,
   LogOut,
@@ -26,6 +27,7 @@ import {
   Briefcase,
   Building2,
   Users,
+  ClipboardList,
 } from "lucide-react";
 
 type Timeline = "day" | "week" | "month";
@@ -77,7 +79,7 @@ export default function AdminPage() {
 
   const [location, setLocation] = useState<string>("all");
   const [timeline, setTimeline] = useState<Timeline>("day");
-  const [tab, setTab] = useState<"overview" | "users">("overview");
+  const [tab, setTab] = useState<"overview" | "master" | "users">("overview");
 
   useEffect(() => {
     if (status === "unauthenticated") router.replace("/login");
@@ -98,17 +100,24 @@ export default function AdminPage() {
         )
       : [];
 
+    // Deduplicate locations case-insensitively ("ITC ROYAL" / "Itc royal" →
+    // one option, displayed with the first casing seen).
     const locations = Array.from(
-      new Set(
-        jobs.map((j) => j.siteAddress?.trim() || j.siteName).filter(Boolean),
-      ),
-    ).sort();
+      new Map(
+        jobs
+          .map((j) => j.siteAddress?.trim() || j.siteName)
+          .filter(Boolean)
+          .map((name) => [normalizeKey(name), name] as [string, string]),
+      ).values(),
+    ).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
 
     const filtered =
       location === "all"
         ? all
         : all.filter(
-            (x) => (x.job.siteAddress?.trim() || x.job.siteName) === location,
+            (x) =>
+              normalizeKey(x.job.siteAddress?.trim() || x.job.siteName) ===
+              normalizeKey(location),
           );
 
     const totalValue = filtered.reduce(
@@ -116,29 +125,39 @@ export default function AdminPage() {
       0,
     );
 
-    const emp = new Map<string, { forms: number; value: number }>();
+    // Group employee stats case-insensitively, keeping the first casing seen.
+    const emp = new Map<
+      string,
+      { name: string; forms: number; value: number }
+    >();
     filtered.forEach((x) => {
       const name = x.job.empName?.trim() || "Unassigned";
-      const cur = emp.get(name) || { forms: 0, value: 0 };
+      const key = normalizeKey(name);
+      const cur = emp.get(key) || { name, forms: 0, value: 0 };
       cur.forms += 1;
       cur.value += x.form.grandTotal || 0;
-      emp.set(name, cur);
+      emp.set(key, cur);
     });
-    const employeeStats = Array.from(emp.entries())
-      .map(([name, v]) => ({ name, ...v }))
-      .sort((a, b) => b.value - a.value);
+    const employeeStats = Array.from(emp.values()).sort(
+      (a, b) => b.value - a.value,
+    );
 
-    const locMap = new Map<string, { forms: number; value: number }>();
+    // Group location stats case-insensitively, keeping the first casing seen.
+    const locMap = new Map<
+      string,
+      { name: string; forms: number; value: number }
+    >();
     all.forEach((x) => {
       const name = x.job.siteAddress?.trim() || x.job.siteName || "—";
-      const cur = locMap.get(name) || { forms: 0, value: 0 };
+      const key = normalizeKey(name);
+      const cur = locMap.get(key) || { name, forms: 0, value: 0 };
       cur.forms += 1;
       cur.value += x.form.grandTotal || 0;
-      locMap.set(name, cur);
+      locMap.set(key, cur);
     });
-    const locationByValue = Array.from(locMap.entries())
-      .map(([name, v]) => ({ name, ...v }))
-      .sort((a, b) => b.value - a.value);
+    const locationByValue = Array.from(locMap.values()).sort(
+      (a, b) => b.value - a.value,
+    );
 
     const timelineFormsArr = filtered.filter((x) => inTimeline(x.ts, timeline));
     const timelineValue = timelineFormsArr.reduce(
@@ -248,6 +267,14 @@ export default function AdminPage() {
         >
           <span className="flex items-center gap-1.5">
             <LayoutDashboard size={15} /> Overview
+          </span>
+        </button>
+        <button
+          onClick={() => setTab("master")}
+          className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${tab === "master" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary"}`}
+        >
+          <span className="flex items-center gap-1.5">
+            <ClipboardList size={15} /> Master Summary
           </span>
         </button>
         <button
@@ -461,6 +488,8 @@ export default function AdminPage() {
           </div>
         </>
       )}
+
+      {tab === "master" && <MasterSummary />}
 
       {tab === "users" && <UserManagement />}
     </div>
