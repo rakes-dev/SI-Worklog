@@ -10,6 +10,7 @@ import {
   linearUnitLabel,
   isCftUom,
   isRftUom,
+  isSqftUom,
   defaultMeasurementRow,
 } from "@/utils/helpers";
 import MeasInput from "./MeasInput";
@@ -67,8 +68,8 @@ export default function MeasurementTable({
   const [overRowId, setOverRowId] = React.useState<string | null>(null);
   const isCarpenter = formType === "carpenter";
   const linUnit = linearUnitLabel(rows.map((r) => r.uom));
-  // cft / rft rows use feet+inches inputs for length/width/height.
-  const isFtIn = (uom?: string) => isCftUom(uom) || isRftUom(uom);
+  // cft / rft / sqft rows use feet+inches inputs for length/width/height.
+  const isFtIn = (uom?: string) => isCftUom(uom) || isRftUom(uom) || isSqftUom(uom);
 
   const hasFilledMeasurementValues = (row: MeasurementRow) => {
     return (

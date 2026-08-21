@@ -11,9 +11,9 @@ interface FtInInputProps {
 }
 
 /**
- * Feet + inches dual input for cft / rft rows. The user enters feet and inches;
+ * Feet + inches dual input for cft / rft / sqft rows. The user enters feet and inches;
  * it is converted to meters for storage (keeping the existing data model), and
- * cft / rft are then calculated from the feet value.
+ * cft / rft / sqft are then calculated from the feet value.
  */
 export default function FtInInput({ value, disabled = false, onChange }: FtInInputProps) {
   const totalFt = typeof value === 'number' && Number.isFinite(value) ? metersToFeet(value) : 0;
