@@ -4,9 +4,11 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   runTransaction,
   setDoc,
   writeBatch,
+  type Unsubscribe,
 } from "firebase/firestore";
 import { getFirestoreDb } from "@/services/firebase";
 import { ensureFirestoreSchema } from "@/services/firestore-schema";
@@ -300,6 +302,37 @@ async function getAllJobsFromFirestore(): Promise<Job[]> {
   );
 }
 
+/**
+ * Subscribe to real-time changes in the jobs collection. The callback fires
+ * immediately with the current data and again whenever any device changes a
+ * job on the server — this is what makes edits reflect live across devices.
+ */
+function observeJobsFromFirestore(
+  onChange: (jobs: Job[]) => void,
+  onError?: (error: unknown) => void,
+): Unsubscribe {
+  ensureFirestoreSchema().catch(() => {});
+  const db = getFirestoreDb();
+  return onSnapshot(
+    collection(db, COLLECTION_JOBS),
+    (snapshot) => {
+      const jobs = snapshot.docs.map((item) =>
+        normalizeJob(item.data() as FirestoreJobData),
+      );
+      jobs.sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
+      onChange(jobs);
+    },
+    (error) => {
+      // Live sync is best-effort — surface it but keep the app usable.
+      console.warn("Live job sync unavailable; falling back to manual refresh.", error);
+      onError?.(error);
+    },
+  );
+}
+
 async function getUserJobsFromFirestore(userEmail: string): Promise<Job[]> {
   // Firestore rules allow unauthenticated reads — no auth dependency needed.
   ensureFirestoreSchema().catch(() => {});
@@ -331,6 +364,34 @@ export const dbService = {
     return jobs.sort(
       (a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+  },
+
+  /** Live: subscribe to all jobs (admin view). */
+  observeJobs(
+    onChange: (jobs: Job[]) => void,
+    onError?: (error: unknown) => void,
+  ): Unsubscribe {
+    return observeJobsFromFirestore(onChange, onError);
+  },
+
+  /** Live: subscribe to jobs scoped to a single user. */
+  observeUserJobs(
+    userEmail: string,
+    onChange: (jobs: Job[]) => void,
+    onError?: (error: unknown) => void,
+  ): Unsubscribe {
+    const normalizedEmail = userEmail.trim().toLowerCase();
+    return observeJobsFromFirestore(
+      (jobs) => {
+        onChange(
+          jobs.filter(
+            (job) =>
+              !job.userId || job.userId.toLowerCase() === normalizedEmail,
+          ),
+        );
+      },
+      onError,
     );
   },
 

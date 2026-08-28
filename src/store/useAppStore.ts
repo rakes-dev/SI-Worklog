@@ -19,6 +19,7 @@ interface AppStore {
 
   // Actions
   loadJobs: () => Promise<void>;
+  startLiveSync: () => Promise<void>;
   addJob: (job: Job) => Promise<void>;
   updateJob: (job: Job) => Promise<void>;
   deleteJob: (id: string) => Promise<void>;
@@ -89,6 +90,28 @@ function mergeServerAndLocalJobs(
   return { jobs: [...localOnly, ...resolved], needSync };
 }
 
+/** Share the same timestamp-aware merge used by both load and live sync. */
+function buildApplyServerMerge(
+  get: () => AppStore,
+  set: (partial: Partial<AppStore>) => void,
+): (serverJobs: Job[]) => void {
+  return (serverJobs: Job[]) => {
+    const localJobs = get().jobs;
+    const { jobs: merged, needSync } = mergeServerAndLocalJobs(
+      localJobs,
+      serverJobs,
+    );
+    // Re-queue anything newer locally or that only exists locally so the next
+    // flush pushes it up — never silently dropped or overwritten by stale data.
+    needSync.forEach((job) => syncService.queueJobSync(job));
+    if (merged.length > 0) set({ jobs: merged } as Partial<AppStore>);
+  };
+}
+
+// Live-sync bookkeeping so the onSnapshot listener is registered exactly once.
+let liveSyncStarted = false;
+let liveSyncUnsubscribe: (() => void) | null = null;
+
 export const useAppStore = create<AppStore>()(
   persist(
     (set, get) => ({
@@ -123,17 +146,7 @@ export const useAppStore = create<AppStore>()(
           const { user, role } = useAuthStore.getState();
           const isAdmin = role === "admin";
 
-          const applyServerMerge = (serverJobs: Job[]) => {
-            const localJobs = get().jobs;
-            const { jobs: merged, needSync } = mergeServerAndLocalJobs(
-              localJobs,
-              serverJobs,
-            );
-            // Re-queue anything that is newer locally or only exists locally so
-            // the next flush pushes it up — never silently dropped.
-            needSync.forEach((job) => syncService.queueJobSync(job));
-            if (merged.length > 0) set({ jobs: merged });
-          };
+          const applyServerMerge = buildApplyServerMerge(get, set);
           const warnLocalFallback = (error: unknown) => {
             console.warn(
               "Firestore sync unavailable, using local data.",
@@ -156,11 +169,51 @@ export const useAppStore = create<AppStore>()(
           console.warn("Could not load user info", error);
         }
 
+        // Start the real-time listener (idempotent) so remote changes from other
+        // devices reflect live without needing a manual refresh.
+        await get().startLiveSync();
+
         // Flush any pending syncs if online (e.g. changes made while offline)
         if (syncService.getOnlineStatus()) {
           syncService.flushPendingSyncs().catch((error) => {
             console.warn("Could not flush pending syncs on load:", error);
           });
+        }
+      },
+
+      startLiveSync: async () => {
+        if (typeof window === "undefined") return;
+        // Register the onSnapshot listener only once per session.
+        if (liveSyncStarted) return;
+        liveSyncStarted = true;
+
+        const applyServerMerge = buildApplyServerMerge(get, set);
+
+        try {
+          const { useAuthStore } = await import("@/store/useAuthStore");
+          const { user, role } = useAuthStore.getState();
+          const isAdmin = role === "admin";
+
+          if (isAdmin) {
+            liveSyncUnsubscribe = dbService.observeJobs(applyServerMerge, () => {});
+          } else if (user?.email) {
+            liveSyncUnsubscribe = dbService.observeUserJobs(
+              user.email,
+              applyServerMerge,
+              () => {},
+            );
+          } else {
+            // Auth not resolved yet — allow the next call to retry once the
+            // user/role are available (AppLayout re-invokes when decided).
+            liveSyncStarted = false;
+            return;
+          }
+        } catch (error) {
+          console.warn(
+            "Live job sync could not be started; data will stay in sync on load/refresh.",
+            error,
+          );
+          liveSyncStarted = false;
         }
       },
 

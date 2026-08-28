@@ -13,13 +13,23 @@ interface AppLayoutProps {
 }
 
 export default function AppLayout({ children }: AppLayoutProps) {
-  const { theme, sidebarCollapsed, loadJobs, isLoaded } = useAppStore();
+  const { theme, sidebarCollapsed, loadJobs, isLoaded, startLiveSync } =
+    useAppStore();
   const { user, status, authorized, accessError, logOut } = useAuthStore();
   const router = useRouter();
 
   useEffect(() => {
     if (!isLoaded) loadJobs();
   }, [isLoaded, loadJobs]);
+
+  // Start the real-time listener once auth is resolved so job changes made on
+  // other devices reflect live (covers the case where loadJobs ran before the
+  // user/role were known).
+  const decided =
+    status === "authenticated" && (authorized === true || authorized === null);
+  useEffect(() => {
+    if (decided) startLiveSync();
+  }, [decided, startLiveSync, status, authorized]);
 
   // Gate the app: unauthenticated users are sent to /login.
   useEffect(() => {
