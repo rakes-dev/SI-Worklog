@@ -4,6 +4,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  runTransaction,
   setDoc,
   writeBatch,
 } from "firebase/firestore";
@@ -34,6 +35,17 @@ import {
 
 const COLLECTION_JOBS = "jobs";
 const COLLECTION_ARC = "arc";
+
+/** Parse an ISO timestamp into epoch milliseconds (0 when missing/invalid). */
+function parseTimestamp(value: unknown): number {
+  if (typeof value !== "string" || !value) return 0;
+  const ms = new Date(value).getTime();
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+export type SaveJobResult =
+  | { status: "saved" }
+  | { status: "skipped" }; // Server copy is newer — local snapshot retained locally only.
 
 type FirestoreJobData = Partial<Job> & {
   forms?: Array<Partial<PaintForm>>;
@@ -330,21 +342,42 @@ export const dbService = {
     return normalizeJob(snapshot.data() as FirestoreJobData);
   },
 
-  async saveJob(job: Job): Promise<void> {
+  async saveJob(job: Job): Promise<SaveJobResult> {
     // Firestore rules allow unauthenticated writes — no auth dependency needed.
     // Fire schema init in background — non-blocking
     ensureFirestoreSchema().catch(() => {});
     const normalized = normalizeJob(job);
-    // Remove undefined values — Firestore rejects them
-    const sanitized = sanitizeForFirestore({
-      ...normalized,
-      updatedAt: new Date().toISOString(),
-    });
+    // Remove undefined values — Firestore rejects them.
+    // NOTE: the caller's updatedAt is preserved (NOT replaced with "now") so the
+    // server timestamp still reflects when the user actually made the change and
+    // can be used for conflict detection below.
+    const sanitized = sanitizeForFirestore(normalized);
+    const ref = jobRef(normalized.id);
+    const snapshotUpdatedAtMs = parseTimestamp(normalized.updatedAt);
+
     // Add timeout to prevent infinite hanging
-    const timeout = new Promise<void>((_, reject) =>
+    const timeout = new Promise<SaveJobResult>((_, reject) =>
       setTimeout(() => reject(new Error("Firestore write timed out")), 10000),
     );
-    await Promise.race([setDoc(jobRef(normalized.id), sanitized), timeout]);
+
+    // Transaction + timestamp guard: never overwrite a strictly NEWER server
+    // copy with an older offline snapshot. This prevents one device/tab from
+    // silently wiping changes made on another (the "lost a lot of data" case).
+    const write = runTransaction(getFirestoreDb(), async (tx) => {
+      const existing = await tx.get(ref);
+      if (existing.exists()) {
+        const serverUpdatedAtMs = parseTimestamp(
+          (existing.data() as FirestoreJobData).updatedAt,
+        );
+        if (snapshotUpdatedAtMs > 0 && serverUpdatedAtMs > snapshotUpdatedAtMs) {
+          return { status: "skipped" } as const;
+        }
+      }
+      await tx.set(ref, sanitized);
+      return { status: "saved" } as const;
+    });
+
+    return Promise.race([write, timeout]);
   },
 
   async deleteJob(id: string): Promise<void> {

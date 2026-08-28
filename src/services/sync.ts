@@ -12,6 +12,9 @@ import { dbService } from "@/services/db";
  */
 
 const SYNC_QUEUE_KEY = "paintpro-sync-queue";
+// Raw backup of a corrupted/truncated sync queue so pending offline changes are
+// never permanently lost (they can be recovered and re-queued manually).
+const SYNC_QUEUE_BACKUP_KEY = "paintpro-sync-queue-backup";
 const MAX_RETRIES = 5;
 const RETRY_DELAY_MS = 3000;
 // Periodic auto-sync interval: when online with pending items, sync every 5s
@@ -28,12 +31,14 @@ type SyncListener = (state: {
   isOnline: boolean;
   pendingCount: number;
   syncing: boolean;
+  queueHealthy: boolean;
 }) => void;
 
 class SyncService {
   private listeners = new Set<SyncListener>();
   private isOnline = typeof navigator !== "undefined" ? navigator.onLine : true;
   private syncing = false;
+  private queueHealthy = true;
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private intervalTimer: ReturnType<typeof setInterval> | null = null;
@@ -84,6 +89,7 @@ class SyncService {
       isOnline: this.isOnline,
       pendingCount: this.getPendingCount(),
       syncing: this.syncing,
+      queueHealthy: this.isQueueHealthy(),
     });
     return () => {
       this.listeners.delete(listener);
@@ -136,8 +142,14 @@ class SyncService {
         if (!this.isOnline) break;
 
         try {
-          await dbService.saveJob(item.job);
+          const result = await dbService.saveJob(item.job);
           this.removeFromQueue(item.job.id);
+          if (result.status === "skipped") {
+            console.info(
+              `[SyncService] Skipped pushing job ${item.job.id}: the server copy ` +
+                "is newer (likely edited on another device/tab). Local copy kept; nothing overwritten.",
+            );
+          }
         } catch (error) {
           console.warn(
             `Sync failed for job ${item.job.id} (attempt ${item.retries + 1}/${MAX_RETRIES}):`,
@@ -187,14 +199,46 @@ class SyncService {
     this.notify();
   };
 
+  /** Whether the persistable sync queue is intact. */
+  isQueueHealthy(): boolean {
+    return this.queueHealthy;
+  }
+
   private getQueue(): PendingSyncItem[] {
     if (typeof window === "undefined") return [];
     try {
       const raw = localStorage.getItem(SYNC_QUEUE_KEY);
       if (!raw) return [];
       const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
+      if (!Array.isArray(parsed)) {
+        throw new Error("sync queue is not an array");
+      }
+      this.queueHealthy = true;
+      // Defensive: keep only well-formed rows so one bad entry can't stall sync.
+      return parsed.filter(
+        (item): item is PendingSyncItem =>
+          Boolean(
+            item &&
+              typeof item === "object" &&
+              typeof item.job?.id === "string",
+          ),
+      );
+    } catch (error) {
+      // NEVER silently discard pending changes. Back up the raw value first,
+      // then surface the problem loudly so it can be recovered/requeued.
+      this.queueHealthy = false;
+      try {
+        const raw = localStorage.getItem(SYNC_QUEUE_KEY);
+        if (raw) localStorage.setItem(SYNC_QUEUE_BACKUP_KEY, raw);
+      } catch {
+        // Backup storage failed — nothing more we can do here.
+      }
+      console.error(
+        `[SyncService] Sync queue could not be read (${
+          error instanceof Error ? error.message : String(error)
+        }). Pending offline changes were backed up under localStorage key "${SYNC_QUEUE_BACKUP_KEY}". ` +
+          "Open the app online and sync again to restore them, or recover the backup manually.",
+      );
       return [];
     }
   }
@@ -213,6 +257,7 @@ class SyncService {
       isOnline: this.isOnline,
       pendingCount: this.getPendingCount(),
       syncing: this.syncing,
+      queueHealthy: this.isQueueHealthy(),
     };
     this.listeners.forEach((listener) => listener(state));
   }

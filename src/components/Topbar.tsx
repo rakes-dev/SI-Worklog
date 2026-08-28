@@ -1,12 +1,12 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Sun, Moon, WifiOff, Download, Menu, RefreshCw, CloudUpload } from "lucide-react";
+import { Sun, Moon, WifiOff, Download, Menu, RefreshCw, CloudUpload, AlertTriangle } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import AppLogo from "@/components/ui/AppLogo";
 
 export default function Topbar() {
-  const { theme, toggleTheme, toggleSidebar, isOnline, pendingSyncCount, isSyncing } = useAppStore();
+  const { theme, toggleTheme, toggleSidebar, isOnline, pendingSyncCount, isSyncing, syncQueueHealthy } = useAppStore();
   const [installPrompt, setInstallPrompt] = useState<Event | null>(null);
 
   useEffect(() => {
@@ -71,6 +71,16 @@ export default function Topbar() {
         <div className="flex items-center gap-1.5 px-2.5 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded-full text-xs font-medium">
           <RefreshCw size={12} className="animate-spin" />
           <span>Syncing...</span>
+        </div>
+      )}
+
+      {!syncQueueHealthy && (
+        <div
+          title="The local sync queue could not be read. Pending offline changes were backed up in the browser under localStorage key 'paintpro-sync-queue-backup' — contact an admin to recover/re-queue them."
+          className="flex items-center gap-1.5 px-2.5 py-1 bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 rounded-full text-xs font-medium"
+        >
+          <AlertTriangle size={12} />
+          <span>Sync queue damaged</span>
         </div>
       )}
 

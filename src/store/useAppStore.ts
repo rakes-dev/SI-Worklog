@@ -15,6 +15,7 @@ interface AppStore {
   isOnline: boolean;
   pendingSyncCount: number;
   isSyncing: boolean;
+  syncQueueHealthy: boolean;
 
   // Actions
   loadJobs: () => Promise<void>;
@@ -44,6 +45,50 @@ function recalcJobTotal(job: Job): Job {
   return { ...job, totalAmount: total };
 }
 
+function timestampMs(value: string | undefined): number {
+  if (!value) return 0;
+  const ms = new Date(value).getTime();
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+/**
+ * Merge server data with local data WITHOUT EVER dropping newer local edits.
+ *
+ * - Server data wins for a job only when it is not older than the local copy.
+ * - If the local copy is strictly newer (e.g. edited offline while the sync
+ *   queue was lost), keep the local copy and return it in `needSync` so it is
+ *   re-queued — never silently overwritten by a stale server document.
+ * - Local jobs with no server counterpart were never uploaded: keep + re-queue.
+ */
+function mergeServerAndLocalJobs(
+  localJobs: Job[],
+  serverJobs: Job[],
+): { jobs: Job[]; needSync: Job[] } {
+  const localById = new Map(localJobs.map((job) => [job.id, job]));
+  const serverIds = new Set(serverJobs.map((job) => job.id));
+  const needSync: Job[] = [];
+
+  const resolved = serverJobs.map((serverJob) => {
+    const localJob = localById.get(serverJob.id);
+    if (!localJob) return serverJob;
+    if (timestampMs(localJob.updatedAt) > timestampMs(serverJob.updatedAt)) {
+      // Local is newer — keep it and re-queue it so it reaches the server.
+      needSync.push(localJob);
+      return localJob;
+    }
+    return serverJob;
+  });
+
+  // Jobs that only exist locally were never uploaded (or their queue entry was
+  // lost) — keep them and re-queue so they aren't lost on the next load.
+  const localOnly = localJobs
+    .filter((job) => !serverIds.has(job.id))
+    .sort((a, b) => timestampMs(b.createdAt) - timestampMs(a.createdAt));
+  localOnly.forEach((job) => needSync.push(job));
+
+  return { jobs: [...localOnly, ...resolved], needSync };
+}
+
 export const useAppStore = create<AppStore>()(
   persist(
     (set, get) => ({
@@ -54,6 +99,7 @@ export const useAppStore = create<AppStore>()(
       isOnline: syncService.getOnlineStatus(),
       pendingSyncCount: syncService.getPendingCount(),
       isSyncing: syncService.isSyncing(),
+      syncQueueHealthy: syncService.isQueueHealthy(),
 
       loadJobs: async () => {
         // Always mark as loaded immediately so UI doesn't hang
@@ -66,6 +112,7 @@ export const useAppStore = create<AppStore>()(
             isOnline: state.isOnline,
             pendingSyncCount: state.pendingCount,
             isSyncing: state.syncing,
+            syncQueueHealthy: state.queueHealthy,
           });
         });
 
@@ -76,54 +123,34 @@ export const useAppStore = create<AppStore>()(
           const { user, role } = useAuthStore.getState();
           const isAdmin = role === "admin";
 
+          const applyServerMerge = (serverJobs: Job[]) => {
+            const localJobs = get().jobs;
+            const { jobs: merged, needSync } = mergeServerAndLocalJobs(
+              localJobs,
+              serverJobs,
+            );
+            // Re-queue anything that is newer locally or only exists locally so
+            // the next flush pushes it up — never silently dropped.
+            needSync.forEach((job) => syncService.queueJobSync(job));
+            if (merged.length > 0) set({ jobs: merged });
+          };
+          const warnLocalFallback = (error: unknown) => {
+            console.warn(
+              "Firestore sync unavailable, using local data.",
+              error,
+            );
+          };
+
           if (isAdmin) {
             dbService
               .getAllJobs()
-              .then((serverJobs) => {
-                // Merge: keep local jobs that have pending syncs (not yet on server),
-                // and use server data for everything else.
-                const localJobs = get().jobs;
-                const pendingIds = new Set(
-                  syncService
-                    .getPendingJobIds()
-                    .map((id) => id),
-                );
-                const merged = [
-                  ...localJobs.filter((j) => pendingIds.has(j.id)),
-                  ...serverJobs.filter((j) => !pendingIds.has(j.id)),
-                ];
-                if (merged.length > 0) set({ jobs: merged });
-              })
-              .catch((error) => {
-                console.warn(
-                  "Firestore sync unavailable, using local data.",
-                  error,
-                );
-              });
+              .then(applyServerMerge)
+              .catch(warnLocalFallback);
           } else if (user?.email) {
             dbService
               .getUserJobs(user.email)
-              .then((serverJobs) => {
-                // Merge: keep local jobs that have pending syncs (not yet on server),
-                // and use server data for everything else.
-                const localJobs = get().jobs;
-                const pendingIds = new Set(
-                  syncService
-                    .getPendingJobIds()
-                    .map((id) => id),
-                );
-                const merged = [
-                  ...localJobs.filter((j) => pendingIds.has(j.id)),
-                  ...serverJobs.filter((j) => !pendingIds.has(j.id)),
-                ];
-                if (merged.length > 0) set({ jobs: merged });
-              })
-              .catch((error) => {
-                console.warn(
-                  "Firestore sync unavailable, using local data.",
-                  error,
-                );
-              });
+              .then(applyServerMerge)
+              .catch(warnLocalFallback);
           }
         } catch (error) {
           console.warn("Could not load user info", error);
