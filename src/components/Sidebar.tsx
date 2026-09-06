@@ -5,13 +5,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
-  Briefcase,
-  FileText,
   Settings,
   Database,
   BarChart3,
   ChevronLeft,
   ChevronRight,
+  FolderOpen,
 } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -20,26 +19,18 @@ import Icon from "@/components/ui/AppIcon";
 
 const NAV_ITEMS = [
   {
-    key: "nav-dashboard",
+    key: "nav-sites",
     href: "/",
-    label: "Dashboard",
+    label: "Sites",
     icon: LayoutDashboard,
     badge: null,
     roles: ["admin", "user"],
   },
   {
-    key: "nav-jobs",
-    href: "/jobs",
-    label: "Jobs",
-    icon: Briefcase,
-    badge: null,
-    roles: ["admin", "user"],
-  },
-  {
-    key: "nav-forms",
-    href: "/form-editor",
-    label: "Form Editor",
-    icon: FileText,
+    key: "nav-archive",
+    href: "/archive",
+    label: "Archive",
+    icon: FolderOpen,
     badge: null,
     roles: ["admin", "user"],
   },
@@ -101,9 +92,7 @@ export default function Sidebar() {
             const isActive =
               item?.href === "/"
                 ? pathname === "/"
-                : pathname === item?.href ||
-                  pathname?.startsWith(item?.href + "/") ||
-                  (item?.href === "/jobs" && pathname === "/job-detail");
+                : pathname === item?.href || pathname?.startsWith(item?.href + "/");
             const Icon = item?.icon;
             return (
               <Link
@@ -161,14 +150,12 @@ export default function Sidebar() {
         </div>
       </aside>
       {/* Mobile bottom tab bar */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-card border-t border-border z-30 flex no-print">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-card border-t border-border z-30 flex no-print pb-[env(safe-area-inset-bottom)]">
         {visibleNavItems?.map((item) => {
           const isActive =
             item?.href === "/"
               ? pathname === "/"
-              : pathname === item?.href ||
-                pathname?.startsWith(item?.href + "/") ||
-                (item?.href === "/jobs" && pathname === "/job-detail");
+              : pathname === item?.href || pathname?.startsWith(item?.href + "/");
           const Icon = item?.icon;
           return (
             <Link

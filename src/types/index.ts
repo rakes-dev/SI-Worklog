@@ -63,6 +63,8 @@ export interface PaintForm {
   totalArea: number;
   // Signatures
   signatures: FormSignatures;
+  // Month partitioning (YYYY-MM)
+  month: string;
   // Soft delete
   isDeleted?: boolean;
   deletedAt?: string;
@@ -86,6 +88,63 @@ export interface Job {
   updatedAt: string;
 }
 
+/**
+ * A physical work location (e.g. ITC ROYAL, ITC SONAR). Admin-managed.
+ * `address` is reference metadata used for filtering/organising and to keep the
+ * printed form header identical to the legacy layout.
+ */
+export interface Site {
+  id: string;
+  name: string;
+  address: string;
+  order: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * A work category within a site (Public Area, CMS, Carpentry – Room, …).
+ * Admin-managed and global (same set applies across every site).
+ * `defaultFormType` decides which measurement template a new form starts from:
+ * the five "painting + polishing" categories use "painting"; the two carpentry
+ * categories use "carpenter".
+ */
+export interface WorkCategory {
+  id: string;
+  name: string;
+  defaultFormType: FormType;
+  order: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * A measurement form stored as its OWN Firestore document (the core of the
+ * restructure — forms are no longer nested inside a single job document, which
+ * is what caused concurrent/offline saves to overwrite each other).
+ *
+ * It carries every field of the legacy PaintForm unchanged, PLUS the links back
+ * to its Site and Category, its owner, and denormalized site/employee fields so
+ * the existing PrintLayout / PdfExportLayout receive an identical job-shaped
+ * object and never need to change.
+ */
+export interface WorkForm extends PaintForm {
+  siteId: string;
+  categoryId: string;
+  ownerEmail: string; // lowercased login email of the form's owner
+  // Denormalized so the printout is byte-for-byte identical and offline display
+  // never needs to join against another collection:
+  siteName: string;
+  siteAddress: string;
+  empName: string;
+  /** Set by the legacy-jobs migration tool to avoid double-migrating a form. */
+  __migrated?: boolean;
+  /** Month this form belongs to (format YYYY-MM). Site/category pages show only the current month by default; older forms live in the Archive. */
+  month: string;
+}
+
 export interface ArcItem {
   id: string;
   arc_no: string;
@@ -97,7 +156,9 @@ export interface ArcItem {
 }
 
 export interface AppState {
-  jobs: Job[];
+  sites: Site[];
+  categories: WorkCategory[];
+  forms: WorkForm[];
   theme: "light" | "dark";
   sidebarCollapsed: boolean;
   isOffline: boolean;

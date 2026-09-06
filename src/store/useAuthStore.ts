@@ -9,8 +9,7 @@ import {
   signOutUser,
 } from "@/services/firebase";
 import {
-  fetchAllowedUsers,
-  DEFAULT_ADMIN_EMAIL,
+  fetchMyUser,
   type AllowedUser,
   type UserRole,
 } from "@/services/auth-users";
@@ -66,27 +65,38 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ accessError: null });
     const myEmail = user.email.trim().toLowerCase();
     try {
-      const users = await fetchAllowedUsers();
-      const me = users.find((u) => u.email === myEmail);
+      // Read ONLY our own allowlist record — this is all the security rules let
+      // a non-admin read. Admin surfaces load the full list separately.
+      const me = await fetchMyUser(myEmail);
       set({
-        allowedUsers: users,
+        allowedUsers: me ? [me] : [],
         role: me?.role ?? null,
         authorized: Boolean(me),
+        accessError: null,
+      });
+
+      // EVENT-DRIVEN live-sync bridge: on a cold page reload, AppLayout's
+      // effects can fire before Firebase restores the session / the allowlist
+      // read settles. Now that the role is known, bind the Firestore listeners
+      // directly — this closes that race. (Dynamic import avoids a static
+      // module cycle between the two stores.)
+      void import("@/store/useAppStore").then(({ useAppStore }) => {
+        useAppStore.getState().startLiveSync();
       });
     } catch (error) {
+      // The read failed for CONNECTIVITY reasons (the answer is unknown, not
+      // "unauthorized"). Keep the gate OPEN while the app stays usable; the
+      // security rules still protect all data server-side.
       console.warn(
-        "Could not load the access list; defaulting to admin-only access.",
+        "Could not load your access record; opening the app with limited role info until the connection returns.",
         error,
       );
-      // Safe fallback: only the default admin can use the app when the allowlist
-      // cannot be loaded (e.g. Firestore unreachable).
-      const isAdmin = myEmail === DEFAULT_ADMIN_EMAIL;
       set({
-        allowedUsers: [{ email: DEFAULT_ADMIN_EMAIL, role: "admin" }],
-        role: isAdmin ? "admin" : null,
-        authorized: isAdmin,
+        allowedUsers: [],
+        role: null,
+        authorized: null,
         accessError:
-          "The access list could not be loaded right now, so only the default admin can sign in.",
+          "Connection to the database was lost. You can keep using the app — everything syncs automatically once you're back online.",
       });
     }
   },

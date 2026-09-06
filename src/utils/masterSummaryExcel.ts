@@ -34,7 +34,7 @@ export interface MasterExcelRowData {
 /** A site group: a highlighted section header followed by data rows. */
 export interface MasterExcelSection {
   siteName: string;
-  siteAddress: string;
+  category: string;
   rows: MasterExcelRowData[];
 }
 

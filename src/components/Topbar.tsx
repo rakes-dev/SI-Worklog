@@ -1,12 +1,14 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Sun, Moon, WifiOff, Download, Menu, RefreshCw, CloudUpload, AlertTriangle } from "lucide-react";
+import { Sun, Moon, WifiOff, Download, Menu, LogOut } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
+import { useAuthStore } from "@/store/useAuthStore";
 import AppLogo from "@/components/ui/AppLogo";
 
 export default function Topbar() {
-  const { theme, toggleTheme, toggleSidebar, isOnline, pendingSyncCount, isSyncing, syncQueueHealthy } = useAppStore();
+  const { theme, toggleTheme, toggleSidebar, isOnline } = useAppStore();
+  const { logOut } = useAuthStore();
   const [installPrompt, setInstallPrompt] = useState<Event | null>(null);
 
   useEffect(() => {
@@ -60,30 +62,6 @@ export default function Topbar() {
         </div>
       )}
 
-      {isOnline && pendingSyncCount > 0 && (
-        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-full text-xs font-medium">
-          <CloudUpload size={12} />
-          <span>{pendingSyncCount} pending</span>
-        </div>
-      )}
-
-      {isOnline && isSyncing && (
-        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded-full text-xs font-medium">
-          <RefreshCw size={12} className="animate-spin" />
-          <span>Syncing...</span>
-        </div>
-      )}
-
-      {!syncQueueHealthy && (
-        <div
-          title="The local sync queue could not be read. Pending offline changes were backed up in the browser under localStorage key 'paintpro-sync-queue-backup' — contact an admin to recover/re-queue them."
-          className="flex items-center gap-1.5 px-2.5 py-1 bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 rounded-full text-xs font-medium"
-        >
-          <AlertTriangle size={12} />
-          <span>Sync queue damaged</span>
-        </div>
-      )}
-
       {/* Install PWA */}
       {installPrompt && (
         <button
@@ -95,13 +73,23 @@ export default function Topbar() {
         </button>
       )}
 
-      {/* Theme toggle */}
+            {/* Theme toggle */}
       <button
         onClick={toggleTheme}
         className="p-2 rounded-md text-muted-foreground hover:bg-secondary transition-colors"
         aria-label="Toggle theme"
       >
         {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+      </button>
+
+      {/* Logout */}
+      <button
+        onClick={logOut}
+        className="p-2 rounded-md text-muted-foreground hover:bg-secondary hover:text-destructive transition-colors"
+        aria-label="Log out"
+        title="Log out"
+      >
+        <LogOut size={18} />
       </button>
     </header>
   );

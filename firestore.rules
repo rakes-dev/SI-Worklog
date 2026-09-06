@@ -1,14 +1,98 @@
 rules_version = '2';
 
+// SI WorkLog — owner-or-admin security model.
+// Each form is its own document owned by the employee who created it. Employees
+// see only their own forms; admins see everything. Sites, categories and the ARC
+// rate card are readable by any allowed user but writable only by admins.
 service cloud.firestore {
   match /databases/{database}/documents {
-    // DEVELOPMENT / DEMO RULES — allow full read + write.
-    // This is what makes the app sync with Firestore without authentication.
-    // IMPORTANT: For production, replace with authenticated/role-based rules.
-    //   e.g.  allow read, write: if request.auth != null;
-    //   and enable the Anonymous sign-in provider (Authentication > Sign in method > Anonymous).
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function hasEmail() {
+      return isSignedIn() && request.auth.token.email != null;
+    }
+
+    function myEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    // The signed-in user's own allowlist entry. Doc ids in `app_users` are the
+    // lowercased email (exactly how the app writes them via normEmail()).
+    // Map.get with a default avoids an error when the role field is missing.
+    function myRole() {
+      return get(/databases/$(database)/documents/app_users/$(myEmail()))
+        .data.get('role', 'user');
+    }
+
+    function isAllowlisted() {
+      return hasEmail() &&
+        exists(/databases/$(database)/documents/app_users/$(myEmail()));
+    }
+
+    function isAdmin() {
+      return isAllowlisted() && myRole() == 'admin';
+    }
+
+    // Any employee on the allowlist (an admin is allowlisted too).
+    function isAllowed() {
+      return isAllowlisted();
+    }
+
+    // --- Forms: owner-or-admin ------------------------------------------
+    match /forms/{formId} {
+      allow read: if isAdmin() ||
+        (hasEmail() && resource.data.ownerEmail == myEmail());
+      // A user may only create forms they own; admins may create for anyone.
+      allow create: if isAdmin() ||
+        (isAllowed() && request.resource.data.ownerEmail == myEmail());
+      allow update: if isAdmin() ||
+        (hasEmail() && resource.data.ownerEmail == myEmail());
+      allow delete: if isAdmin() ||
+        (hasEmail() && resource.data.ownerEmail == myEmail());
+    }
+
+    // --- Sites & categories: allowed read, admin write ------------------
+    match /sites/{siteId} {
+      allow read: if isAllowed();
+      allow write: if isAdmin();
+    }
+    match /categories/{categoryId} {
+      allow read: if isAllowed();
+      allow write: if isAdmin();
+    }
+
+    // --- ARC rate card: allowed read, admin write ----------------------
+    match /arc/{arcId} {
+      allow read: if isAllowed();
+      allow write: if isAdmin();
+    }
+
+    // --- Legacy `jobs` collection: admin read-only, for back up & migration --.
+    // The old single-document-per-job model is retired in the UI, but its data is
+    // kept intact as a safety net and to migrate into `forms`.
+    match /jobs/{jobId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // --- Allowlist: a user reads only their own doc; admin manages all --
+    match /app_users/{email} {
+      allow read: if isAdmin() || (hasEmail() && email == myEmail());
+      allow write: if isAdmin();
+    }
+
+    // --- Schema/meta marker: signed-in read, admin write ---------------
+    match /app_meta/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Everything else is denied by default.
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }

@@ -12,32 +12,106 @@ interface AppLayoutProps {
   children: React.ReactNode;
 }
 
+// Auto-seed machinery — module-scoped so it survives route changes. The structure
+// blueprint (2 sites + 7 categories) is pushed automatically the first time an
+// admin has the app loaded, retrying up to 3 times per session with a growing
+// delay. It is fully idempotent: only MISSING default docs are ever written
+// (admin edits like custom addresses are preserved).
+let adminSeeded = false;
+let adminSeedAttempt = 0;
+let adminSeedTimer: ReturnType<typeof setTimeout> | null = null;
+const ADMIN_SEED_MAX_ATTEMPTS = 3;
+const ADMIN_SEED_DELAYS_MS = [0, 8000, 20000];
+
+function scheduleAdminSeed(seedDefaults: () => Promise<unknown>): void {
+  if (adminSeeded || adminSeedTimer) return;
+  const attempt = adminSeedAttempt + 1;
+  if (attempt > ADMIN_SEED_MAX_ATTEMPTS) return;
+  adminSeedAttempt = attempt;
+  adminSeedTimer = setTimeout(
+    () => {
+      adminSeedTimer = null;
+      seedDefaults()
+        .then((result) => {
+          const failures =
+            (result as { failures?: string[] } | null)?.failures ?? [];
+          if (failures.length > 0) {
+            console.warn("Structure blueprint push incomplete:", failures);
+            scheduleAdminSeed(seedDefaults);
+            return;
+          }
+          adminSeeded = true;
+        })
+        .catch((error: unknown) => {
+          console.warn(
+            `Auto-seed of the structure blueprint failed ` +
+              `(attempt ${attempt}/${ADMIN_SEED_MAX_ATTEMPTS}, non-fatal). ` +
+              "Retrying is automatic; you can also use Admin → Sites & Categories → Seed defaults.",
+            error,
+          );
+          scheduleAdminSeed(seedDefaults);
+        });
+    },
+    ADMIN_SEED_DELAYS_MS[attempt - 1] ?? 0,
+  );
+}
+
 export default function AppLayout({ children }: AppLayoutProps) {
-  const { theme, sidebarCollapsed, loadJobs, isLoaded, startLiveSync } =
+  const {
+    theme,
+    sidebarCollapsed,
+    loadAll,
+    isLoaded,
+    startLiveSync,
+    seedDefaults,
+  } =
     useAppStore();
-  const { user, status, authorized, accessError, logOut } = useAuthStore();
+  const { user, status, authorized, role, accessError, logOut } = useAuthStore();
   const router = useRouter();
 
-  useEffect(() => {
-    if (!isLoaded) loadJobs();
-  }, [isLoaded, loadJobs]);
+  // Auth is "decided" once the allowlist check has resolved. An admin may still
+  // have `authorized === null` ifthe app_users read failed — treat as allowed so that
+  // the default-admin fallback keeps working.
 
-  // Start the real-time listener once auth is resolved so job changes made on
-  // other devices reflect live (covers the case where loadJobs ran before the
-  // user/role were known).
   const decided =
     status === "authenticated" && (authorized === true || authorized === null);
+
+  useEffect(() => {
+    if (!isLoaded) loadAll();
+  }, [isLoaded, loadAll]);
+
+  // Push the structure blueprint (sites + categories) the first time an admin
+  // opens the app with data loaded. Writes only what is missing — the writes are
+  // small (2 sites + 7 categories) and go through the same `seedDefaults`
+  // path as the Admin → "Seed defaults" button, with automatic retries.
+  useEffect(() => {
+    if (decided && role === "admin" && isLoaded) {
+      scheduleAdminSeed(seedDefaults);
+    }
+  }, [decided, role, isLoaded, seedDefaults]);
+
+  // Start the real-time listener once auth is resolved so form changes made on
+  // other devices reflect live (covers the case where loadAll ran before the
+  // user/role were known). `startLiveSync` is a stable module-level function,
+  // so it's safe to omit from the dependency array — this effect only needs to
+  // fire when auth state changes.
   useEffect(() => {
     if (decided) startLiveSync();
-  }, [decided, startLiveSync, status, authorized]);
+  }, [decided, status, authorized]);
 
   // Gate the app: unauthenticated users are sent to /login.
   useEffect(() => {
     if (status === "unauthenticated") router.replace("/login");
   }, [status, router]);
 
+  // "Deciding" only while the allowlist check is genuinely in flight. If the
+  // check FAILED (accessError set, authorized still null — e.g. the database
+  // is unreachable), we let the user in rather than spinning forever: the
+  // security rules still protect all data, and reads stay empty until the
+  // connection returns.
   const deciding =
-    status === "loading" || (status === "authenticated" && authorized === null);
+    status === "loading" ||
+    (status === "authenticated" && authorized === null && !accessError);
 
   if (deciding || status === "unauthenticated") {
     return (

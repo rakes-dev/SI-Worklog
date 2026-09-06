@@ -12,8 +12,8 @@ import { ChevronDown, ClipboardList, Download, Filter, Loader2, X } from 'lucide
 
 interface MasterRow {
   key: string;
-  siteAddress: string;
   siteName: string;
+  category: string;
   areaName: string;
   workStartDate: string;
   arcNo: string;
@@ -24,8 +24,8 @@ interface MasterRow {
 }
 
 interface Filters {
-  siteAddress: string;
   siteName: string[]; // multi-select — multiple sites can be selected
+  category: string;
   areaName: string;
   arcNo: string;
   dateFrom: string;
@@ -33,8 +33,8 @@ interface Filters {
 }
 
 const EMPTY_FILTERS: Filters = {
-  siteAddress: '',
   siteName: [],
+  category: '',
   areaName: '',
   arcNo: '',
   dateFrom: '',
@@ -42,7 +42,7 @@ const EMPTY_FILTERS: Filters = {
 };
 
 export default function MasterSummary() {
-  const { jobs } = useAppStore();
+  const { forms, categories } = useAppStore();
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [siteNameOpen, setSiteNameOpen] = useState(false);
 
@@ -50,10 +50,11 @@ export default function MasterSummary() {
   const allRows = useMemo<MasterRow[]>(() => {
     const out: MasterRow[] = [];
 
-    jobs.forEach((job) => {
-      if (job.isDeleted) return;
-      (job.forms || []).forEach((form) => {
-        if (form.isDeleted) return;
+    forms.forEach((form) => {
+      if (form.isDeleted) return;
+
+        const category = categories.find((c) => c.id === form.categoryId);
+        const categoryName = category?.name?.trim() || '—';
 
         const summary = (form.summaryRows || []).filter(
           (r) => (r.arcNo && r.arcNo.trim()) || (typeof r.qty === 'number' && r.qty > 0)
@@ -63,9 +64,9 @@ export default function MasterSummary() {
         if (summary.length > 0) {
           summary.forEach((r) => {
             out.push({
-              key: `${job.id}-${form.id}-${r.id}`,
-              siteAddress: job.siteAddress?.trim() || '—',
-              siteName: job.siteName?.trim() || '—',
+              key: `${form.id}-${r.id}`,
+              siteName: form.siteName?.trim() || '—',
+              category: categoryName,
               areaName: form.suitPublicAreaName?.trim() || '—',
               workStartDate: form.workStartDate || '—',
               arcNo: r.arcNo?.trim() || '—',
@@ -81,9 +82,9 @@ export default function MasterSummary() {
         // Fall back to one row per form when a form has no ARC / QTY rows yet.
         if (!form.suitPublicAreaName && !form.workStartDate) return;
         out.push({
-          key: `${job.id}-${form.id}`,
-          siteAddress: job.siteAddress?.trim() || '—',
-          siteName: job.siteName?.trim() || '—',
+          key: `${form.id}`,
+          siteName: form.siteName?.trim() || '—',
+          category: categoryName,
           areaName: form.suitPublicAreaName?.trim() || '—',
           workStartDate: form.workStartDate || '—',
           arcNo: '—',
@@ -93,10 +94,9 @@ export default function MasterSummary() {
           amount: form.grandTotal || 0,
         });
       });
-    });
 
     return out;
-  }, [jobs]);
+  }, [forms]);
 
   // Unique option lists for each filter. Deduplicated case-insensitively so
   // "ITC ROYAL" and "Itc royal" produce a single option (first casing seen).
@@ -112,8 +112,8 @@ export default function MasterSummary() {
       ).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
 
     return {
-      siteAddress: unique((r) => r.siteAddress),
       siteName: unique((r) => r.siteName),
+      category: unique((r) => r.category),
       areaName: unique((r) => r.areaName),
       arcNo: unique((r) => r.arcNo),
     };
@@ -136,9 +136,9 @@ export default function MasterSummary() {
 
     return allRows.filter(
       (r) =>
-        (!filters.siteAddress || q(r.siteAddress) === q(filters.siteAddress)) &&
         (filters.siteName.length === 0 ||
           filters.siteName.some((s) => q(r.siteName) === q(s))) &&
+        (!filters.category || q(r.category) === q(filters.category)) &&
         (!filters.areaName || q(r.areaName) === q(filters.areaName)) &&
         (!filters.arcNo || q(r.arcNo) === q(filters.arcNo)) &&
         inRange(r.workStartDate)
@@ -160,8 +160,8 @@ export default function MasterSummary() {
   }, [rows]);
 
   const activeCount =
-    (filters.siteAddress ? 1 : 0) +
     (filters.siteName.length > 0 ? 1 : 0) +
+    (filters.category ? 1 : 0) +
     (filters.areaName ? 1 : 0) +
     (filters.arcNo ? 1 : 0) +
     (filters.dateFrom ? 1 : 0) +
@@ -187,14 +187,14 @@ export default function MasterSummary() {
     >();
 
     for (const r of rows) {
-      const siteLabel = r.siteName !== '—' ? r.siteName : r.siteAddress;
+      const siteLabel = r.siteName !== '—' ? r.siteName : r.category;
       const siteKey = normalizeKey(siteLabel);
       let entry = siteMap.get(siteKey);
       if (!entry) {
         entry = {
           sec: {
             siteName: siteLabel === '—' ? '' : siteLabel,
-            siteAddress: r.siteAddress === '—' ? '' : r.siteAddress,
+            category: r.category === '—' ? '' : r.category,
             rows: [],
           },
           rowsByKey: new Map<string, MasterExcelRowData>(),
@@ -258,49 +258,52 @@ export default function MasterSummary() {
     setSiteNameOpen(false);
   };
 
-  const renderSiteNameFilter = (values: string[]) => (
-    <div className="relative min-w-[14rem]">
-      <button
-        type="button"
-        onClick={() => setSiteNameOpen((prev) => !prev)}
-        className={`${inputCls} w-full flex items-center justify-between gap-2`}
-        aria-expanded={siteNameOpen}
-      >
-        <span className="truncate text-left">
-          {filters.siteName.length > 0
-            ? `${filters.siteName.length} Site Name${filters.siteName.length === 1 ? '' : 's'}`
-            : 'Site Name'}
-        </span>
-        <ChevronDown size={14} className={`shrink-0 transition-transform ${siteNameOpen ? 'rotate-180' : ''}`} />
-      </button>
+  const renderSiteNameFilter = (label: string, key: keyof Filters, values: string[]) => (
+    <label className="flex flex-col gap-1">
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      <div className="relative min-w-[14rem]">
+        <button
+          type="button"
+          onClick={() => setSiteNameOpen((prev) => !prev)}
+          className={`${inputCls} w-full flex items-center justify-between gap-2`}
+          aria-expanded={siteNameOpen}
+        >
+          <span className="truncate text-left">
+            {filters.siteName.length > 0
+              ? `${filters.siteName.length} Site Name${filters.siteName.length === 1 ? '' : 's'}`
+              : 'Site Name'}
+          </span>
+          <ChevronDown size={14} className={`shrink-0 transition-transform ${siteNameOpen ? 'rotate-180' : ''}`} />
+        </button>
 
-      {siteNameOpen && (
-        <div className="absolute z-20 mt-2 w-full rounded-md border border-border bg-card shadow-lg overflow-hidden">
-          <div className="max-h-64 overflow-auto p-2 space-y-1">
-            {values.map((value) => {
-              const checked = filters.siteName.includes(value);
-              return (
-                <label
-                  key={value}
-                  className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-foreground hover:bg-secondary"
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => toggleSiteName(value)}
-                    className="h-4 w-4 rounded border-border text-primary focus:ring-ring"
-                  />
-                  <span className="truncate">{value}</span>
-                </label>
-              );
-            })}
+        {siteNameOpen && (
+          <div className="absolute z-20 mt-2 w-full rounded-md border border-border bg-card shadow-lg overflow-hidden">
+            <div className="max-h-64 overflow-auto p-2 space-y-1">
+              {values.map((value) => {
+                const checked = filters.siteName.includes(value);
+                return (
+                  <label
+                    key={value}
+                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-foreground hover:bg-secondary"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleSiteName(value)}
+                      className="h-4 w-4 rounded border-border text-primary focus:ring-ring"
+                    />
+                    <span className="truncate">{value}</span>
+                  </label>
+                );
+              })}
+            </div>
+            <div className="border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
+              Selection closes automatically after each click.
+            </div>
           </div>
-          <div className="border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
-            Selection closes automatically after each click.
-          </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </label>
   );
 
   return (
@@ -335,9 +338,9 @@ export default function MasterSummary() {
       {/* Filters */}
       <div className="px-5 pt-4 border-b border-border">
         <div className="flex flex-wrap gap-3">
-          {options.siteAddress.length > 0 &&
-            renderSelect('Site Address', 'siteAddress', options.siteAddress)}
-          {options.siteName.length > 0 && renderSiteNameFilter(options.siteName)}
+          {options.category.length > 0 &&
+            renderSelect('Category', 'category', options.category)}
+          {options.siteName.length > 0 && renderSiteNameFilter('Site Name', 'siteName', options.siteName)}
           {options.areaName.length > 0 && renderSelect('Area Name', 'areaName', options.areaName)}
           {options.arcNo.length > 0 && renderSelect('ARC No', 'arcNo', options.arcNo)}
 
@@ -378,12 +381,7 @@ export default function MasterSummary() {
         )}
       </div>
 
-      {!jobs.length ? (
-        <div className="px-5 py-10 text-center text-muted-foreground text-sm">
-          <Loader2 size={16} className="animate-spin inline-block mr-2" />
-          Loading jobs…
-        </div>
-      ) : rows.length === 0 ? (
+      {rows.length === 0 ? (
         <div className="px-5 py-10 text-center text-muted-foreground text-sm">
           No rows match the current filters.
         </div>
@@ -393,10 +391,10 @@ export default function MasterSummary() {
             <thead>
               <tr className="border-b border-border bg-secondary/50">
                 <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Site Address
+                  Site Name
                 </th>
                 <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Site Name
+                  Category
                 </th>
                 <th className="text-left px-3 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
                   Area Name
@@ -421,8 +419,8 @@ export default function MasterSummary() {
             <tbody>
               {rows.map((r) => (
                 <tr key={r.key} className="border-b border-border last:border-0">
-                  <td className="px-3 py-2 text-foreground">{r.siteAddress}</td>
                   <td className="px-3 py-2 text-foreground">{r.siteName}</td>
+                  <td className="px-3 py-2 text-foreground">{r.category}</td>
                   <td className="px-3 py-2 text-foreground">{r.areaName}</td>
                   <td className="px-3 py-2 text-foreground">
                     {r.workStartDate === '—' ? '—' : formatDate(r.workStartDate)}

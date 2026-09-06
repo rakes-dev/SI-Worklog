@@ -19,6 +19,21 @@ export function todayISO(): string {
   return new Date().toISOString().split('T')[0];
 }
 
+/** Get the current month in YYYY-MM format (e.g. "2026-09"). */
+export function currentMonth(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/** Convert a YYYY-MM string to a human label like "September 2026". */
+export function monthLabel(month: string): string {
+  if (!month) return '';
+  const [y, m] = month.split('-');
+  if (!y || !m) return month;
+  const date = new Date(parseInt(y), parseInt(m) - 1, 1);
+  return date.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+}
+
 export function formatCurrency(n: number): string {
   return n.toLocaleString('en-IN', {
     minimumFractionDigits: 2,
@@ -383,6 +398,7 @@ export function defaultForm(
     deletedAt: undefined,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    month: currentMonth(),
   };
 }
 

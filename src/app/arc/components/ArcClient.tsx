@@ -224,7 +224,7 @@ export default function ArcClient() {
   };
 
   return (
-    <div className="min-h-full p-4 lg:p-6 xl:p-8 pb-24 lg:pb-8 max-w-screen-2xl mx-auto">
+    <div className="min-h-full p-4 lg:p-6 xl:p-8 pb-[calc(6rem_+_env(safe-area-inset-bottom))] lg:pb-8 max-w-screen-2xl mx-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>

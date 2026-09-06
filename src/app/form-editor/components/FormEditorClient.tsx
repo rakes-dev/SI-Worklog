@@ -23,13 +23,16 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useAppStore } from "@/store/useAppStore";
+import { useAuthStore } from "@/store/useAuthStore";
 import { dbService } from "@/services/db";
 import type {
+  Job,
   PaintForm,
   SummaryRow,
   MeasurementRow,
   FormSignatures,
   ArcItem,
+  WorkForm,
 } from "@/types";
 import {
   calcGrandTotal,
@@ -47,6 +50,7 @@ import PrintLayout from "./PrintLayout";
 import PdfExportLayout from "./PdfExportLayout";
 import CopyFormModal from "./CopyFormModal";
 import { exportPrintLayoutToPdf } from "@/utils/pdfExport";
+import { isNativeApp } from "@/utils/nativePdf";
 import ToastContainer from "@/components/ui/Toast";
 import { useToast } from "@/hooks/useToast";
 
@@ -55,15 +59,39 @@ type SaveState = "idle" | "saving" | "saved" | "error";
 export default function FormEditorClient() {
   const params = useSearchParams();
   const router = useRouter();
-  const { jobs, addForm, updateForm, duplicateForm } = useAppStore();
+  const { forms, sites, categories, createForm, updateForm, duplicateForm } =
+    useAppStore();
+  const { user } = useAuthStore();
   const { toasts, addToast, removeToast } = useToast();
 
-  const jobId = params.get("jobId") ?? "";
   const formId = params.get("formId") ?? "";
   const printMode = params.get("print") === "1";
 
-  const job = jobs.find((j) => j.id === jobId);
-  const existingForm = job?.forms.find((f) => f.id === formId && !f.isDeleted);
+  const existingForm = forms.find((f) => f.id === formId && !f.isDeleted);
+const site = existingForm ? sites.find((s) => s.id === existingForm.siteId) : undefined;
+  const category = existingForm
+    ? categories.find((c) => c.id === existingForm.categoryId)
+    : undefined;
+
+  // Job-shaped object for PrintLayout/PdfExportLayout — they only read the site/
+  // employee header fields, so the denormalized WorkForm fields keep the printed
+  // output byte-for-byte identical with the legacy layout.
+
+
+  const job: Job | null = existingForm
+    ? {
+        id: existingForm.siteId,
+        empName: existingForm.empName || "",
+        siteName: existingForm.siteName || "",
+        siteAddress: existingForm.siteAddress || "",
+        remarks: category?.name ?? "",
+        forms: [existingForm],
+        totalAmount: existingForm.grandTotal || 0,
+        userId: existingForm.ownerEmail,
+        createdAt: existingForm.createdAt,
+        updatedAt: existingForm.updatedAt,
+      }
+    : null;
 
   const [summaryRows, setSummaryRows] = useState<SummaryRow[]>([]);
   const [measurementRows, setMeasurementRows] = useState<MeasurementRow[]>([]);
@@ -96,7 +124,7 @@ export default function FormEditorClient() {
     getValues,
     formState: { errors, isDirty },
   } = useForm<PaintForm>({
-    defaultValues: existingForm ?? defaultForm(job?.siteName ?? "New Job", 1),
+    defaultValues: existingForm ?? defaultForm(site?.name ?? "New Form", 1),
   });
 
   // Fetch ARC items for autocomplete
@@ -109,10 +137,42 @@ export default function FormEditorClient() {
       );
   }, []);
 
+  // Support creating a new form directly from `?siteId=&categoryId=` — used by the
+  // category page (which normally creates first and redirects) and as a safe
+  // fallback for deep links straight into the editor.
+
+  const creatingNewRef = useRef(false);
+  const [creatingNew, setCreatingNew] = useState(false);
+  useEffect(() => {
+    if (existingForm || creatingNewRef.current) return;
+    const siteId = params.get("siteId");
+    const categoryId = params.get("categoryId");
+    if (!siteId || !categoryId || !user?.email) return;
+    const s = sites.find((x) => x.id === siteId);
+    const c = categories.find((x) => x.id === categoryId);
+    if (!s || !c) return;
+    creatingNewRef.current = true;
+    setCreatingNew(true);
+    createForm({
+      site: s,
+      category: c,
+      ownerEmail: user.email.trim().toLowerCase(),
+      empName: user.displayName || user.email,
+    })
+      .then((f) => router.replace(`/form-editor?formId=${f.id}`))
+      .catch((error) => {
+        console.error("Create form failed:", error);
+        addToast("error", "Create failed", "Could not create the form. Please try again.");
+        creatingNewRef.current = false;
+        setCreatingNew(false);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existingForm, sites, categories, params, router, user, createForm]);
+
   // Initialize state from existing or default form
   useEffect(() => {
     if (initialized) return;
-    const src = existingForm ?? defaultForm(job?.siteName ?? "New Job", 1);
+    const src = existingForm ?? defaultForm(site?.name ?? "New Form", 1);
     initialLoadCompleteRef.current = false;
     setHasUnsavedChanges(false);
     setSummaryRows(src.summaryRows);
@@ -122,7 +182,7 @@ export default function FormEditorClient() {
     setTotalArea(src.totalArea);
     reset(src);
     setInitialized(true);
-  }, [existingForm, job, initialized, reset]);
+  }, [existingForm, site, initialized, reset]);
 
   useEffect(() => {
     if (!initialized) return;
@@ -145,12 +205,17 @@ export default function FormEditorClient() {
   // Auto-print if printMode
   useEffect(() => {
     if (printMode && initialized) {
-      setTimeout(() => window.print(), 500);
+      // window.print() is a no-op inside the native WebView — the user prints
+      // via the Print button (which opens the share sheet) instead.
+      if (!isNativeApp()) {
+        setTimeout(() => window.print(), 500);
+      }
     }
   }, [printMode, initialized]);
 
   const buildFormData = useCallback(
-    (values: PaintForm): PaintForm => ({
+    (values: PaintForm): WorkForm => ({
+      ...(existingForm as WorkForm),
       ...values,
       id: existingForm?.id ?? generateId("form"),
       summaryRows: syncedSummaryRows,
@@ -166,7 +231,7 @@ export default function FormEditorClient() {
 
   // Auto-save: debounce 2s after any change
   useEffect(() => {
-    if (!initialized || !job || !signatures || !hasUnsavedChanges) return;
+    if (!initialized || !existingForm || !signatures || !hasUnsavedChanges) return;
     if (autoSaveTimer) clearTimeout(autoSaveTimer);
 
     const timer = setTimeout(() => {
@@ -181,29 +246,16 @@ export default function FormEditorClient() {
 
       setLastSavedData(dataKey);
       setSaveState("saving");
-      if (existingForm) {
-        updateForm(jobId, formData)
-          .then(() => {
-            setHasUnsavedChanges(false);
-            setSaveState("saved");
-            setTimeout(() => setSaveState("idle"), 2000);
-          })
-          .catch(() => {
-            setSaveState("error");
-            setTimeout(() => setSaveState("idle"), 2000);
-          });
-      } else {
-        addForm(jobId, formData)
-          .then(() => {
-            setHasUnsavedChanges(false);
-            setSaveState("saved");
-            setTimeout(() => setSaveState("idle"), 2000);
-          })
-          .catch(() => {
-            setSaveState("error");
-            setTimeout(() => setSaveState("idle"), 2000);
-          });
-      }
+      updateForm(formData)
+        .then(() => {
+          setHasUnsavedChanges(false);
+          setSaveState("saved");
+          setTimeout(() => setSaveState("idle"), 2000);
+        })
+        .catch(() => {
+          setSaveState("error");
+          setTimeout(() => setSaveState("idle"), 2000);
+        });
     }, 2000);
 
     setAutoSaveTimer(timer);
@@ -213,29 +265,24 @@ export default function FormEditorClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     initialized,
-    job,
+    existingForm,
     signatures,
     syncedSummaryRows,
     measurementRows,
     getValues,
     buildFormData,
-    existingForm,
-    jobId,
     updateForm,
-    addForm,
     lastSavedData,
     hasUnsavedChanges,
   ]);
 
   const handleDuplicateForm = async () => {
-    if (!job || !existingForm) return;
+    if (!existingForm) return;
     try {
-      await duplicateForm(jobId, formId);
-      addToast(
-        "success",
-        "Form duplicated",
-        "A copy of this form has been created.",
-      );
+      const copy = await duplicateForm(formId);
+      if (copy) {
+        addToast("success", "Form duplicated", `"${copy.formName}" created.`);
+      }
     } catch (error) {
       console.error("Duplicate form failed:", error);
       addToast("error", "Duplicate failed", "Could not duplicate the form.");
@@ -243,15 +290,11 @@ export default function FormEditorClient() {
   };
 
   const onSubmit = async (values: PaintForm) => {
-    if (!job || !signatures) return;
+    if (!existingForm || !signatures) return;
     setSaveState("saving");
     try {
       const formData = buildFormData(values);
-      if (existingForm) {
-        await updateForm(jobId, formData);
-      } else {
-        await addForm(jobId, formData);
-      }
+      await updateForm(formData);
       setHasUnsavedChanges(false);
       setSaveState("saved");
       addToast("success", "Form saved", "All changes saved successfully.");
@@ -267,22 +310,74 @@ export default function FormEditorClient() {
     }
   };
 
+  const sanitizeFileName = (s: string) =>
+    s
+      .replace(/[\\/:*?"<>|]+/g, "_")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  /** Render the hidden A4 PDF layout and deliver it (download / share sheet). */
+  const generateFormPdf = async (
+    formName: string,
+  ): Promise<"downloaded" | "shared" | "printed" | null> => {
+    const root = pdfExportRef.current;
+    if (!root || !existingForm) return null;
+    const siteName = sanitizeFileName(existingForm.siteName || "Job");
+    const name = sanitizeFileName(formName);
+    return exportPrintLayoutToPdf(root, `${siteName} - ${name}`);
+  };
+
   const handlePrint = async (values: PaintForm) => {
-    if (!job || !signatures) return;
+    if (!existingForm || !signatures) return;
     setSaveState("saving");
     try {
       // Save first, then print
       const formData = buildFormData(values);
-      if (existingForm) {
-        await updateForm(jobId, formData);
-      } else {
-        await addForm(jobId, formData);
-      }
+      await updateForm(formData);
       setHasUnsavedChanges(false);
       setSaveState("saved");
       addToast("success", "Form saved", "Saved before printing.");
       setTimeout(() => setSaveState("idle"), 2000);
-      window.print();
+
+      if (isNativeApp()) {
+        // window.print() does nothing in the native WebView — render the same
+        // A4 PDF and hand it to the OS print framework. On Android this opens
+        // the system print dialog (every installed printer service + "Save as
+        // PDF"); iOS falls back to the share sheet, which includes Print.
+        const formName =
+          existingForm?.formName || formData.formName || "Form";
+        const root = pdfExportRef.current;
+        if (!root) {
+          addToast(
+            "error",
+            "Print failed",
+            "Print layout is not ready yet. Please try again.",
+          );
+          return;
+        }
+        const siteName = sanitizeFileName(existingForm.siteName || "Job");
+        const name = sanitizeFileName(formName);
+        const delivered = await exportPrintLayoutToPdf(
+          root,
+          `${siteName} - ${name}`,
+          "print",
+        );
+        if (delivered === "printed") {
+          addToast(
+            "success",
+            "Print dialog opened",
+            "Choose a printer or Save as PDF.",
+          );
+        } else {
+          addToast(
+            "success",
+            "PDF ready",
+            "Choose Print (or Save) from the share sheet.",
+          );
+        }
+      } else {
+        window.print();
+      }
     } catch (error) {
       console.error("Save before print failed:", error);
       setSaveState("error");
@@ -295,33 +390,27 @@ export default function FormEditorClient() {
   };
 
   const handleExportPdf = async (values: PaintForm) => {
-    if (!job || !signatures) return;
+    if (!existingForm || !signatures) return;
     setExportingPdf(true);
     try {
       // Save first so the exported PDF reflects the latest data.
       const formData = buildFormData(values);
-      if (existingForm) {
-        await updateForm(jobId, formData);
-      } else {
-        await addForm(jobId, formData);
-      }
+      await updateForm(formData);
       setHasUnsavedChanges(false);
       setSaveState("saved");
       setTimeout(() => setSaveState("idle"), 2000);
 
-      const root = pdfExportRef.current;
-      if (root) {
-        const sanitize = (s: string) =>
-          s
-            .replace(/[\\/:*?"<>|]+/g, "_")
-            .replace(/\s+/g, " ")
-            .trim();
-        const siteName = sanitize(job.siteName || "Job");
-        const formName = sanitize(
-          existingForm?.formName || formData.formName || "Form",
-        );
-        await exportPrintLayoutToPdf(root, `${siteName} - ${formName}`);
+      const formName =
+        existingForm?.formName || formData.formName || "Form";
+      const delivered = await generateFormPdf(formName);
+      if (delivered === "downloaded") {
         addToast("success", "PDF exported", `"${formName}" exported as PDF.`);
+      } else if (delivered === "shared") {
+        addToast(
+          "success",
+          "PDF ready",
+          `"${formName}" saved — print or share it from the sheet.`,
+        );
       } else {
         addToast(
           "error",
@@ -337,22 +426,33 @@ export default function FormEditorClient() {
     }
   };
 
-  if (!job) {
+  if (creatingNew) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 size={32} className="animate-spin text-primary" />
+          <p className="text-muted-foreground text-sm">Creating form...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!existingForm) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8">
         <AlertCircle size={40} className="text-muted-foreground mb-4" />
         <h2 className="text-xl font-semibold text-foreground mb-2">
-          Job not found
+          Form not found
         </h2>
         <p className="text-muted-foreground text-sm mb-5">
-          The job associated with this form could not be found.
+          This form could not be found. It may have been deleted or the link is invalid.
         </p>
         <Link
           href="/"
           className="flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:opacity-90 transition-opacity"
         >
           <ChevronLeft size={16} />
-          Back to Dashboard
+          Back to Sites
         </Link>
       </div>
     );
@@ -369,9 +469,12 @@ export default function FormEditorClient() {
     );
   }
 
+  // `job` is non-null here because `!existingForm` returned above.
+  const jobForPrint: Job = job as Job;
+
   // Reconstruct current form for print
   const currentFormForPrint: PaintForm = {
-    ...(existingForm ?? defaultForm(job.siteName, 1)),
+    ...(existingForm ?? defaultForm(site?.name ?? "New Form", 1)),
     suitPublicAreaName: "",
     summaryRows: syncedSummaryRows,
     measurementRows,
@@ -394,16 +497,16 @@ export default function FormEditorClient() {
     <>
       {/* Print-only layout */}
       <div className="print-layout" ref={printLayoutRef}>
-        <PrintLayout form={currentFormForPrint} job={job} />
+        <PrintLayout form={currentFormForPrint} job={jobForPrint} />
       </div>
 
       {/* PDF-export-only layout (hidden on screen; captured by exportPrintLayoutToPdf) */}
       <div className="pdf-export-layout" ref={pdfExportRef}>
-        <PdfExportLayout form={currentFormForPrint} job={job} />
+        <PdfExportLayout form={currentFormForPrint} job={jobForPrint} />
       </div>
 
       {/* Screen layout */}
-      <div className="no-print min-h-full p-4 lg:p-6 xl:p-8 pb-24 lg:pb-8 max-w-screen-2xl mx-auto">
+      <div className="no-print min-h-full p-4 lg:p-6 xl:p-8 pb-[calc(6rem_+_env(safe-area-inset-bottom))] lg:pb-8 max-w-screen-2xl mx-auto">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
@@ -412,14 +515,14 @@ export default function FormEditorClient() {
                 href="/"
                 className="hover:text-foreground transition-colors"
               >
-                Dashboard
+                Sites
               </Link>
               <span>/</span>
               <Link
-                href={`/job-detail?id=${jobId}`}
+                href={`/site/${existingForm.siteId}`}
                 className="hover:text-foreground transition-colors"
               >
-                {job.siteName}
+                {site?.name ?? existingForm.siteName}
               </Link>
               <span>/</span>
               <span className="text-foreground font-medium">
@@ -432,18 +535,18 @@ export default function FormEditorClient() {
               </h1>
             </div>
             <p className="text-sm text-muted-foreground mt-0.5">
-              {job.empName} · {job.siteAddress}
+              {existingForm.empName} · {existingForm.siteAddress}
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <button
               type="button"
-              onClick={() => router.push(`/job-detail?id=${jobId}`)}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors scale-press"
+              onClick={() => router.push(`/site/${existingForm.siteId}/category/${existingForm.categoryId}`)}
+              title="Back to category"
+              className="p-2.5 rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors scale-press"
             >
-              <ChevronLeft size={15} />
-              Back
+              <ChevronLeft size={16} />
             </button>
 
             {existingForm && (
@@ -451,18 +554,18 @@ export default function FormEditorClient() {
                 <button
                   type="button"
                   onClick={handleDuplicateForm}
-                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-md border border-border text-foreground hover:bg-secondary transition-colors scale-press"
+                  title="Duplicate form"
+                  className="p-2.5 rounded-md border border-border text-foreground hover:bg-secondary transition-colors scale-press"
                 >
-                  <Copy size={15} />
-                  Duplicate
+                  <Copy size={16} />
                 </button>
                 <button
                   type="button"
                   onClick={() => setCopyModalOpen(true)}
-                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-md border border-border text-foreground hover:bg-secondary transition-colors scale-press"
+                  title="Copy to another site"
+                  className="p-2.5 rounded-md border border-border text-foreground hover:bg-secondary transition-colors scale-press"
                 >
-                  <Files size={15} />
-                  Copy to Job
+                  <Files size={16} />
                 </button>
               </>
             )}
@@ -470,47 +573,44 @@ export default function FormEditorClient() {
             <button
               type="button"
               onClick={handleSubmit(handlePrint)}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md border border-border text-foreground hover:bg-secondary transition-colors scale-press"
+              title="Print A4"
+              className="p-2.5 rounded-md border border-border text-foreground hover:bg-secondary transition-colors scale-press"
             >
-              <Printer size={15} />
-              Print
+              <Printer size={16} />
             </button>
 
             <button
               type="button"
               onClick={handleSubmit(handleExportPdf)}
               disabled={exportingPdf}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md border border-border text-foreground hover:bg-secondary transition-colors scale-press disabled:opacity-60 disabled:cursor-not-allowed"
+              title={exportingPdf ? "Exporting..." : "Export PDF"}
+              className="p-2.5 rounded-md border border-border text-foreground hover:bg-secondary transition-colors scale-press disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {exportingPdf ? (
-                <Loader2 size={15} className="animate-spin" />
+                <Loader2 size={16} className="animate-spin" />
               ) : (
-                <FileDown size={15} />
+                <FileDown size={16} />
               )}
-              {exportingPdf ? "Exporting..." : "Export PDF"}
             </button>
 
             <button
-              type="button"
-              onClick={handleSubmit(onSubmit)}
+              type="submit"
               disabled={saveState === "saving"}
-              className="flex items-center gap-2 px-5 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:opacity-90 transition-opacity scale-press disabled:opacity-60 min-w-[110px] justify-center"
+              title={
+                saveState === "saving"
+                  ? "Saving..."
+                  : saveState === "saved"
+                  ? "Saved"
+                  : "Save Form"
+              }
+              className="p-2.5 rounded-md bg-primary text-primary-foreground hover:opacity-90 transition-opacity scale-press disabled:opacity-60"
             >
               {saveState === "saving" ? (
-                <>
-                  <Loader2 size={14} className="animate-spin" />
-                  Saving...
-                </>
+                <Loader2 size={16} className="animate-spin" />
               ) : saveState === "saved" ? (
-                <>
-                  <CheckCircle2 size={14} />
-                  Saved
-                </>
+                <CheckCircle2 size={16} />
               ) : (
-                <>
-                  <Save size={14} />
-                  Save Form
-                </>
+                <Save size={16} />
               )}
             </button>
           </div>
@@ -550,11 +650,10 @@ export default function FormEditorClient() {
           <SignatureSection />
 
           {/* Sticky Save Bar */}
-          <div className="fixed bottom-0 left-0 right-0 lg:left-sidebar lg:left-sidebar-collapsed bg-card border-t border-border px-4 py-3 flex items-center justify-between gap-3 z-20 no-print">
-            <div className="flex items-center gap-2 text-sm">
-              <FileText size={15} className="text-muted-foreground" />
-              <span className="text-muted-foreground">
-                Grand Total:{" "}
+          <div className="fixed bottom-0 left-0 right-0 lg:left-sidebar lg:left-sidebar-collapsed bg-card border-t border-border px-3 pt-2 pb-[calc(0.5rem_+_env(safe-area-inset-bottom))] flex items-center justify-between gap-2 z-20 no-print">
+            <div className="flex items-center gap-1.5 text-sm min-w-0">
+              <FileText size={14} className="text-muted-foreground shrink-0" />
+              <span className="text-muted-foreground truncate">
                 <span className="font-semibold font-tabular text-foreground">
                   ₹
                   {grandTotal.toLocaleString("en-IN", {
@@ -563,58 +662,51 @@ export default function FormEditorClient() {
                 </span>
               </span>
               <span className="text-muted-foreground hidden sm:inline">·</span>
-              <span className="text-muted-foreground hidden sm:inline">
-                Total Area:{" "}
-                <span className="font-semibold font-tabular text-foreground">
-                  {totalArea.toFixed(2)}{" "}
-                  {aggregateAreaUnitLabel(measurementRows.map((r) => r.uom))}
-                </span>
+              <span className="text-muted-foreground hidden sm:inline whitespace-nowrap">
+                {totalArea.toFixed(2)}{" "}
+                {aggregateAreaUnitLabel(measurementRows.map((r) => r.uom))}
               </span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <button
                 type="button"
                 onClick={handleSubmit(handlePrint)}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-md border border-border text-foreground hover:bg-secondary transition-colors scale-press"
+                title="Print A4"
+                className="p-2 rounded-md border border-border text-foreground hover:bg-secondary transition-colors scale-press"
               >
-                <Printer size={14} />
-                <span className="hidden sm:inline">Print A4</span>
+                <Printer size={15} />
               </button>
               <button
                 type="button"
                 onClick={handleSubmit(handleExportPdf)}
                 disabled={exportingPdf}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-md border border-border text-foreground hover:bg-secondary transition-colors scale-press disabled:opacity-60 disabled:cursor-not-allowed"
+                title={exportingPdf ? "Exporting..." : "Export PDF"}
+                className="p-2 rounded-md border border-border text-foreground hover:bg-secondary transition-colors scale-press disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {exportingPdf ? (
-                  <Loader2 size={14} className="animate-spin" />
+                  <Loader2 size={15} className="animate-spin" />
                 ) : (
-                  <FileDown size={14} />
+                  <FileDown size={15} />
                 )}
-                <span className="hidden sm:inline">
-                  {exportingPdf ? "Exporting..." : "Export PDF"}
-                </span>
               </button>
               <button
                 type="submit"
                 disabled={saveState === "saving"}
-                className="flex items-center gap-2 px-5 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:opacity-90 transition-opacity scale-press disabled:opacity-60 min-w-[110px] justify-center"
+                title={
+                  saveState === "saving"
+                    ? "Saving..."
+                    : saveState === "saved"
+                    ? "Saved"
+                    : "Save Form"
+                }
+                className="p-2 rounded-md bg-primary text-primary-foreground hover:opacity-90 transition-opacity scale-press disabled:opacity-60"
               >
                 {saveState === "saving" ? (
-                  <>
-                    <Loader2 size={14} className="animate-spin" />
-                    Saving...
-                  </>
+                  <Loader2 size={15} className="animate-spin" />
                 ) : saveState === "saved" ? (
-                  <>
-                    <CheckCircle2 size={14} />
-                    Saved
-                  </>
+                  <CheckCircle2 size={15} />
                 ) : (
-                  <>
-                    <Save size={14} />
-                    Save Form
-                  </>
+                  <Save size={15} />
                 )}
               </button>
             </div>
@@ -624,16 +716,18 @@ export default function FormEditorClient() {
 
       <CopyFormModal
         open={copyModalOpen}
-        sourceJobId={jobId}
         formId={existingForm?.id ?? ""}
         formName={existingForm?.formName ?? ""}
-        jobs={jobs}
+        sourceSiteId={existingForm?.siteId ?? ""}
+        sourceCategoryId={existingForm?.categoryId ?? ""}
+        sites={sites}
+        categories={categories}
         onClose={() => setCopyModalOpen(false)}
-        onCopied={(targetJobName, newFormName) => {
+        onCopied={(targetName, newFormName) => {
           addToast(
             "success",
             "Form copied",
-            `"${newFormName}" copied to "${targetJobName}".`,
+            `"${newFormName}" copied to "${targetName}".`,
           );
         }}
       />

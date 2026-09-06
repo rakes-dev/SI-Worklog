@@ -11,488 +11,312 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Cell,
 } from "recharts";
 import { useAppStore } from "@/store/useAppStore";
 import { useAuthStore } from "@/store/useAuthStore";
+import AppLayout from "@/components/AppLayout";
 import UserManagement from "./UserManagement";
 import MasterSummary from "./MasterSummary";
-import { formatCurrency, normalizeKey } from "@/utils/helpers";
+import SiteCategoryManager from "./SiteCategoryManager";
+import DataTools from "./DataTools";
+import { formatCurrency, normalizeKey, currentMonth, monthLabel } from "@/utils/helpers";
 import {
   Loader2,
   LogOut,
-  ArrowLeft,
-  LayoutDashboard,
-  FileText,
-  Briefcase,
   Building2,
+  FileText,
+  IndianRupee,
   Users,
   ClipboardList,
+  Layers,
+  Ruler,
 } from "lucide-react";
 
-type Timeline = "day" | "week" | "month";
-const TIMELINES: { key: Timeline; label: string }[] = [
-  { key: "day", label: "Today" },
-  { key: "week", label: "This Week" },
-  { key: "month", label: "This Month" },
-];
-const BAR_COLORS = [
-  "#2563EB",
-  "#16A34A",
-  "#F59E0B",
-  "#EF4444",
-  "#8B5CF6",
-  "#06B6D4",
-  "#EC4899",
-  "#84CC16",
-];
+type Tab = "overview" | "manage" | "master" | "users";
 
-function startOfToday(): number {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
-}
-function startOfWeek(): number {
-  const now = new Date();
-  const day = now.getDay(); // 0=Sun
-  const diff = day === 0 ? 6 : day - 1;
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() - diff);
-  return d.getTime();
-}
-function isSameMonth(ts: number): boolean {
-  const d = new Date(ts),
-    n = new Date();
-  return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth();
-}
-function inTimeline(ts: number, t: Timeline): boolean {
-  if (t === "day") return ts >= startOfToday();
-  if (t === "week") return ts >= startOfWeek();
-  return isSameMonth(ts);
-}
-
+const TAB_LABELS: { key: Tab; label: string; icon: React.ReactNode }[] = [
+  { key: "overview", label: "Overview", icon: <ClipboardList size={15} /> },
+  { key: "manage", label: "Sites & Categories", icon: <Building2 size={15} /> },
+  { key: "master", label: "Master Summary", icon: <FileText size={15} /> },
+  { key: "users", label: "Users", icon: <Users size={15} /> },
+];
 export default function AdminPage() {
   const router = useRouter();
-  const { user, status, role, logOut } = useAuthStore();
-  const { jobs, loadJobs } = useAppStore();
+  const { user, status, role, authorized, logOut } = useAuthStore();
+    const { forms, sites, categories, isLoadingData } = useAppStore();
+  const [tab, setTab] = useState<Tab>("overview");
+  const availableMonths = useMemo(() => {
+    const months = new Set<string>();
+    forms.forEach((f) => {
+      if (!f.isDeleted && f.month) months.add(f.month);
+    });
+    return Array.from(months).sort().reverse();
+  }, [forms]);
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+    if (availableMonths.length > 0) return currentMonth();
+    return "";
+  });
 
-  const [location, setLocation] = useState<string>("all");
-  const [timeline, setTimeline] = useState<Timeline>("day");
-  const [tab, setTab] = useState<"overview" | "master" | "users">("overview");
+  useEffect(() => {
+    // If the selected month is no longer available (e.g. after a refresh),
+    // default to the current month or the first available.
+    if (selectedMonth && !availableMonths.includes(selectedMonth)) {
+      if (availableMonths.length > 0) {
+        setSelectedMonth(availableMonths[0]);
+      } else {
+        setSelectedMonth("");
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableMonths]);
 
   useEffect(() => {
     if (status === "unauthenticated") router.replace("/login");
   }, [status, router]);
 
+  // Redirect non-admins who navigate here directly. The Sidebar already hides
+  // the Admin link from them, but this guards the route itself.
   useEffect(() => {
-    loadJobs().catch(() => {});
-  }, [loadJobs]);
+    if (status === "authenticated" && role === "user") {
+      router.replace("/");
+    }
+  }, [status, role, router]);
 
-  const metrics = useMemo(() => {
-    const all = jobs.length
-      ? jobs.flatMap((j) =>
-          (j.forms || []).map((f) => ({
-            form: f,
-            job: j,
-            ts: new Date(f.createdAt || j.createdAt).getTime() || 0,
-          })),
-        )
-      : [];
+    const activeForms = useMemo(() => {
+    return forms.filter((f) => !f.isDeleted && (selectedMonth === "" || f.month === selectedMonth));
+  }, [forms, selectedMonth]);
+  const totalValue = activeForms.reduce((s, f) => s + (f.grandTotal ||0),0);
 
-    // Deduplicate locations case-insensitively ("ITC ROYAL" / "Itc royal" →
-    // one option, displayed with the first casing seen).
-    const locations = Array.from(
-      new Map(
-        jobs
-          .map((j) => j.siteAddress?.trim() || j.siteName)
-          .filter(Boolean)
-          .map((name) => [normalizeKey(name), name] as [string, string]),
-      ).values(),
-    ).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  const totalArea = activeForms.reduce((s, f) => s + (f.totalArea ||0),0);
 
-    const filtered =
-      location === "all"
-        ? all
-        : all.filter(
-            (x) =>
-              normalizeKey(x.job.siteAddress?.trim() || x.job.siteName) ===
-              normalizeKey(location),
-          );
-
-    const totalValue = filtered.reduce(
-      (s, x) => s + (x.form.grandTotal || 0),
-      0,
-    );
-
-    // Group employee stats case-insensitively, keeping the first casing seen.
-    const emp = new Map<
-      string,
-      { name: string; forms: number; value: number }
-    >();
-    filtered.forEach((x) => {
-      const name = x.job.empName?.trim() || "Unassigned";
-      const key = normalizeKey(name);
-      const cur = emp.get(key) || { name, forms: 0, value: 0 };
-      cur.forms += 1;
-      cur.value += x.form.grandTotal || 0;
-      emp.set(key, cur);
+  const siteStats = useMemo(() => {
+    const map = new Map<string, { name: string; forms: number; value: number }>();
+    activeForms.forEach((f) => {
+      const key = f.siteId || normalizeKey(f.siteName);
+      const cur = map.get(key) || { name: f.siteName || "—", forms:0, value:0 };
+      cur.forms +=1;
+      cur.value +=f.grandTotal ||0;
+      map.set(key, cur);
     });
-    const employeeStats = Array.from(emp.values()).sort(
-      (a, b) => b.value - a.value,
-    );
+    return Array.from(map.values()).sort((a, b) => b.forms - a.forms);
+  }, [activeForms]);
 
-    // Group location stats case-insensitively, keeping the first casing seen.
-    const locMap = new Map<
-      string,
-      { name: string; forms: number; value: number }
-    >();
-    all.forEach((x) => {
-      const name = x.job.siteAddress?.trim() || x.job.siteName || "—";
-      const key = normalizeKey(name);
-      const cur = locMap.get(key) || { name, forms: 0, value: 0 };
-      cur.forms += 1;
-      cur.value += x.form.grandTotal || 0;
-      locMap.set(key, cur);
+  const empStats = useMemo(() => {
+    const map = new Map<string, { name: string; forms: number; value: number }>();
+    activeForms.forEach((f) => {
+      const name = f.empName?.trim() || "Unassigned";
+      const cur = map.get(name) || { name, forms:0, value:0 };
+      cur.forms +=1;
+      cur.value +=f.grandTotal ||0;
+      map.set(name, cur);
     });
-    const locationByValue = Array.from(locMap.values()).sort(
-      (a, b) => b.value - a.value,
-    );
+    return Array.from(map.values()).sort((a, b) => b.forms - a.forms);
+  }, [activeForms]);
 
-    const timelineFormsArr = filtered.filter((x) => inTimeline(x.ts, timeline));
-    const timelineValue = timelineFormsArr.reduce(
-      (s, x) => s + (x.form.grandTotal || 0),
-      0,
-    );
+  const catStats = useMemo(() => {
+    const map = new Map<string, { name: string; forms: number; value: number }>();
+    activeForms.forEach((f) => {
+      const cat = categories.find((c) => c.id === f.categoryId);
+      const name = cat?.name || "Unsorted";
+      const key = cat?.id || name;
+      const cur = map.get(key) || { name, forms:0, value:0 };
+      cur.forms +=1;
+      cur.value +=f.grandTotal ||0;
+      map.set(key, cur);
+    });
+    return Array.from(map.values()).sort((a, b) => b.forms - a.forms);
+  }, [activeForms, categories]);
 
-    return {
-      locations,
-      filteredForms: filtered.length,
-      totalValue,
-      employeeStats,
-      locationByValue,
-      timelineForms: timelineFormsArr.length,
-      timelineValue,
-    };
-  }, [jobs, location, timeline]);
-
-  if (status === "loading") {
+  const chartData = useMemo(() => {
+    const days: { label: string; forms: number }[] = [];
+    for (let i = -29; i <=0; i++) {
+      const d = new Date();
+      d.setHours(0,0,0,0);
+      d.setDate(d.getDate() + i);
+      const label = `${d.getDate()}/${d.getMonth() + 1}`;
+      const dayForms = activeForms.filter((f) => {
+        const fd = new Date(f.createdAt);
+        fd.setHours(0,0,0,0);
+        return fd.getTime() === d.getTime();
+      }).length;
+      days.push({ label, forms: dayForms });
+    }
+    return days;
+  }, [activeForms]);
+if (isLoadingData) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 size={28} className="animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-  if (status !== "authenticated" || !user) return null;
-
-  if (role !== "admin") {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 text-center">
-        <div className="text-5xl mb-4">🛡️</div>
-        <h1 className="text-xl font-semibold text-foreground">
-          Admin Access Required
-        </h1>
-        <p className="text-sm text-muted-foreground mt-2 max-w-md">
-          You are signed in as {user?.email}, but your account is not an admin.
-          Only admins can view this dashboard.
-        </p>
-        <div className="flex items-center gap-2 mt-5">
-          <Link
-            href="/"
-            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-          >
-            <ArrowLeft size={15} /> Back to app
-          </Link>
-          <button
-            onClick={logOut}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-          >
-            <LogOut size={15} /> Sign out
-          </button>
+      <AppLayout>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
+          <Loader2 size={32} className="animate-spin text-primary" />
+          <span className="text-sm text-muted-foreground">Loading data…</span>
         </div>
-      </div>
+      </AppLayout>
     );
   }
 
-  const {
-    locations,
-    filteredForms,
-    totalValue,
-    employeeStats,
-    locationByValue,
-    timelineForms,
-    timelineValue,
-  } = metrics;
+  if (status !== "authenticated") {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <Loader2 size={32} className="animate-spin text-primary" />
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-background p-4 lg:p-6 xl:p-8">
+    <AppLayout>
+      <div className="min-h-full p-4 lg:p-6 xl:p-8 pb-[calc(6rem_+_env(safe-area-inset-bottom))] lg:pb-8 max-w-screen-2xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
             <Link href="/" className="hover:text-foreground transition-colors">
-              App
+              Sites
             </Link>
             <span>/</span>
-            <span className="text-foreground font-medium">Admin Dashboard</span>
+            <span className="text-foreground font-medium">Admin</span>
           </div>
           <h1 className="text-2xl font-semibold text-foreground flex items-center gap-2">
-            <LayoutDashboard size={22} /> Admin Dashboard
+            <Layers size={22} className="text-primary" />
+            Admin Panel
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {user?.email || user?.displayName || "Signed in"}
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {user?.email} · {activeForms.length} forms · ₹{formatCurrency(totalValue)}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Link
-            href="/"
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-          >
-            <ArrowLeft size={15} /> App
-          </Link>
+        <button
+          onClick={logOut}
+          className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+        >
+          <LogOut size={14} /> Sign out
+        </button>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex flex-wrap gap-2 mb-6">
+        {TAB_LABELS.map((t) => (
           <button
-            onClick={logOut}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-md text-sm font-medium transition-colors ${
+              tab === t.key
+                ? "bg-primary text-primary-foreground"
+                : "bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-secondary"
+            }`}
           >
-            <LogOut size={15} /> Sign out
+            {t.icon}
+            {t.label}
           </button>
-        </div>
+        ))}
       </div>
-
-      {/* Section nav */}
-      <div className="flex items-center gap-1 bg-card border border-border rounded-md p-1 w-fit mb-5">
-        <button
-          onClick={() => setTab("overview")}
-          className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${tab === "overview" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary"}`}
-        >
-          <span className="flex items-center gap-1.5">
-            <LayoutDashboard size={15} /> Overview
-          </span>
-        </button>
-        <button
-          onClick={() => setTab("master")}
-          className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${tab === "master" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary"}`}
-        >
-          <span className="flex items-center gap-1.5">
-            <ClipboardList size={15} /> Master Summary
-          </span>
-        </button>
-        <button
-          onClick={() => setTab("users")}
-          className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${tab === "users" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary"}`}
-        >
-          <span className="flex items-center gap-1.5">
-            <Users size={15} /> User Management
-          </span>
-        </button>
-      </div>
-
-      {tab === "overview" && (
+{tab === "overview" && (
         <>
-          {/* Location filter */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
-            <div className="flex items-center gap-2">
-              <Building2 size={16} className="text-muted-foreground" />
-              <label className="text-sm font-medium text-foreground">
-                Location:
-              </label>
-              <select
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                className="px-3 py-2 bg-input border border-border rounded-md text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                <option value="all">All locations</option>
-                {locations.map((l) => (
-                  <option key={l} value={l}>
-                    {l}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex items-center gap-1 bg-card border border-border rounded-md p-1">
-              {TIMELINES.map((t) => (
-                <button
-                  key={t.key}
-                  onClick={() => setTimeline(t.key)}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${timeline === t.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary"}`}
-                >
-                  {t.label}
-                </button>
+                  {/* Month filter */}
+        <div className="mb-6">
+          <div className="flex items-center gap-3 flex-wrap">
+            <label className="text-sm font-medium text-foreground">Filter by month:</label>
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="px-3 py-1.5 rounded-md border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="">All time</option>
+              {availableMonths.map((m) => (
+                <option key={m} value={m}>
+                  {monthLabel(m)}
+                </option>
               ))}
-            </div>
-          </div>
-
-          {/* Stat cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <StatCard
-              icon={<FileText size={18} />}
-              label={`Forms (${TIMELINES.find((t) => t.key === timeline)?.label.toLowerCase()})`}
-              value={`${timelineForms}`}
-              sub={`${formatCurrency(timelineValue)} value`}
-              accent="bg-blue-500/10 text-blue-600 dark:text-blue-400"
-            />
-            <StatCard
-              icon={<Briefcase size={18} />}
-              label="Total Forms"
-              value={`${filteredForms}`}
-              sub="across this filter"
-              accent="bg-violet-500/10 text-violet-600 dark:text-violet-400"
-            />
-            <StatCard
-              icon={<Building2 size={18} />}
-              label="Total Value"
-              value={`₹${formatCurrency(totalValue)}`}
-              sub={location === "all" ? "all locations" : location}
-              accent="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-            />
-            <StatCard
-              icon={<Users size={18} />}
-              label="Employees"
-              value={`${employeeStats.length}`}
-              sub="employees in view"
-              accent="bg-amber-500/10 text-amber-600 dark:text-amber-400"
-            />
-          </div>
-
-          {/* Charts */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-card border border-border rounded-xl p-5">
-              <h2 className="font-semibold text-foreground mb-1">
-                Value by Location
-              </h2>
-              <p className="text-xs text-muted-foreground mb-4">
-                Total form value per site
-              </p>
-              {locationByValue.length === 0 ? (
-                <Empty />
-              ) : (
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={locationByValue}>
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke="var(--border)"
-                    />
-                    <XAxis
-                      dataKey="name"
-                      tick={{ fontSize: 10 }}
-                      interval={0}
-                      angle={-15}
-                      textAnchor="end"
-                      height={54}
-                    />
-                    <YAxis tick={{ fontSize: 10 }} />
-                    <Tooltip
-                      formatter={(v: number | string) => [
-                        `₹${formatCurrency(Number(v))}`,
-                        "Value",
-                      ]}
-                    />
-                    <Bar dataKey="value">
-                      {locationByValue.map((_, i) => (
-                        <Cell
-                          key={i}
-                          fill={BAR_COLORS[i % BAR_COLORS.length]}
-                        />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-
-            <div className="bg-card border border-border rounded-xl p-5">
-              <h2 className="font-semibold text-foreground mb-1">
-                Forms Done By
-              </h2>
-              <p className="text-xs text-muted-foreground mb-4">
-                Number of forms per employee
-              </p>
-              {employeeStats.length === 0 ? (
-                <Empty />
-              ) : (
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={employeeStats}>
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke="var(--border)"
-                    />
-                    <XAxis
-                      dataKey="name"
-                      tick={{ fontSize: 10 }}
-                      interval={0}
-                      angle={-15}
-                      textAnchor="end"
-                      height={54}
-                    />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
-                    <Tooltip />
-                    <Bar
-                      dataKey="forms"
-                      fill="#2563EB"
-                      name="Forms"
-                      radius={[4, 4, 0, 0]}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-          </div>
-
-          {/* Employee breakdown table */}
-          <div className="bg-card border border-border rounded-xl mt-6 overflow-hidden">
-            <div className="px-5 py-4 border-b border-border">
-              <h2 className="font-semibold text-foreground">
-                Employee Breakdown
-              </h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Forms and value per employee in the current filter
-              </p>
-            </div>
-            {employeeStats.length === 0 ? (
-              <div className="px-5 py-10 text-center text-muted-foreground text-sm">
-                No data yet.
-              </div>
-            ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-secondary/50">
-                    <th className="text-left px-5 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                      Employee
-                    </th>
-                    <th className="text-right px-5 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                      Forms
-                    </th>
-                    <th className="text-right px-5 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                      Value
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {employeeStats.map((e) => (
-                    <tr
-                      key={e.name}
-                      className="border-b border-border last:border-0"
-                    >
-                      <td className="px-5 py-2.5 text-foreground">{e.name}</td>
-                      <td className="px-5 py-2.5 text-right font-tabular text-foreground">
-                        {e.forms}
-                      </td>
-                      <td className="px-5 py-2.5 text-right font-tabular font-semibold text-primary">
-                        ₹{formatCurrency(e.value)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              {availableMonths.length === 0 && <option value={currentMonth()}>{monthLabel(currentMonth())} (current)</option>}
+            </select>
+            {selectedMonth && selectedMonth !== currentMonth() && (
+              <button
+                onClick={() => setSelectedMonth(currentMonth())}
+                className="text-sm text-muted-foreground hover:text-foreground underline"
+              >
+                Reset to current month
+              </button>
             )}
           </div>
-        </>
-      )}
+        </div>
 
+        {/* Stat cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 mb-6">
+            <StatCard
+              icon={<FileText size={16} />}
+              label="Forms"
+              value={String(activeForms.length)}
+              accent="bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400"
+            />
+            <StatCard
+              icon={<IndianRupee size={16} />}
+              label="Total Value"
+              value={`₹${formatCurrency(totalValue)}`}
+              accent="bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400"
+            />
+            <StatCard
+              icon={<Ruler size={16} />}
+              label="Total Area"
+              value={`${totalArea.toFixed(2)}`}
+              accent="bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400"
+            />
+            <StatCard
+              icon={<Building2 size={16} />}
+              label="Sites"
+              value={String(sites.filter((s) => s.isActive).length)}
+              accent="bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400"
+            />
+            <StatCard
+              icon={<ClipboardList size={16} />}
+              label="Categories"
+              value={String(categories.filter((c) => c.isActive).length)}
+              accent="bg-cyan-50 text-cyan-600 dark:bg-cyan-900/20 dark:text-cyan-400"
+            />
+            <StatCard
+              icon={<Users size={16} />}
+              label="Employees"
+              value={String(empStats.length)}
+              accent="bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400"
+            />
+          </div>
+
+
+          <div className="bg-card border border-border rounded-xl p-5 mb-6">
+            <h2 className="font-semibold text-foreground">Forms — Last 30 Days</h2>
+            <div className="h-[220px] mt-4">
+              {chartData.some((d) => d.forms > 0) ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="label" tick={{ fontSize: 10 }} interval={2} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
+                    <Tooltip />
+                    <Bar dataKey="forms" fill="#2563EB" radius={[3, 3, 0, 0]} name="Forms" />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
+                  No forms yet. Please create a form from a site category first.
+                </div>
+              )}
+            </div>
+
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <BreakdownTable title="Site Breakdown" rows={siteStats} />
+            <BreakdownTable title="Employee Breakdown" rows={empStats} />
+          </div>
+          <div className="mt-6">
+            <BreakdownTable title="Category Breakdown" rows={catStats} />
+          </div>
+        </>)}
+
+      {tab === "manage" && <SiteCategoryManager />}
       {tab === "master" && <MasterSummary />}
-
       {tab === "users" && <UserManagement />}
-    </div>
+      {tab === "overview" && <DataTools showBackup />}
+      </div>
+    </AppLayout>
   );
 }
 
@@ -500,35 +324,61 @@ function StatCard({
   icon,
   label,
   value,
-  sub,
   accent,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
-  sub: string;
   accent: string;
 }) {
   return (
-    <div className="bg-card border border-border rounded-xl p-5">
-      <div className={`inline-flex p-2.5 rounded-lg mb-3 ${accent}`}>
-        {icon}
-      </div>
-      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-        {label}
-      </div>
-      <div className="text-2xl font-bold font-tabular text-foreground mt-1">
-        {value}
-      </div>
-      <div className="text-xs text-muted-foreground mt-1 truncate">{sub}</div>
+    <div className="bg-card border border-border rounded-xl p-4 flex flex-col gap-1">
+      <span className={`inline-flex p-2 rounded-lg w-fit ${accent}`}>{icon}</span>
+      <span className="text-lg font-bold font-tabular text-foreground truncate">{value}</span>
+      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</span>
     </div>
   );
 }
 
-function Empty() {
+function BreakdownTable({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: { name: string; forms: number; value: number }[];
+}) {
   return (
-    <div className="h-[280px] flex items-center justify-center text-muted-foreground text-sm">
-      No data available.
+    <div className="bg-card border border-border rounded-xl overflow-hidden">
+      <div className="px-5 py-4 border-b border-border">
+        <h2 className="font-semibold text-foreground">{title}</h2>
+        <p className="text-xs text-muted-foreground mt-0.5">Forms and value per grouping</p>
+      </div>
+      {rows.length === 0 ? (
+        <div className="px-5 py-10 text-center text-muted-foreground text-sm">
+          No data yet.
+        </div>
+      ) : (
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border bg-secondary/50">
+              <th className="text-left px-5 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">Name</th>
+              <th className="text-right px-5 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">Forms</th>
+              <th className="text-right px-5 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.name} className="border-b border-border last:border-0">
+                <td className="px-5 py-2.5 text-foreground truncate max-w-[240px]">{r.name}</td>
+                <td className="px-5 py-2.5 text-right font-tabular text-foreground">{r.forms}</td>
+                <td className="px-5 py-2.5 text-right font-tabular font-semibold text-primary">
+                  ₹{formatCurrency(r.value)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }

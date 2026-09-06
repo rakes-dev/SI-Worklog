@@ -1,7 +1,8 @@
 import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import {
-  enableMultiTabIndexedDbPersistence,
-  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
   type Firestore,
 } from "firebase/firestore";
 import {
@@ -29,7 +30,6 @@ type FirebaseConfig = {
 let firebaseApp: FirebaseApp | null = null;
 let firestoreDb: Firestore | null = null;
 let firebaseAuth: Auth | null = null;
-let persistenceEnabled = false;
 let authBootstrapPromise: Promise<void> | null = null;
 
 function readFirebaseConfig(): FirebaseConfig {
@@ -56,16 +56,24 @@ function validateFirebaseConfig(config: FirebaseConfig): void {
   ];
   const missing = requiredKeys.filter((key) => !config[key]);
   if (missing.length > 0) {
-    throw new Error(
-      `Missing Firebase env vars: ${missing
-        .map(
-          (key) =>
-            `NEXT_PUBLIC_FIREBASE_${String(key)
-              .replace(/[A-Z]/g, (m) => `_${m}`)
-              .toUpperCase()}`,
-        )
-        .join(", ")}`,
-    );
+    const msg = `Missing Firebase env vars: ${missing
+      .map((key) =>
+        `NEXT_PUBLIC_FIREBASE_${String(key)
+          .replace(/[A-Z]/g, (m) => `_${m}`)
+          .toUpperCase()}`,
+      )
+      .join(", ")}`;
+    // During SSR/build we want to fail fast — give a clear error. In the
+    // browser, prefer a soft failure so the app can still render and provide
+    // a useful UI (the runtime will later surface Firebase errors if used).
+    if (typeof window === "undefined") {
+      throw new Error(msg);
+    }
+    // Client-side: warn but don't throw to avoid crashing in environments
+    // where NEXT_PUBLIC env vars are not present (e.g. local experiments).
+    // Firebase usage will still fail later if actually invoked.
+    // eslint-disable-next-line no-console
+    console.warn(msg);
   }
 }
 
@@ -75,6 +83,28 @@ export function getFirebaseApp(): FirebaseApp {
   const config = readFirebaseConfig();
   validateFirebaseConfig(config);
 
+  // Dev-only client-side debug: log the project and domain so developers can
+  // verify the client is pointed at the intended Firebase project. Mask the
+  // API key partially to avoid accidental exposure in logs.
+  if (typeof window !== "undefined" && process.env.NODE_ENV !== "production") {
+    const maskedApiKey = config.apiKey
+      ? config.apiKey.replace(/.(?=.{4})/g, "*")
+      : undefined;
+    // eslint-disable-next-line no-console
+    console.debug("Firebase client config:", {
+      projectId: config.projectId,
+      authDomain: config.authDomain,
+      appId: config.appId,
+      apiKey: maskedApiKey,
+    });
+  }
+
+  // Server-side debug: log project id used by server processes.
+  if (typeof window === "undefined") {
+    // eslint-disable-next-line no-console
+    console.info("Firebase server config projectId:", config.projectId);
+  }
+
   firebaseApp = getApps().length ? getApp() : initializeApp(config);
   return firebaseApp;
 }
@@ -82,22 +112,45 @@ export function getFirebaseApp(): FirebaseApp {
 export function getFirestoreDb(): Firestore {
   if (firestoreDb) return firestoreDb;
 
-  firestoreDb = getFirestore(getFirebaseApp());
+  // Long polling is forced to make the SDK more robust on restrictive
+  // networks (corporate proxies, antivirus, CGNAT ISPs) where the default
+  // WebChannel transport can be interrupted. Prefer a persistent local cache
+  // when available, but gracefully fall back when IndexedDB/persistence is
+  // not supported (SSR, private browsing, or blocked storage).
+  try {
+    if (typeof window === "undefined") {
+      // Server-side: do not attempt to use IndexedDB/persistence.
+      firestoreDb = initializeFirestore(getFirebaseApp(), {
+        experimentalForceLongPolling: true,
+      });
+      return firestoreDb;
+    }
 
-  if (typeof window !== "undefined" && !persistenceEnabled) {
-    persistenceEnabled = true;
-    enableMultiTabIndexedDbPersistence(firestoreDb).catch((error: unknown) => {
-      const code =
-        typeof error === "object" && error && "code" in error
-          ? String(error.code)
-          : "";
-      if (code !== "failed-precondition" && code !== "unimplemented") {
-        // Keep Firestore usable even when persistence cannot be enabled.
-        console.warn("Firestore persistence could not be enabled.", error);
-      }
-    });
+    // Quick feature-detect for IndexedDB. Some browsers disable it (private
+    // modes) which makes persistentLocalCache throw when used.
+    const hasIndexedDB = typeof indexedDB !== "undefined" && indexedDB !== null;
+
+    if (hasIndexedDB) {
+      firestoreDb = initializeFirestore(getFirebaseApp(), {
+        localCache: persistentLocalCache({
+          tabManager: persistentMultipleTabManager(),
+        }),
+        experimentalForceLongPolling: true,
+      });
+      return firestoreDb;
+    }
+  } catch (err) {
+    // Fall through to a safe non-persistent initialization below.
+    // The SDK will still work online; it just won't persist data across
+    // reloads or support multi-tab coordination.
+    // eslint-disable-next-line no-console
+    console.warn("Could not enable persistent local cache, falling back to non-persistent Firestore.", err);
   }
 
+  // Fallback: initialize without the persistent local cache.
+  firestoreDb = initializeFirestore(getFirebaseApp(), {
+    experimentalForceLongPolling: true,
+  });
   return firestoreDb;
 }
 
@@ -126,7 +179,14 @@ export async function ensureFirebaseAuth(): Promise<void> {
         }
 
         if (!auth.currentUser) {
-          await signInAnonymously(auth);
+          // If the browser is currently offline, skip anonymous sign-in —
+          // it will fail and only produces noisy warnings. The app can still
+          // function in a read-only/offline capacity until connectivity.
+          if (typeof navigator !== "undefined" && !navigator.onLine) {
+            console.warn("Navigator offline: skipping anonymous sign-in until online.");
+          } else {
+            await signInAnonymously(auth);
+          }
         }
       } catch (error) {
         console.warn(

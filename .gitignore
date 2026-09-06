@@ -27,6 +27,22 @@ Thumbs.db
 # Vercel deployment
 .vercel/
 
+# Capacitor / native build artifacts
+android/local.properties
+android/app/build/
+android/.gradle/
+android/build/
+ios/App/build/
+ios/DerivedData/
+ios/App/Pods/
+ios/App/App/public/
+android/app/src/main/assets/public/
+
+# Agent tooling
+.agents/
+.claude/
+skills-lock.json
+
 # Optional: if using TypeScript
 *.tsbuildinfo
 

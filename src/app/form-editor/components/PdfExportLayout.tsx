@@ -409,7 +409,7 @@ export default function PdfExportLayout({ form, job }: PdfExportLayoutProps) {
                         {typeof row.no === "number" ? row.no : ""}
                       </td>
                       <td style={{ textAlign: "right", ...CELL_PAD }}>
-                        {row.totalArea > 0
+                        {Number.isFinite(row.totalArea) && row.totalArea !== 0
                           ? `${row.totalArea.toFixed(2)} ${calcAreaUnitLabel(row.uom)}`
                           : ""}
                       </td>

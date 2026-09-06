@@ -2,6 +2,7 @@ import React from "react";
 import type { Metadata, Viewport } from "next";
 import { DM_Sans, IBM_Plex_Mono } from "next/font/google";
 import PwaRegister from "@/components/PwaRegister";
+import NativeBackHandler from "@/components/NativeBackHandler";
 import "../styles/tailwind.css";
 
 const dmSans = DM_Sans({
@@ -21,6 +22,7 @@ const ibmPlexMono = IBM_Plex_Mono({
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  viewportFit: "cover",
   themeColor: "#2563EB",
 };
 
@@ -30,8 +32,12 @@ export const metadata: Metadata = {
     "Offline-capable PWA for painting supervisors to record measurements, manage jobs, and generate A4 printouts that match Standard Interior paper forms.",
   manifest: "/manifest.json",
   icons: {
-    icon: [{ url: "/favicon.ico", type: "image/x-icon" }],
-    apple: "/icons/icon-192.png",
+    icon: [
+      { url: "/favicon.ico", type: "image/x-icon", sizes: "32x32" },
+      { url: "/icons/icon-192.png", type: "image/png", sizes: "192x192" },
+      { url: "/icons/icon-512.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: "/icons/apple-touch-icon.png",
   },
   appleWebApp: {
     capable: true,
@@ -47,18 +53,8 @@ export default function RootLayout({
     <html lang="en" className={`${dmSans.variable} ${ibmPlexMono.variable}`}>
       <body className={dmSans.className}>
         <PwaRegister />
+        <NativeBackHandler />
         {children}
-
-        <script
-          type="module"
-          async
-          src="https://static.rocket.new/rocket-web.js?_cfg=https%3A%2F%2Fpaintpro2488back.builtwithrocket.new&_be=https%3A%2F%2Fappanalytics.rocket.new&_v=0.1.19"
-        />
-        <script
-          type="module"
-          defer
-          src="https://static.rocket.new/rocket-shot.js?v=0.0.2"
-        />
       </body>
     </html>
   );

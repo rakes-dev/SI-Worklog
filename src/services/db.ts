@@ -1,3 +1,5 @@
+"use client";
+
 import {
   collection,
   deleteDoc,
@@ -5,57 +7,58 @@ import {
   getDoc,
   getDocs,
   onSnapshot,
-  runTransaction,
+  query,
   setDoc,
+  where,
   writeBatch,
+  type DocumentReference,
   type Unsubscribe,
 } from "firebase/firestore";
 import { getFirestoreDb } from "@/services/firebase";
-import { ensureFirestoreSchema } from "@/services/firestore-schema";
+import {
+  SEED_CATEGORIES,
+  SEED_SITES,
+  slugify,
+} from "@/constants/seed";
 import type {
   ArcItem,
-  Job,
-  JobStatus,
+  FormType,
   MeasurementRow,
-  PaintForm,
+  Site,
   SignatureEntry,
   SummaryRow,
-  FormType,
+  WorkCategory,
+  WorkForm,
 } from "@/types";
 import {
   calcGrandTotal,
   calcMeasurementRow,
   calcSummaryRow,
   calcTotalArea,
+  currentMonth,
   defaultForm,
-  defaultJob,
   defaultMeasurementRow,
   defaultSignatures,
   defaultSummaryRow,
   generateId,
 } from "@/utils/helpers";
 
-const COLLECTION_JOBS = "jobs";
+const COLLECTION_FORMS = "forms";
+const COLLECTION_SITES = "sites";
+const COLLECTION_CATEGORIES = "categories";
 const COLLECTION_ARC = "arc";
 
-/** Parse an ISO timestamp into epoch milliseconds (0 when missing/invalid). */
-function parseTimestamp(value: unknown): number {
-  if (typeof value !== "string" || !value) return 0;
-  const ms = new Date(value).getTime();
-  return Number.isFinite(ms) ? ms : 0;
+/** Outcome of pushing the structure blueprint (sites + categories). */
+export interface SeedResult {
+  sitesCreated: number;
+  categoriesCreated: number;
+  /** Human-readable reason for every document that could not be written. */
+  failures: string[];
 }
 
-export type SaveJobResult =
-  | { status: "saved" }
-  | { status: "skipped" }; // Server copy is newer — local snapshot retained locally only.
-
-type FirestoreJobData = Partial<Job> & {
-  forms?: Array<Partial<PaintForm>>;
-};
-
-function isJobStatus(value: unknown): value is JobStatus {
-  return value === "Draft" || value === "Pending" || value === "Approved";
-}
+// ---------------------------------------------------------------------------
+// Coercion helpers (shared with the legacy normalizer behaviour)
+// ---------------------------------------------------------------------------
 
 function isFormType(value: unknown): value is FormType {
   return value === "painting" || value === "carpenter";
@@ -69,9 +72,7 @@ function coerceRequiredString(value: unknown, fallback: string): string {
   return typeof value === "string" && value ? value : fallback;
 }
 
-// Coerce a field that is now a string but may hold legacy values in Firestore
-// as numbers (e.g. coat stored as 2). Numeric legacy values are preserved as
-// their string representation so no existing data is lost during migration.
+// coat is a string now but legacy docs may hold a number — preserve it.
 function coerceStringFromLegacy(value: unknown): string {
   if (typeof value === "string") return value;
   if (typeof value === "number" && Number.isFinite(value)) return String(value);
@@ -92,6 +93,14 @@ function coerceNumberOrEmpty(value: unknown): number | "" {
 function coerceNumber(value: unknown, fallback = 0): number {
   const normalized = coerceNumberOrEmpty(value);
   return typeof normalized === "number" ? normalized : fallback;
+}
+
+function coerceBool(value: unknown, fallback = false): boolean {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function normEmail(value: unknown): string {
+  return coerceString(value).trim().toLowerCase();
 }
 
 function normalizeSignatureEntry(
@@ -118,8 +127,6 @@ function normalizeSummaryRow(
       fallback.complaintSource,
     ),
     paintType: coerceString(value?.paintType),
-    // coat is now a string. Legacy Firestore docs may still hold a number —
-    // preserve it as its string representation instead of discarding it.
     coat: coerceStringFromLegacy(value?.coat),
     arcNo: coerceString(value?.arcNo),
     qty: coerceNumberOrEmpty(value?.qty),
@@ -141,7 +148,6 @@ function normalizeMeasurementRow(
     slNo: coerceNumber(value?.slNo, index + 1),
     jobType: coerceString(value?.jobType),
     location: coerceString(value?.location),
-    // coat is now a string; migrate any legacy numeric value to a string.
     coat: coerceStringFromLegacy(value?.coat),
     height: coerceNumberOrEmpty(value?.height),
     arcNo: coerceString(value?.arcNo),
@@ -156,21 +162,16 @@ function normalizeMeasurementRow(
   return row;
 }
 
-function normalizePaintForm(
-  value: Partial<PaintForm> | undefined,
-  index: number,
-  jobName: string,
-): PaintForm {
-  const fallback = defaultForm(jobName || "New Job", index + 1);
+/** Build a fully-formed, calculation-consistent WorkForm from raw Firestore data. */
+export function normalizeWorkForm(value: Partial<WorkForm> | undefined): WorkForm {
+  const siteName = coerceString(value?.siteName);
+  const fallback = defaultForm(siteName || "Form", coerceNumber(value?.sheetNo, 1));
+
   const summaryRows = Array.isArray(value?.summaryRows)
-    ? value.summaryRows.map((row, rowIndex) =>
-        normalizeSummaryRow(row, rowIndex),
-      )
+    ? value!.summaryRows.map((row, i) => normalizeSummaryRow(row, i))
     : fallback.summaryRows;
   const measurementRows = Array.isArray(value?.measurementRows)
-    ? value.measurementRows.map((row, rowIndex) =>
-        normalizeMeasurementRow(row, rowIndex),
-      )
+    ? value!.measurementRows.map((row, i) => normalizeMeasurementRow(row, i))
     : fallback.measurementRows;
   const signatures = value?.signatures
     ? {
@@ -178,9 +179,7 @@ function normalizePaintForm(
           value.signatures.standardInterior,
         ),
         requestedBy: normalizeSignatureEntry(value.signatures.requestedBy),
-        qualityCheckHK: normalizeSignatureEntry(
-          value.signatures.qualityCheckHK,
-        ),
+        qualityCheckHK: normalizeSignatureEntry(value.signatures.qualityCheckHK),
         qualityCheckEngg: normalizeSignatureEntry(
           value.signatures.qualityCheckEngg,
         ),
@@ -190,12 +189,12 @@ function normalizePaintForm(
       }
     : defaultSignatures();
 
-  const form: PaintForm = {
+  const form: WorkForm = {
     ...fallback,
     ...value,
     id: coerceRequiredString(value?.id, generateId("form")),
     formName: coerceString(value?.formName, fallback.formName),
-    formType: isFormType(value?.formType) ? value.formType : "painting",
+    formType: isFormType(value?.formType) ? value!.formType : "painting",
     suitPublicAreaName: coerceString(value?.suitPublicAreaName),
     date: coerceString(value?.date, fallback.date),
     workStartDate: coerceString(value?.workStartDate),
@@ -203,12 +202,20 @@ function normalizePaintForm(
     submittedToOffice: coerceString(value?.submittedToOffice),
     delay: coerceString(value?.delay),
     totalSheets: coerceNumber(value?.totalSheets, fallback.totalSheets),
-    sheetNo: coerceNumber(value?.sheetNo, index + 1),
+    sheetNo: coerceNumber(value?.sheetNo, 1),
     summaryRows,
     grandTotal: 0,
     measurementRows,
     totalArea: 0,
     signatures,
+    // Links + denormalized fields (the new part):
+    month: coerceString(value?.month, currentMonth()),
+    siteId: coerceString(value?.siteId),
+    categoryId: coerceString(value?.categoryId),
+    ownerEmail: normEmail(value?.ownerEmail),
+    siteName,
+    siteAddress: coerceString(value?.siteAddress),
+    empName: coerceString(value?.empName),
     isDeleted: value?.isDeleted === true,
     deletedAt: coerceString(value?.deletedAt),
     createdAt: coerceString(value?.createdAt, fallback.createdAt),
@@ -220,64 +227,35 @@ function normalizePaintForm(
   return form;
 }
 
-function normalizeJob(value: FirestoreJobData): Job {
-  const fallback = defaultJob();
-  const forms = Array.isArray(value.forms)
-    ? value.forms.map((form, index) =>
-        normalizePaintForm(form, index, coerceString(value.siteName)),
-      )
-    : [];
-  const job: Job = {
-    ...fallback,
-    ...value,
-    id: coerceRequiredString(value.id, fallback.id),
-    empName: coerceString(value.empName),
-    siteName: coerceString(value.siteName),
-    siteAddress: coerceString(value.siteAddress),
-    remarks: coerceString(value.remarks),
-    isDeleted: value.isDeleted === true,
-    deletedAt: coerceString(value.deletedAt),
-    forms,
-    totalAmount: 0,
-    createdAt: coerceString(value.createdAt, fallback.createdAt),
-    updatedAt: coerceString(value.updatedAt, fallback.updatedAt),
+function normalizeSite(value: Partial<Site> | undefined, id: string): Site {
+  const now = new Date().toISOString();
+  return {
+    id: coerceRequiredString(value?.id, id),
+    name: coerceString(value?.name),
+    address: coerceString(value?.address),
+    order: coerceNumber(value?.order, 0),
+    isActive: coerceBool(value?.isActive, true),
+    createdAt: coerceString(value?.createdAt, now),
+    updatedAt: coerceString(value?.updatedAt, now),
   };
-
-  job.totalAmount = job.forms.reduce(
-    (sum, form) => sum + (form.grandTotal || 0),
-    0,
-  );
-  return job;
 }
 
-/**
- * Recursively remove `undefined` values from an object so Firestore accepts it.
- * Firestore throws "Unsupported field value: undefined" when any field is undefined.
- */
-function sanitizeForFirestore<T>(value: T): T {
-  if (value === undefined) return undefined as unknown as T;
-  if (value === null) return value;
-  if (Array.isArray(value)) {
-    return value.map((item) => sanitizeForFirestore(item)) as unknown as T;
-  }
-  if (typeof value === "object") {
-    const result: Record<string, unknown> = {};
-    for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
-      if (val !== undefined) {
-        result[key] = sanitizeForFirestore(val);
-      }
-    }
-    return result as T;
-  }
-  return value;
-}
-
-function jobRef(id: string) {
-  return doc(getFirestoreDb(), COLLECTION_JOBS, id);
-}
-
-function arcRef(id: string) {
-  return doc(getFirestoreDb(), COLLECTION_ARC, id);
+function normalizeCategory(
+  value: Partial<WorkCategory> | undefined,
+  id: string,
+): WorkCategory {
+  const now = new Date().toISOString();
+  return {
+    id: coerceRequiredString(value?.id, id),
+    name: coerceString(value?.name),
+    defaultFormType: isFormType(value?.defaultFormType)
+      ? value!.defaultFormType
+      : "painting",
+    order: coerceNumber(value?.order, 0),
+    isActive: coerceBool(value?.isActive, true),
+    createdAt: coerceString(value?.createdAt, now),
+    updatedAt: coerceString(value?.updatedAt, now),
+  };
 }
 
 function normalizeArcItem(value: Partial<ArcItem>): ArcItem {
@@ -292,226 +270,500 @@ function normalizeArcItem(value: Partial<ArcItem>): ArcItem {
   };
 }
 
-async function getAllJobsFromFirestore(): Promise<Job[]> {
-  // Firestore rules allow unauthenticated reads — no auth dependency needed.
-  ensureFirestoreSchema().catch(() => {});
-  const db = getFirestoreDb();
-  const snapshot = await getDocs(collection(db, COLLECTION_JOBS));
-  return snapshot.docs.map((item) =>
-    normalizeJob(item.data() as FirestoreJobData),
-  );
-}
-
 /**
- * Subscribe to real-time changes in the jobs collection. The callback fires
- * immediately with the current data and again whenever any device changes a
- * job on the server — this is what makes edits reflect live across devices.
+ * Recursively strip `undefined` — Firestore rejects undefined field values.
  */
-function observeJobsFromFirestore(
-  onChange: (jobs: Job[]) => void,
-  onError?: (error: unknown) => void,
-): Unsubscribe {
-  ensureFirestoreSchema().catch(() => {});
-  const db = getFirestoreDb();
-  return onSnapshot(
-    collection(db, COLLECTION_JOBS),
-    (snapshot) => {
-      const jobs = snapshot.docs.map((item) =>
-        normalizeJob(item.data() as FirestoreJobData),
-      );
-      jobs.sort(
-        (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-      );
-      onChange(jobs);
-    },
-    (error) => {
-      // Live sync is best-effort — surface it but keep the app usable.
-      console.warn("Live job sync unavailable; falling back to manual refresh.", error);
-      onError?.(error);
-    },
+function sanitizeForFirestore<T>(value: T): T {
+  if (value === undefined) return undefined as unknown as T;
+  if (value === null) return value;
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeForFirestore(item)) as unknown as T;
+  }
+  if (typeof value === "object") {
+    const result: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
+      if (val !== undefined) result[key] = sanitizeForFirestore(val);
+    }
+    return result as T;
+  }
+  return value;
+}
+
+function formRef(id: string) {
+  return doc(getFirestoreDb(), COLLECTION_FORMS, id);
+}
+function siteRef(id: string) {
+  return doc(getFirestoreDb(), COLLECTION_SITES, id);
+}
+function categoryRef(id: string) {
+  return doc(getFirestoreDb(), COLLECTION_CATEGORIES, id);
+}
+function arcRef(id: string) {
+  return doc(getFirestoreDb(), COLLECTION_ARC, id);
+}
+
+function sortByCreatedDesc<T extends { createdAt: string }>(items: T[]): T[] {
+  return [...items].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
+}
+function sortByOrder<T extends { order: number; name: string }>(items: T[]): T[] {
+  return [...items].sort(
+    (a, b) => a.order - b.order || a.name.localeCompare(b.name),
   );
 }
 
-async function getUserJobsFromFirestore(userEmail: string): Promise<Job[]> {
-  // Firestore rules allow unauthenticated reads — no auth dependency needed.
-  ensureFirestoreSchema().catch(() => {});
-  const db = getFirestoreDb();
-  const snapshot = await getDocs(collection(db, COLLECTION_JOBS));
-  const jobs = snapshot.docs.map((item) =>
-    normalizeJob(item.data() as FirestoreJobData),
+const WRITE_TIMEOUT_MS = 15000; // single-doc writes (autosave, saves, deletes)
+const READ_TIMEOUT_MS = 20000; // blueprint existence checks
+const SEED_WRITE_TIMEOUT_MS = 45000; // blueprint writes get extra headroom
+
+function withTimeout<T>(
+  work: Promise<T>,
+  label: string,
+  ms: number = WRITE_TIMEOUT_MS,
+): Promise<T> {
+  const timeout = new Promise<T>((_, reject) =>
+    setTimeout(
+      () => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)),
+      ms,
+    ),
   );
-  // Filter jobs: show if created by this user or if no userId is set (legacy jobs)
-  const normalizedEmail = userEmail.trim().toLowerCase();
-  return jobs.filter(
-    (job) => !job.userId || job.userId.toLowerCase() === normalizedEmail,
-  );
+  return Promise.race([work, timeout]);
+}
+
+/** Human-readable one-liner for a Firestore/unknown error (code + message). */
+export function describeError(error: unknown): string {
+  if (typeof error === "object" && error !== null) {
+    const code = (error as { code?: unknown }).code;
+    const message = (error as { message?: unknown }).message;
+    const parts = [
+      typeof code === "string" && code ? code : "",
+      typeof message === "string" && message ? message.trim() : "",
+    ].filter(Boolean);
+    if (parts.length > 0) return parts.join(" — ");
+  }
+  return String(error);
 }
 
 export const dbService = {
-  ensureSchema: ensureFirestoreSchema,
+  // === FORMS ===================================================
 
-  async getAllJobs(): Promise<Job[]> {
-    const jobs = await getAllJobsFromFirestore();
-    return jobs.sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    );
-  },
-
-  async getUserJobs(userEmail: string): Promise<Job[]> {
-    const jobs = await getUserJobsFromFirestore(userEmail);
-    return jobs.sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    );
-  },
-
-  /** Live: subscribe to all jobs (admin view). */
-  observeJobs(
-    onChange: (jobs: Job[]) => void,
+  /** Live subscription to every form (admin view). */
+  observeForms(
+    onChange: (forms: WorkForm[]) => void,
     onError?: (error: unknown) => void,
   ): Unsubscribe {
-    return observeJobsFromFirestore(onChange, onError);
-  },
-
-  /** Live: subscribe to jobs scoped to a single user. */
-  observeUserJobs(
-    userEmail: string,
-    onChange: (jobs: Job[]) => void,
-    onError?: (error: unknown) => void,
-  ): Unsubscribe {
-    const normalizedEmail = userEmail.trim().toLowerCase();
-    return observeJobsFromFirestore(
-      (jobs) => {
+    const db = getFirestoreDb();
+    return onSnapshot(
+      collection(db, COLLECTION_FORMS),
+      (snap) =>
         onChange(
-          jobs.filter(
-            (job) =>
-              !job.userId || job.userId.toLowerCase() === normalizedEmail,
+          sortByCreatedDesc(
+            snap.docs.map((d) =>
+              normalizeWorkForm(d.data() as Partial<WorkForm>),
+            ),
           ),
-        );
+        ),
+      (error) => {
+        console.warn("Live form sync unavailable.", error);
+        onError?.(error);
       },
-      onError,
     );
   },
 
-  async getJob(id: string): Promise<Job | undefined> {
-    // Firestore rules allow unauthenticated reads — no auth dependency needed.
-    ensureFirestoreSchema().catch(() => {});
-    const snapshot = await getDoc(jobRef(id));
-    if (!snapshot.exists()) return undefined;
-    return normalizeJob(snapshot.data() as FirestoreJobData);
+  /** Live subscription to forms owned by a single user. */
+  observeUserForms(
+    userEmail: string,
+    onChange: (forms: WorkForm[]) => void,
+    onError?: (error: unknown) => void,
+  ): Unsubscribe {
+    const db = getFirestoreDb();
+    const q = query(
+      collection(db, COLLECTION_FORMS),
+      where("ownerEmail", "==", userEmail.trim().toLowerCase()),
+    );
+    return onSnapshot(
+      q,
+      (snap) =>
+        onChange(
+          sortByCreatedDesc(
+            snap.docs.map((d) =>
+              normalizeWorkForm(d.data() as Partial<WorkForm>),
+            ),
+          ),
+        ),
+      (error) => {
+        console.warn("Live form sync unavailable.", error);
+        onError?.(error);
+      },
+    );
   },
 
-  async saveJob(job: Job): Promise<SaveJobResult> {
-    // Firestore rules allow unauthenticated writes — no auth dependency needed.
-    // Fire schema init in background — non-blocking
-    ensureFirestoreSchema().catch(() => {});
-    const normalized = normalizeJob(job);
-    // Remove undefined values — Firestore rejects them.
-    // NOTE: the caller's updatedAt is preserved (NOT replaced with "now") so the
-    // server timestamp still reflects when the user actually made the change and
-    // can be used for conflict detection below.
+  async getForm(id: string): Promise<WorkForm | undefined> {
+    const snap = await getDoc(formRef(id));
+    if (!snap.exists()) return undefined;
+    return normalizeWorkForm(snap.data() as Partial<WorkForm>);
+  },
+
+  /**
+   * Save a single form. Each form is its own document, so a write can never
+   * clobber a different form. `setDoc` also queues automatically while offline
+   * and replays on reconnect (Firestore's built-in per-document sync).
+   */
+  async saveForm(form: WorkForm): Promise<void> {
+    const normalized = normalizeWorkForm(form);
     const sanitized = sanitizeForFirestore(normalized);
-    const ref = jobRef(normalized.id);
-    const snapshotUpdatedAtMs = parseTimestamp(normalized.updatedAt);
-
-    // Add timeout to prevent infinite hanging
-    const timeout = new Promise<SaveJobResult>((_, reject) =>
-      setTimeout(() => reject(new Error("Firestore write timed out")), 10000),
+    await withTimeout(
+      setDoc(formRef(normalized.id), sanitized),
+      "Form save",
     );
-
-    // Transaction + timestamp guard: never overwrite a strictly NEWER server
-    // copy with an older offline snapshot. This prevents one device/tab from
-    // silently wiping changes made on another (the "lost a lot of data" case).
-    const write = runTransaction(getFirestoreDb(), async (tx) => {
-      const existing = await tx.get(ref);
-      if (existing.exists()) {
-        const serverUpdatedAtMs = parseTimestamp(
-          (existing.data() as FirestoreJobData).updatedAt,
-        );
-        if (snapshotUpdatedAtMs > 0 && serverUpdatedAtMs > snapshotUpdatedAtMs) {
-          return { status: "skipped" } as const;
-        }
-      }
-      await tx.set(ref, sanitized);
-      return { status: "saved" } as const;
-    });
-
-    return Promise.race([write, timeout]);
   },
 
-  async deleteJob(id: string): Promise<void> {
-    // Firestore rules allow unauthenticated writes — no auth dependency needed.
-    ensureFirestoreSchema().catch(() => {});
-    const timeout = new Promise<void>((_, reject) =>
-      setTimeout(() => reject(new Error("Firestore delete timed out")), 10000),
-    );
-    await Promise.race([deleteDoc(jobRef(id)), timeout]);
+  /** Permanently remove a form document (used only from the trash). */
+  async deleteFormDoc(id: string): Promise<void> {
+    await withTimeout(deleteDoc(formRef(id)), "Form delete");
   },
 
-  async exportAllJobs(): Promise<string> {
-    const jobs = await this.getAllJobs();
+  /** Admin backup: export every form as JSON. */
+  async exportAllForms(): Promise<string> {
+    const db = getFirestoreDb();
+    const snap = await getDocs(collection(db, COLLECTION_FORMS));
+    const forms = snap.docs.map((d) =>
+      normalizeWorkForm(d.data() as Partial<WorkForm>),
+    );
     return JSON.stringify(
-      { version: 1, exportedAt: new Date().toISOString(), jobs },
+      { version: 2, exportedAt: new Date().toISOString(), forms },
       null,
       2,
     );
   },
 
-  async importJobs(
-    jsonString: string,
-  ): Promise<{ imported: number; errors: number }> {
+  /**
+   * Restore forms from a JSON file produced by {@link exportAllForms} (or a
+   * plain array of form documents). Idempotent per document id — existing
+   * forms are overwritten with the imported copy (same shape as a manual save).
+   */
+  async importForms(text: string): Promise<{ imported: number; errors: number }> {
+    const parsed = JSON.parse(text) as unknown;
+    const rawList = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray((parsed as { forms?: unknown[] })?.forms)
+        ? (parsed as { forms: unknown[] }).forms
+        : null;
+    if (!rawList) throw new Error("Not a valid form backup file.");
+    const now = new Date().toISOString();
     let imported = 0;
     let errors = 0;
-
-    try {
-      // Firestore rules allow unauthenticated writes — no auth dependency needed.
-      await ensureFirestoreSchema();
-      const data = JSON.parse(jsonString);
-      const jobs: FirestoreJobData[] =
-        data.jobs || (Array.isArray(data) ? data : []);
-      const db = getFirestoreDb();
-      let batch = writeBatch(db);
-      let queued = 0;
-
-      for (const rawJob of jobs) {
-        try {
-          const normalized = normalizeJob(rawJob);
-          // Remove undefined values — Firestore rejects them
-          const sanitized = sanitizeForFirestore({
-            ...normalized,
-            updatedAt: new Date().toISOString(),
-          });
-          batch.set(jobRef(normalized.id), sanitized);
-          queued++;
-          imported++;
-
-          if (queued === 450) {
-            await batch.commit();
-            batch = writeBatch(db);
-            queued = 0;
-          }
-        } catch {
-          errors++;
+    const db = getFirestoreDb();
+    const batch = writeBatch(db);
+    for (const raw of rawList) {
+      try {
+        const norm = normalizeWorkForm(raw as Partial<WorkForm>);
+        if (!norm.id || !norm.ownerEmail) throw new Error("missing owner/id");
+        const doc = { ...sanitizeForFirestore(norm), updatedAt: now };
+        batch.set(formRef(norm.id), doc);
+        imported += 1;
+        // Batches cap at 500 writes — flush and start a fresh batch.
+        if (imported % 400 === 0) {
+          await withTimeout(batch.commit(), "Form import");
         }
+      } catch {
+        errors += 1;
       }
-
-      if (queued > 0) {
-        await batch.commit();
-      }
-    } catch {
-      errors++;
     }
-
+    if (imported % 400 !== 0 && imported > 0) {
+      await withTimeout(batch.commit(), "Form import");
+    }
     return { imported, errors };
   },
 
-  // === ARC Collection ===
+  /**
+   * Migrate the legacy `jobs` collection (job docs each containing a `forms`
+   * array) into the new per-form `forms` collection. The source documents are
+   * never modified — it is a pure read + write of new docs. Site and category
+   * are matched best-effort by name/type; anything unmatched keeps its original
+   * site name (as a fallback site field) for re-filing from Admin.
+   */
+  async migrateLegacyJobs(): Promise<{
+    migrated: number;
+    skipped: number;
+    totalForms: number;
+  }> {
+    const db = getFirestoreDb();
+    const snap = await getDocs(collection(db, "jobs"));
+    const jobs = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Record<string, unknown>);
+    const sites = await this.getSites();
+    const categories = await this.getCategories();
+
+    const now = new Date().toISOString();
+    let migrated = 0;
+    let skipped = 0;
+    let totalForms = 0;
+    const batch = writeBatch(db);
+
+    for (const job of jobs) {
+      const jobId = coerceString(job.id);
+      if (job.isDeleted === true) skipped += 1;
+      const forms = Array.isArray(job.forms) ? (job.forms as unknown[]) : [];
+      for (const rawForm of forms) {
+        const legacy = (rawForm as Record<string, unknown>) ?? {};
+        // Legacy forms already migrated carry a marker — skip re-migrating.
+        if (legacy.__migrated === true) continue;
+
+        const siteName = coerceString(job.siteName);
+        const site = sites.find(
+          (s) => slugify(s.name) === slugify(siteName),
+        );
+        const formType = isFormType(legacy.formType)
+          ? legacy.formType
+          : "painting";
+        // Best-effort category: carpenter-type forms go to Carpentry – Room,
+        // everything else to Public Area; the legacy `jobs` docs remain intact
+        // as the reference copy.
+        const category =
+          formType === "carpenter"
+            ? categories.find((c) => slugify(c.name) === "carpentry-room")
+            : categories.find((c) => slugify(c.name) === "public-area");
+
+        const partial: Partial<WorkForm> = {
+          ...(legacy as Partial<WorkForm>),
+          id: coerceRequiredString(legacy.id, generateId("form")),
+          formType,
+          siteId: site?.id ?? coerceString(job.siteId) ?? "",
+          categoryId: category?.id ?? "",
+          ownerEmail: normEmail(job.userId),
+          siteName: site?.name ?? siteName,
+          siteAddress: coerceString(job.siteAddress),
+          empName: coerceString(job.empName),
+          isDeleted: legacy.isDeleted === true,
+          deletedAt: coerceString(legacy.deletedAt),
+          createdAt: coerceString(legacy.createdAt) || now,
+          updatedAt: now,
+        };
+        const norm = normalizeWorkForm(partial);
+        norm.__migrated = true;
+        batch.set(formRef(norm.id), sanitizeForFirestore(norm));
+        migrated += 1;
+        totalForms += 1;
+        if (migrated % 400 === 0) {
+          await withTimeout(batch.commit(), "Legacy migration");
+        }
+      }
+    }
+
+    if (migrated % 400 !== 0 && migrated > 0) {
+      await withTimeout(batch.commit(), "Legacy migration");
+    }
+    return { migrated, skipped, totalForms };
+  },
+
+  // === SITES ===================================================
+
+  observeSites(
+    onChange: (sites: Site[]) => void,
+    onError?: (error: unknown) => void,
+  ): Unsubscribe {
+    const db = getFirestoreDb();
+    return onSnapshot(
+      collection(db, COLLECTION_SITES),
+      (snap) =>
+        onChange(
+          sortByOrder(snap.docs.map((d) => normalizeSite(d.data(), d.id))),
+        ),
+      (error) => {
+        console.warn("Live site sync unavailable.", error);
+        onError?.(error);
+      },
+    );
+  },
+
+  async getSites(): Promise<Site[]> {
+    const db = getFirestoreDb();
+    const snap = await getDocs(collection(db, COLLECTION_SITES));
+    return sortByOrder(snap.docs.map((d) => normalizeSite(d.data(), d.id)));
+  },
+
+  async saveSite(site: Site): Promise<void> {
+    const sanitized = sanitizeForFirestore(site);
+    await withTimeout(setDoc(siteRef(site.id), sanitized), "Site save");
+  },
+
+  async deleteSiteDoc(id: string): Promise<void> {
+    await withTimeout(deleteDoc(siteRef(id)), "Site delete");
+  },
+
+  // === CATEGORIES ==============================================
+
+  observeCategories(
+    onChange: (categories: WorkCategory[]) => void,
+    onError?: (error: unknown) => void,
+  ): Unsubscribe {
+    const db = getFirestoreDb();
+    return onSnapshot(
+      collection(db, COLLECTION_CATEGORIES),
+      (snap) =>
+        onChange(
+          sortByOrder(snap.docs.map((d) => normalizeCategory(d.data(), d.id))),
+        ),
+      (error) => {
+        console.warn("Live category sync unavailable.", error);
+        onError?.(error);
+      },
+    );
+  },
+
+  async getCategories(): Promise<WorkCategory[]> {
+    const db = getFirestoreDb();
+    const snap = await getDocs(collection(db, COLLECTION_CATEGORIES));
+    return sortByOrder(snap.docs.map((d) => normalizeCategory(d.data(), d.id)));
+  },
+
+  async saveCategory(category: WorkCategory): Promise<void> {
+    const sanitized = sanitizeForFirestore(category);
+    await withTimeout(
+      setDoc(categoryRef(category.id), sanitized),
+      "Category save",
+    );
+  },
+
+  async deleteCategoryDoc(id: string): Promise<void> {
+    await withTimeout(deleteDoc(categoryRef(id)), "Category delete");
+  },
+
+  // === SEED ====================================================
+
+  /**
+   * Push the structure blueprint (2 default sites + 7 work categories).
+   * Idempotent: existing docs (and any admin edits to them, like addresses)
+   * are left untouched. Admin-only per security rules.
+   *
+   * Reliability: every document is written INDIVIDUALLY — never one big batch —
+   * so one slow/failed write can never hold the other nine hostage. Each write
+   * gets a generous timeout plus one automatic retry (safe because blueprint
+   * ids are deterministic slugs), and partial failures are reported back with
+   * the real Firestore error instead of a single opaque "timed out".
+   */
+  async seedDefaults(): Promise<SeedResult> {
+    const db = getFirestoreDb();
+    const now = new Date().toISOString();
+    let sitesCreated = 0;
+    let categoriesCreated = 0;
+    const failures: string[] = [];
+
+    // 1. Read what already exists so admin-edited docs are never overwritten.
+    let readsFailed = false;
+    let siteIds = new Set<string>();
+    let categoryIds = new Set<string>();
+    try {
+      const [existingSites, existingCategories] = await Promise.all([
+        withTimeout(
+          getDocs(collection(db, COLLECTION_SITES)),
+          "Blueprint read (sites)",
+          READ_TIMEOUT_MS,
+        ),
+        withTimeout(
+          getDocs(collection(db, COLLECTION_CATEGORIES)),
+          "Blueprint read (categories)",
+          READ_TIMEOUT_MS,
+        ),
+      ]);
+      siteIds = new Set(existingSites.docs.map((d) => d.id));
+      categoryIds = new Set(existingCategories.docs.map((d) => d.id));
+    } catch (readError) {
+      // The database may be mid-clear or the network flaky. Fall through and
+      // use merge:true writes, which are safe even if a doc already exists.
+      readsFailed = true;
+      console.warn(
+        "Blueprint existence check failed — writing with merge instead.",
+        readError,
+      );
+    }
+
+    // 2. Ensure one document, with one automatic retry (idempotent slug ids).
+    const ensureDoc = async (
+      label: string,
+      ref: DocumentReference,
+      data: Record<string, unknown>,
+      merge: boolean,
+    ): Promise<void> => {
+      const attempt = () =>
+        merge ? setDoc(ref, data, { merge: true }) : setDoc(ref, data);
+      try {
+        await withTimeout(attempt(), `${label} write`, SEED_WRITE_TIMEOUT_MS);
+      } catch {
+        await withTimeout(
+          attempt(),
+          `${label} write (retry)`,
+          SEED_WRITE_TIMEOUT_MS,
+        );
+      }
+    };
+
+    const jobs: Promise<void>[] = [];
+
+    SEED_SITES.forEach((seed, index) => {
+      const id = slugify(seed.name);
+      if (!readsFailed && siteIds.has(id)) return;
+      const site: Site = {
+        id,
+        name: seed.name,
+        address: seed.address,
+        order: index,
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      };
+      jobs.push(
+        ensureDoc(
+          `site "${seed.name}"`,
+          siteRef(id),
+          sanitizeForFirestore(site) as unknown as Record<string, unknown>,
+          readsFailed,
+        )
+          .then(() => {
+            sitesCreated += 1;
+          })
+          .catch((error: unknown) => {
+            failures.push(`${seed.name}: ${describeError(error)}`);
+          }),
+      );
+    });
+
+    SEED_CATEGORIES.forEach((seed, index) => {
+      const id = slugify(seed.name);
+      if (!readsFailed && categoryIds.has(id)) return;
+      const category: WorkCategory = {
+        id,
+        name: seed.name,
+        defaultFormType: seed.defaultFormType,
+        order: index,
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      };
+      jobs.push(
+        ensureDoc(
+          `category "${seed.name}"`,
+          categoryRef(id),
+          sanitizeForFirestore(category) as unknown as Record<string, unknown>,
+          readsFailed,
+        )
+          .then(() => {
+            categoriesCreated += 1;
+          })
+          .catch((error: unknown) => {
+            failures.push(`${seed.name}: ${describeError(error)}`);
+          }),
+      );
+    });
+
+    await Promise.all(jobs);
+    return { sitesCreated, categoriesCreated, failures };
+  },
+
+  // === ARC (rate card) — unchanged behaviour ===================
 
   async getAllArcItems(): Promise<ArcItem[]> {
-    // Firestore rules allow unauthenticated reads — no auth dependency needed.
-    ensureFirestoreSchema().catch(() => {});
     const db = getFirestoreDb();
     const snapshot = await getDocs(collection(db, COLLECTION_ARC));
     return snapshot.docs.map((item) =>
@@ -520,37 +772,22 @@ export const dbService = {
   },
 
   async saveArcItem(item: ArcItem): Promise<void> {
-    // Firestore rules allow unauthenticated writes — no auth dependency needed.
-    ensureFirestoreSchema().catch(() => {});
     const normalized = normalizeArcItem(item);
-    // Remove undefined values — Firestore rejects them
     const sanitized = sanitizeForFirestore(normalized);
-    const timeout = new Promise<void>((_, reject) =>
-      setTimeout(() => reject(new Error("Firestore write timed out")), 10000),
-    );
-    await Promise.race([setDoc(arcRef(normalized.id), sanitized), timeout]);
+    await withTimeout(setDoc(arcRef(normalized.id), sanitized), "ARC save");
   },
 
   async deleteArcItem(id: string): Promise<void> {
-    // Firestore rules allow unauthenticated writes — no auth dependency needed.
-    ensureFirestoreSchema().catch(() => {});
-    const timeout = new Promise<void>((_, reject) =>
-      setTimeout(() => reject(new Error("Firestore delete timed out")), 10000),
-    );
-    await Promise.race([deleteDoc(arcRef(id)), timeout]);
+    await withTimeout(deleteDoc(arcRef(id)), "ARC delete");
   },
 
   async saveAllArcItems(items: ArcItem[]): Promise<void> {
-    // Firestore rules allow unauthenticated writes — no auth dependency needed.
-    ensureFirestoreSchema().catch(() => {});
     const db = getFirestoreDb();
     const batch = writeBatch(db);
     for (const item of items) {
       const normalized = normalizeArcItem(item);
-      // Remove undefined values — Firestore rejects them
-      const sanitized = sanitizeForFirestore(normalized);
-      batch.set(arcRef(normalized.id), sanitized);
+      batch.set(arcRef(normalized.id), sanitizeForFirestore(normalized));
     }
-    await batch.commit();
+    await withTimeout(batch.commit(), "ARC bulk save");
   },
 };

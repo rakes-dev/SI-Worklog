@@ -1,18 +1,20 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { describeError } from "@/services/db";
 import { useAuthStore } from "@/store/useAuthStore";
 import {
   addAllowedUser,
+  fetchAllowedUsers,
   updateAllowedUserRole,
   removeAllowedUser,
-  DEFAULT_ADMIN_EMAIL,
+  type AllowedUser,
   type UserRole,
 } from "@/services/auth-users";
 import { Loader2, UserPlus, Trash2, Shield, ShieldCheck } from "lucide-react";
 
 export default function UserManagement() {
-  const { user, allowedUsers, refreshAccess } = useAuthStore();
+  const { user, refreshAccess } = useAuthStore();
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<UserRole>("user");
   const [busy, setBusy] = useState(false);
@@ -20,6 +22,23 @@ export default function UserManagement() {
     type: "error" | "success";
     text: string;
   } | null>(null);
+  const [users, setUsers] = useState<AllowedUser[]>([]);
+
+  // Load the full allowlist on mount and after every mutation. The store's
+  // `allowedUsers` only ever holds the signed-in user's own record, so the
+  // admin panel must fetch the full list explicitly.
+  const loadUsers = async () => {
+    try {
+      setUsers(await fetchAllowedUsers());
+    } catch (error) {
+      console.error("Failed to load allowlist:", error);
+      setMsg({ type: "error", text: describeError(error) });
+    }
+  };
+
+  useEffect(() => {
+    loadUsers();
+  }, []);
 
   const myEmail = user?.email?.trim().toLowerCase();
 
@@ -29,12 +48,13 @@ export default function UserManagement() {
     try {
       await fn();
       await refreshAccess();
+      await loadUsers();
       setMsg({ type: "success", text: ok });
     } catch (error) {
       console.error("User management error:", error);
       setMsg({
         type: "error",
-        text: "Operation failed. Check your Firestore permissions and that you are signed in as an admin.",
+        text: describeError(error),
       });
     } finally {
       setBusy(false);
@@ -48,7 +68,7 @@ export default function UserManagement() {
       setMsg({ type: "error", text: "Enter a valid email address." });
       return;
     }
-    if (allowedUsers.some((u) => u.email === em)) {
+    if (users.some((u) => u.email === em)) {
       setMsg({ type: "error", text: `${em} is already in the access list.` });
       return;
     }
@@ -71,17 +91,17 @@ export default function UserManagement() {
   };
 
   const handleRemove = async (em: string) => {
-    if (em === myEmail || em === DEFAULT_ADMIN_EMAIL) {
+    if (em === myEmail) {
       setMsg({
         type: "error",
-        text: "You cannot remove yourself or the default admin.",
+        text: "You cannot remove yourself.",
       });
       return;
     }
     await run(() => removeAllowedUser(em), `Removed ${em}.`);
   };
 
-  const sorted = [...allowedUsers].sort((a, b) =>
+  const sorted = [...users].sort((a, b) =>
     a.email.localeCompare(b.email),
   );
   return (
@@ -163,11 +183,6 @@ export default function UserManagement() {
                     {isMe && (
                       <span className="ml-1.5 text-xs text-primary">(you)</span>
                     )}
-                    {u.email === DEFAULT_ADMIN_EMAIL && (
-                      <span className="ml-1.5 text-xs text-muted-foreground">
-                        (default admin)
-                      </span>
-                    )}
                   </td>
                   <td className="px-3 py-2">
                     <span
@@ -207,7 +222,7 @@ export default function UserManagement() {
                       <button
                         onClick={() => handleRemove(u.email)}
                         disabled={
-                          busy || isMe || u.email === DEFAULT_ADMIN_EMAIL
+                          busy || isMe
                         }
                         title="Remove access"
                         className="p-1.5 rounded text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-40"

@@ -1,20 +1,32 @@
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas-pro";
+import { shareOrSavePdf } from "./nativePdf";
+import { printPdf } from "./nativePrint";
 
 /**
  * Render the dedicated A4 PDF layout (the container rendered by
- * `<PdfExportLayout />`, containing one or more `.pdf-page` sheets) into a
- * downloadable A4 portrait PDF.
+ * `<PdfExportLayout />`, containing one or more `.pdf-page` sheets) into an
+ * A4 portrait PDF.
  *
  * The source layout is `display:none` on screen (export-only), so we clone it,
  * place the clone off-viewport and make it visible so html2canvas can capture
  * it. Each `.pdf-page` is captured separately; if a page is taller than one A4
  * sheet it is split across consecutive PDF pages.
+ *
+ * Delivery:
+ * - `mode: "deliver"` (default) → **Browser**: normal file download.
+ *   **Native app (Capacitor)**: written to the cache dir and handed to the OS
+ *   share sheet (which includes the Android/iOS Print service), because
+ *   WebView downloads are not supported.
+ * - `mode: "print"` → opens the **system print dialog** (Android PrintManager
+ *   with every installed printer service + "Save as PDF"; iOS falls back to
+ *   the share sheet).
  */
 export async function exportPrintLayoutToPdf(
   root: HTMLElement,
   fileName: string,
-): Promise<void> {
+  mode: "deliver" | "print" = "deliver",
+): Promise<"downloaded" | "shared" | "printed"> {
   const clone = root.cloneNode(true) as HTMLElement;
   // Show the clone, tucked behind the app UI.
   clone.style.cssText +=
@@ -97,9 +109,11 @@ export async function exportPrintLayoutToPdf(
       }
     }
 
-    pdf.save(
-      fileName.toLowerCase().endsWith(".pdf") ? fileName : `${fileName}.pdf`,
-    );
+    const blob = pdf.output("blob");
+    if (mode === "print") {
+      return printPdf(blob, fileName);
+    }
+    return shareOrSavePdf(blob, fileName);
   } finally {
     clone.remove();
   }

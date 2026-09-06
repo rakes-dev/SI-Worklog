@@ -1,11 +1,11 @@
 import React from "react";
 import AppLayout from "@/components/AppLayout";
-import DashboardWrapper from "./components/DashboardWrapper";
+import SitesHome from "./components/SitesHome";
 
-export default function DashboardPage() {
+export default function HomePage() {
   return (
     <AppLayout>
-      <DashboardWrapper />
+      <SitesHome />
     </AppLayout>
   );
 }

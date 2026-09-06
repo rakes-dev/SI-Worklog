@@ -2,455 +2,374 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { Job, PaintForm } from "@/types";
-import { dbService } from "@/services/db";
-import { syncService } from "@/services/sync";
-import type { useAuthStore as AuthStoreType } from "@/store/useAuthStore";
+import type { FormType, Site, WorkCategory, WorkForm } from "@/types";
+import { dbService, type SeedResult } from "@/services/db";
+import { slugify } from "@/constants/seed";
+import { currentMonth, defaultForm, generateId } from "@/utils/helpers";
+
+interface CreateFormInput {
+  site: Site;
+  category: WorkCategory;
+  ownerEmail: string;
+  empName: string;
+}
 
 interface AppStore {
-  jobs: Job[];
+  sites: Site[];
+  categories: WorkCategory[];
+  forms: WorkForm[];
+
   theme: "light" | "dark";
   sidebarCollapsed: boolean;
-  isLoaded: boolean;
-  isOnline: boolean;
-  pendingSyncCount: number;
-  isSyncing: boolean;
-  syncQueueHealthy: boolean;
 
-  // Actions
-  loadJobs: () => Promise<void>;
-  startLiveSync: () => Promise<void>;
-  addJob: (job: Job) => Promise<void>;
-  updateJob: (job: Job) => Promise<void>;
-  deleteJob: (id: string) => Promise<void>;
-  restoreJob: (id: string) => Promise<void>;
-  duplicateJob: (id: string) => Promise<Job>;
-  addForm: (jobId: string, form: PaintForm) => Promise<void>;
-  updateForm: (jobId: string, form: PaintForm) => Promise<void>;
-  deleteForm: (jobId: string, formId: string) => Promise<void>;
-  permanentlyDeleteForm: (jobId: string, formId: string) => Promise<void>;
-  restoreForm: (jobId: string, formId: string) => Promise<void>;
-  duplicateForm: (jobId: string, formId: string) => Promise<void>;
-  copyFormToJob: (
-    sourceJobId: string,
-    formId: string,
-    targetJobId: string,
-  ) => Promise<void>;
+  isLoaded: boolean;
+  isLoadingData: boolean;
+  isOnline: boolean;
+  isSaving: boolean;
+
+  // Lifecycle
+  loadAll: () => Promise<void>;
+  startLiveSync: () => void;
+  stopLiveSync: () => void;
+
+  // Forms
+  createForm: (input: CreateFormInput) => Promise<WorkForm>;
+  updateForm: (form: WorkForm) => Promise<void>;
+  softDeleteForm: (id: string) => Promise<void>;
+  restoreForm: (id: string) => Promise<void>;
+  permanentlyDeleteForm: (id: string) => Promise<void>;
+  duplicateForm: (id: string) => Promise<WorkForm | undefined>;
+  copyForm: (
+    id: string,
+    target: { site: Site; category: WorkCategory },
+  ) => Promise<WorkForm | undefined>;
+
+  // Sites (admin)
+  createSite: (name: string, address: string) => Promise<Site>;
+  updateSite: (site: Site) => Promise<void>;
+  deleteSite: (id: string) => Promise<void>;
+
+  // Categories (admin)
+  createCategory: (name: string, formType: string) => Promise<WorkCategory>;
+  updateCategory: (category: WorkCategory) => Promise<void>;
+  deleteCategory: (id: string) => Promise<void>;
+
+  // Structure blueprint (admin)
+  seedDefaults: () => Promise<SeedResult>;
+
   toggleTheme: () => void;
   toggleSidebar: () => void;
   setSidebarCollapsed: (v: boolean) => void;
 }
 
-function recalcJobTotal(job: Job): Job {
-  const total = job.forms.reduce((sum, f) => sum + (f.grandTotal || 0), 0);
-  return { ...job, totalAmount: total };
-}
+// Live-sync bookkeeping (module scope so listeners register once)
+let sitesUnsub: (() => void) | null = null;
+let categoriesUnsub: (() => void) | null = null;
+let formsUnsub: (() => void) | null = null;
+let currentFormScope: string | null = null;
+let onlineListenersBound = false;
+let liveSyncDone = false;
+let liveSyncRetryTimer: ReturnType<typeof setTimeout> | null = null;
 
-function timestampMs(value: string | undefined): number {
-  if (!value) return 0;
-  const ms = new Date(value).getTime();
-  return Number.isFinite(ms) ? ms : 0;
-}
+// Idempotent live-sync starter. Safe to call repeatedly — subscriber guards
+// (`sitesUnsub` / `categoriesUnsub` / `currentFormScope`) mean only one set of
+// listeners exists and a role/scope change (user→admin) re-subscribes the forms
+// listener. Retries INDEFINITELY (deduped) until the signed-in user's email is
+// known — cold loads restore Firebase auth + read the allowlist asynchronously,
+// which on a slow network can take longer than a fixed number of retries.
+export function startLiveSync(set: (partial: Partial<AppStore>) => void): void {
+  if (typeof window === "undefined") return;
+  // NOTE: no early-return on `liveSyncDone`. Each call re-runs with the current
+  // auth scope; the per-subscriber guards below (sitesUnsub / categoriesUnsub /
+  // currentFormScope) dedupe actual onSnapshot registration, so re-entry is
+  // cheap and correctly handles a role change (user→admin) after first setup.
 
-/**
- * Merge server data with local data WITHOUT EVER dropping newer local edits.
- *
- * - Server data wins for a job only when it is not older than the local copy.
- * - If the local copy is strictly newer (e.g. edited offline while the sync
- *   queue was lost), keep the local copy and return it in `needSync` so it is
- *   re-queued — never silently overwritten by a stale server document.
- * - Local jobs with no server counterpart were never uploaded: keep + re-queue.
- */
-function mergeServerAndLocalJobs(
-  localJobs: Job[],
-  serverJobs: Job[],
-): { jobs: Job[]; needSync: Job[] } {
-  const localById = new Map(localJobs.map((job) => [job.id, job]));
-  const serverIds = new Set(serverJobs.map((job) => job.id));
-  const needSync: Job[] = [];
-
-  const resolved = serverJobs.map((serverJob) => {
-    const localJob = localById.get(serverJob.id);
-    if (!localJob) return serverJob;
-    if (timestampMs(localJob.updatedAt) > timestampMs(serverJob.updatedAt)) {
-      // Local is newer — keep it and re-queue it so it reaches the server.
-      needSync.push(localJob);
-      return localJob;
+  const setup = async () => {
+    try {
+      const { useAuthStore } = await import("@/store/useAuthStore");
+      const { user, role } = useAuthStore.getState();
+      const email = user?.email?.trim().toLowerCase();
+      if (!email) {
+        scheduleRetry(setup, 750);
+        return;
+      }
+      const isAdmin = role === "admin";
+      if (!sitesUnsub) {
+        sitesUnsub = dbService.observeSites(
+          (sites) => set({ sites, isLoadingData: false }), () => {},
+        );
+      }
+      if (!categoriesUnsub) {
+        categoriesUnsub = dbService.observeCategories(
+          (categories) => set({ categories, isLoadingData: false }), () => {},
+        );
+      }
+      const scope = isAdmin ? "__admin__" : email;
+      if (scope !== currentFormScope) {
+        if (formsUnsub) { formsUnsub(); formsUnsub = null; }
+        currentFormScope = scope;
+        formsUnsub = isAdmin
+          ? dbService.observeForms(
+              (forms) => set({ forms, isLoadingData: false }), () => {},
+            )
+          : dbService.observeUserForms(
+              email, (forms) => set({ forms, isLoadingData: false }), () => {},
+            );
+      }
+      liveSyncDone = true;
+    } catch (error) {
+      console.warn("startLiveSync failed — will retry automatically.", error);
+      scheduleRetry(setup, 1000);
     }
-    return serverJob;
-  });
-
-  // Jobs that only exist locally were never uploaded (or their queue entry was
-  // lost) — keep them and re-queue so they aren't lost on the next load.
-  const localOnly = localJobs
-    .filter((job) => !serverIds.has(job.id))
-    .sort((a, b) => timestampMs(b.createdAt) - timestampMs(a.createdAt));
-  localOnly.forEach((job) => needSync.push(job));
-
-  return { jobs: [...localOnly, ...resolved], needSync };
-}
-
-/** Share the same timestamp-aware merge used by both load and live sync. */
-function buildApplyServerMerge(
-  get: () => AppStore,
-  set: (partial: Partial<AppStore>) => void,
-): (serverJobs: Job[]) => void {
-  return (serverJobs: Job[]) => {
-    const localJobs = get().jobs;
-    const { jobs: merged, needSync } = mergeServerAndLocalJobs(
-      localJobs,
-      serverJobs,
-    );
-    // Re-queue anything newer locally or that only exists locally so the next
-    // flush pushes it up — never silently dropped or overwritten by stale data.
-    needSync.forEach((job) => syncService.queueJobSync(job));
-    if (merged.length > 0) set({ jobs: merged } as Partial<AppStore>);
   };
+  void setup();
 }
 
-// Live-sync bookkeeping so the onSnapshot listener is registered exactly once.
-let liveSyncStarted = false;
-let liveSyncUnsubscribe: (() => void) | null = null;
+/** Schedule a retry but never more than one pending at a time. */
+function scheduleRetry(fn: () => void, ms: number): void {
+  if (liveSyncRetryTimer) return;
+  liveSyncRetryTimer = setTimeout(() => {
+    liveSyncRetryTimer = null;
+    fn();
+  }, ms);
+}
 
 export const useAppStore = create<AppStore>()(
   persist(
-    (set, get) => ({
-      jobs: [],
-      theme: "light",
-      sidebarCollapsed: false,
-      isLoaded: false,
-      isOnline: syncService.getOnlineStatus(),
-      pendingSyncCount: syncService.getPendingCount(),
-      isSyncing: syncService.isSyncing(),
-      syncQueueHealthy: syncService.isQueueHealthy(),
-
-      loadJobs: async () => {
-        // Always mark as loaded immediately so UI doesn't hang
-        // Local persisted data is already available from zustand persist middleware
-        set({ isLoaded: true });
-
-        // Subscribe to sync state changes
-        syncService.subscribe((state) => {
-          set({
-            isOnline: state.isOnline,
-            pendingSyncCount: state.pendingCount,
-            isSyncing: state.syncing,
-            syncQueueHealthy: state.queueHealthy,
-          });
-        });
-
-        // Try Firestore sync in background (best-effort, non-blocking)
-        // Dynamically import to avoid circular dependency
+    (set, get) => {
+      /** Persist a form to Firestore with a saving indicator. */
+      const persistForm = async (form: WorkForm): Promise<void> => {
+        set({ isSaving: true });
         try {
-          const { useAuthStore } = await import("@/store/useAuthStore");
-          const { user, role } = useAuthStore.getState();
-          const isAdmin = role === "admin";
+          await dbService.saveForm(form);
+        } finally {
+          set({ isSaving: false });
+        }
+      };
 
-          const applyServerMerge = buildApplyServerMerge(get, set);
-          const warnLocalFallback = (error: unknown) => {
-            console.warn(
-              "Firestore sync unavailable, using local data.",
-              error,
-            );
+      return {
+        sites: [],
+        categories: [],
+        forms: [],
+
+        theme: "light",
+        sidebarCollapsed: false,
+
+        isLoaded: false,
+        isLoadingData: false,
+        isOnline:
+          typeof navigator !== "undefined" ? navigator.onLine : true,
+        isSaving: false,
+
+        loadAll: async () => {
+          set({ isLoaded: true, isLoadingData: true });
+          if (typeof window !== "undefined" && !onlineListenersBound) {
+            onlineListenersBound = true;
+            window.addEventListener("online", () => set({ isOnline: true }));
+            window.addEventListener("offline", () => set({ isOnline: false }));
+          }
+          startLiveSync(set);
+        },
+
+        startLiveSync: () => startLiveSync(set),
+
+        stopLiveSync: () => {
+          sitesUnsub?.();
+          categoriesUnsub?.();
+          formsUnsub?.();
+          sitesUnsub = null;
+          categoriesUnsub = null;
+          formsUnsub = null;
+          currentFormScope = null;
+          if (liveSyncRetryTimer) {
+            clearTimeout(liveSyncRetryTimer);
+            liveSyncRetryTimer = null;
+          }
+          liveSyncDone = false;
+          set({ forms: [], sites: [], categories: [] });
+        },
+
+        // === FORMS ===============================================
+        createForm: async ({ site, category, ownerEmail, empName }) => {
+          const owner = ownerEmail.trim().toLowerCase();
+          const mineInCategory = get().forms.filter(
+            (f) =>
+              f.siteId === site.id &&
+              f.categoryId === category.id &&
+              f.ownerEmail === owner &&
+              !f.isDeleted,
+          ).length;
+          const base = defaultForm("", mineInCategory + 1, category.defaultFormType);
+          const form: WorkForm = {
+            ...base,
+            id: generateId("form"),
+            siteId: site.id,
+            siteName: site.name,
+            siteAddress: site.address,
+            categoryId: category.id,
+            ownerEmail: owner,
+            empName: empName.trim(),
+            month: currentMonth(),
           };
+          set((s) => ({ forms: [...s.forms, form] }));
+          await persistForm(form);
+          return form;
+        },
 
-          if (isAdmin) {
-            dbService
-              .getAllJobs()
-              .then(applyServerMerge)
-              .catch(warnLocalFallback);
-          } else if (user?.email) {
-            dbService
-              .getUserJobs(user.email)
-              .then(applyServerMerge)
-              .catch(warnLocalFallback);
-          }
-        } catch (error) {
-          console.warn("Could not load user info", error);
-        }
+        updateForm: async (form) => {
+          set((s) => ({
+            forms: s.forms.map((f) => (f.id === form.id ? form : f)),
+          }));
+          await persistForm(form);
+        },
 
-        // Start the real-time listener (idempotent) so remote changes from other
-        // devices reflect live without needing a manual refresh.
-        await get().startLiveSync();
-
-        // Flush any pending syncs if online (e.g. changes made while offline)
-        if (syncService.getOnlineStatus()) {
-          syncService.flushPendingSyncs().catch((error) => {
-            console.warn("Could not flush pending syncs on load:", error);
-          });
-        }
-      },
-
-      startLiveSync: async () => {
-        if (typeof window === "undefined") return;
-        // Register the onSnapshot listener only once per session.
-        if (liveSyncStarted) return;
-        liveSyncStarted = true;
-
-        const applyServerMerge = buildApplyServerMerge(get, set);
-
-        try {
-          const { useAuthStore } = await import("@/store/useAuthStore");
-          const { user, role } = useAuthStore.getState();
-          const isAdmin = role === "admin";
-
-          if (isAdmin) {
-            liveSyncUnsubscribe = dbService.observeJobs(applyServerMerge, () => {});
-          } else if (user?.email) {
-            liveSyncUnsubscribe = dbService.observeUserJobs(
-              user.email,
-              applyServerMerge,
-              () => {},
-            );
-          } else {
-            // Auth not resolved yet — allow the next call to retry once the
-            // user/role are available (AppLayout re-invokes when decided).
-            liveSyncStarted = false;
-            return;
-          }
-        } catch (error) {
-          console.warn(
-            "Live job sync could not be started; data will stay in sync on load/refresh.",
-            error,
-          );
-          liveSyncStarted = false;
-        }
-      },
-
-      addJob: async (job) => {
-        // Auto-assign userId to job if not already set
-        try {
-          const { useAuthStore } = await import("@/store/useAuthStore");
-          const { user } = useAuthStore.getState();
-          const jobWithUserId =
-            user?.email && !job.userId ? { ...job, userId: user.email } : job;
-          // Update local state immediately (persisted to localStorage via persist middleware)
-          set((s) => ({ jobs: [jobWithUserId, ...s.jobs] }));
-          // Queue for Firestore sync (local-first: stays local until synced)
-          syncService.queueJobSync(jobWithUserId);
-        } catch (error) {
-          console.warn("Could not assign userId to job:", error);
-          set((s) => ({ jobs: [job, ...s.jobs] }));
-          syncService.queueJobSync(job);
-        }
-      },
-
-      updateJob: async (job) => {
-        const updated = recalcJobTotal(job);
-        set((s) => ({
-          jobs: s.jobs.map((j) => (j.id === updated.id ? updated : j)),
-        }));
-        syncService.queueJobSync(updated);
-      },
-
-      deleteJob: async (id) => {
-        const job = get().jobs.find((j) => j.id === id);
-        if (!job) return;
-        // Soft delete: keep the job but mark it as deleted so it can be restored.
-        const nowIso = new Date().toISOString();
-        set((s) => ({
-          jobs: s.jobs.map((j) =>
-            j.id === id
-              ? { ...j, isDeleted: true, deletedAt: nowIso, updatedAt: nowIso }
-              : j,
-          ),
-        }));
-        syncService.queueJobSync(
-          recalcJobTotal({
-            ...job,
+        softDeleteForm: async (id) => {
+          const form = get().forms.find((f) => f.id === id);
+          if (!form) return;
+          const updated: WorkForm = {
+            ...form,
             isDeleted: true,
-            deletedAt: nowIso,
-            updatedAt: nowIso,
-          }),
-        );
-      },
+            deletedAt: new Date().toISOString(),
+          };
+          set((s) => ({
+            forms: s.forms.map((f) => (f.id === id ? updated : f)),
+          }));
+          await persistForm(updated);
+        },
 
-      restoreJob: async (id) => {
-        const job = get().jobs.find((j) => j.id === id);
-        if (!job) return;
-        const updated: Job = {
-          ...job,
-          isDeleted: false,
-          deletedAt: undefined,
-          updatedAt: new Date().toISOString(),
-        };
-        set((s) => ({ jobs: s.jobs.map((j) => (j.id === id ? updated : j)) }));
-        syncService.queueJobSync(recalcJobTotal(updated));
-      },
+        restoreForm: async (id) => {
+          const form = get().forms.find((f) => f.id === id);
+          if (!form) return;
+          const updated: WorkForm = {
+            ...form,
+            isDeleted: false,
+            deletedAt: undefined,
+          };
+          set((s) => ({
+            forms: s.forms.map((f) => (f.id === id ? updated : f)),
+          }));
+          await persistForm(updated);
+        },
 
-      duplicateJob: async (id) => {
-        const src = get().jobs.find((j) => j.id === id);
-        if (!src) throw new Error("Job not found");
-        try {
-          const { useAuthStore } = await import("@/store/useAuthStore");
-          const { user } = useAuthStore.getState();
-          const newJob: Job = {
+        permanentlyDeleteForm: async (id) => {
+          await dbService.deleteFormDoc(id);
+          set((s) => ({
+            forms: s.forms.filter((f) => f.id !== id),
+          }));
+        },
+
+        duplicateForm: async (id) => {
+          const src = get().forms.find((f) => f.id === id);
+          if (!src) return undefined;
+          const copy: WorkForm = {
             ...src,
-            id: `job-${Date.now()}`,
-            siteName: `${src.siteName} (Copy)`,
-            userId: user?.email || src.userId,
+            id: generateId("form"),
+            formName: `${src.formName} (Copy)`,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
-            forms: src.forms.map((f) => ({
-              ...f,
-              id: `form-${Date.now()}-${Math.floor(Math.random() * 9999)}`,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            })),
           };
-          set((s) => ({ jobs: [newJob, ...s.jobs] }));
-          syncService.queueJobSync(newJob);
-          return newJob;
-        } catch (error) {
-          console.warn("Could not assign userId to duplicated job:", error);
-          const newJob: Job = {
+          set((s) => ({ forms: [...s.forms, copy] }));
+          await persistForm(copy);
+          return copy;
+        },
+
+        copyForm: async (id, target) => {
+          const src = get().forms.find((f) => f.id === id);
+          if (!src) return undefined;
+          const copy: WorkForm = {
             ...src,
-            id: `job-${Date.now()}`,
-            siteName: `${src.siteName} (Copy)`,
+            id: generateId("form"),
+            siteId: target.site.id,
+            siteName: target.site.name,
+            siteAddress: target.site.address,
+            categoryId: target.category.id,
+            formName: `${src.formName} (Copy)`,
+          };
+          set((s) => ({ forms: [...s.forms, copy] }));
+          await persistForm(copy);
+          return copy;
+        },
+
+        // === SITES (admin) =======================================
+        createSite: async (name, address) => {
+          const site: Site = {
+            id: generateId("site"),
+            name: name.trim(),
+            address: address.trim(),
+            order: get().sites.length,
+            isActive: true,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
-            forms: src.forms.map((f) => ({
-              ...f,
-              id: `form-${Date.now()}-${Math.floor(Math.random() * 9999)}`,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            })),
           };
-          set((s) => ({ jobs: [newJob, ...s.jobs] }));
-          syncService.queueJobSync(newJob);
-          return newJob;
-        }
-      },
+          await dbService.saveSite(site);
+          set((s) => ({ sites: [...s.sites, site] }));
+          return site;
+        },
 
-      addForm: async (jobId, form) => {
-        const job = get().jobs.find((j) => j.id === jobId);
-        if (!job) return;
-        const updated = recalcJobTotal({ ...job, forms: [...job.forms, form] });
-        set((s) => ({
-          jobs: s.jobs.map((j) => (j.id === jobId ? updated : j)),
-        }));
-        syncService.queueJobSync(updated);
-      },
+        updateSite: async (site) => {
+          await dbService.saveSite(site);
+          set((s) => ({
+            sites: s.sites.map((x) => (x.id === site.id ? site : x)),
+          }));
+        },
 
-      updateForm: async (jobId, form) => {
-        const job = get().jobs.find((j) => j.id === jobId);
-        if (!job) return;
-        const updated = recalcJobTotal({
-          ...job,
-          forms: job.forms.map((f) => (f.id === form.id ? form : f)),
-        });
-        set((s) => ({
-          jobs: s.jobs.map((j) => (j.id === jobId ? updated : j)),
-        }));
-        syncService.queueJobSync(updated);
-      },
+        deleteSite: async (id) => {
+          await dbService.deleteSiteDoc(id);
+          set((s) => ({
+            sites: s.sites.filter((x) => x.id !== id),
+          }));
+        },
 
-      deleteForm: async (jobId, formId) => {
-        const job = get().jobs.find((j) => j.id === jobId);
-        if (!job) return;
-        const updated = recalcJobTotal({
-          ...job,
-          forms: job.forms.map((f) =>
-            f.id === formId
-              ? { ...f, isDeleted: true, deletedAt: new Date().toISOString() }
-              : f,
-          ),
-        });
-        set((s) => ({
-          jobs: s.jobs.map((j) => (j.id === jobId ? updated : j)),
-        }));
-        syncService.queueJobSync(updated);
-      },
+        // === CATEGORIES (admin) ==================================
+        createCategory: async (name, formType) => {
+          const category: WorkCategory = {
+            id: generateId("cat"),
+            name: name.trim(),
+            defaultFormType: formType as FormType,
+            order: get().categories.length,
+            isActive: true,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          await dbService.saveCategory(category);
+          set((s) => ({ categories: [...s.categories, category] }));
+          return category;
+        },
 
-      permanentlyDeleteForm: async (jobId, formId) => {
-        const job = get().jobs.find((j) => j.id === jobId);
-        if (!job) return;
-        const updated = recalcJobTotal({
-          ...job,
-          forms: job.forms.filter((f) => f.id !== formId),
-        });
-        set((s) => ({
-          jobs: s.jobs.map((j) => (j.id === jobId ? updated : j)),
-        }));
-        syncService.queueJobSync(updated);
-      },
+        updateCategory: async (category) => {
+          await dbService.saveCategory(category);
+          set((s) => ({
+            categories: s.categories.map((x) =>
+              x.id === category.id ? category : x,
+            ),
+          }));
+        },
 
-      restoreForm: async (jobId, formId) => {
-        const job = get().jobs.find((j) => j.id === jobId);
-        if (!job) return;
-        const updated = recalcJobTotal({
-          ...job,
-          forms: job.forms.map((f) =>
-            f.id === formId
-              ? { ...f, isDeleted: false, deletedAt: undefined }
-              : f,
-          ),
-        });
-        set((s) => ({
-          jobs: s.jobs.map((j) => (j.id === jobId ? updated : j)),
-        }));
-        syncService.queueJobSync(updated);
-      },
+        deleteCategory: async (id) => {
+          await dbService.deleteCategoryDoc(id);
+          set((s) => ({
+            categories: s.categories.filter((x) => x.id !== id),
+          }));
+        },
 
-      duplicateForm: async (jobId, formId) => {
-        const job = get().jobs.find((j) => j.id === jobId);
-        if (!job) return;
-        const src = job.forms.find((f) => f.id === formId);
-        if (!src) return;
-        const newForm: PaintForm = {
-          ...src,
-          id: `form-${Date.now()}`,
-          formName: `${src.formName} (Copy)`,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        const updated = recalcJobTotal({
-          ...job,
-          forms: [...job.forms, newForm],
-        });
-        set((s) => ({
-          jobs: s.jobs.map((j) => (j.id === jobId ? updated : j)),
-        }));
-        syncService.queueJobSync(updated);
-      },
+        // === STRUCTURE BLUEPRINT (admin) =========================
+        seedDefaults: async () => {
+          return dbService.seedDefaults();
+        },
 
-      copyFormToJob: async (sourceJobId, formId, targetJobId) => {
-        const sourceJob = get().jobs.find((j) => j.id === sourceJobId);
-        const targetJob = get().jobs.find((j) => j.id === targetJobId);
-        if (!sourceJob || !targetJob) return;
-        const src = sourceJob.forms.find((f) => f.id === formId);
-        if (!src) return;
-        const newForm: PaintForm = {
-          ...src,
-          id: `form-${Date.now()}`,
-          isDeleted: false,
-          deletedAt: undefined,
-          formName: `${src.formName} (Copy)`,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        const updated = recalcJobTotal({
-          ...targetJob,
-          forms: [...targetJob.forms, newForm],
-        });
-        set((s) => ({
-          jobs: s.jobs.map((j) => (j.id === targetJobId ? updated : j)),
-        }));
-        syncService.queueJobSync(updated);
-      },
+        // === THEME / SIDEBAR =====================================
+        toggleTheme: () =>
+          set((s) => ({ theme: s.theme === "dark" ? "light" : "dark" })),
 
-      toggleTheme: () =>
-        set((s) => ({ theme: s.theme === "dark" ? "light" : "dark" })),
+        toggleSidebar: () =>
+          set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
 
-      toggleSidebar: () =>
-        set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
-
-      setSidebarCollapsed: (v) => set({ sidebarCollapsed: v }),
-    }),
+        setSidebarCollapsed: (v) => set({ sidebarCollapsed: v }),
+      };
+    },
     {
-      name: "paintpro-storage",
+      name: "si-worklog-storage",
       version: 1,
-      // Default theme is now light — reset any previously persisted dark theme.
       migrate: (persistedState) => {
         const prev = (persistedState ?? {}) as Partial<AppStore>;
         return { ...prev, theme: "light" } as AppStore;
@@ -458,7 +377,6 @@ export const useAppStore = create<AppStore>()(
       partialize: (s) => ({
         theme: s.theme,
         sidebarCollapsed: s.sidebarCollapsed,
-        jobs: s.jobs, // Also persist jobs to localStorage so app works offline
       }),
     },
   ),
