@@ -2,6 +2,7 @@ package com.si_worklog.com;
 
 import android.app.Activity;
 import android.content.Context;
+import android.graphics.pdf.PdfRenderer;
 import android.os.Bundle;
 import android.os.CancellationSignal;
 import android.os.ParcelFileDescriptor;
@@ -17,8 +18,10 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
+import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
+import java.util.Objects;
 
 /**
  * Local Capacitor plugin: opens Android's system print dialog (PrintManager)
@@ -34,28 +37,35 @@ public class NativePrintPlugin extends Plugin {
 
     @PluginMethod
     public void print(PluginCall call) {
-        String base64 = call.getString("base64");
+        String base64Input = call.getString("base64");
         String jobName = call.getString("jobName", "Document");
-        if (base64 == null || base64.isEmpty()) {
+        if (base64Input == null || base64Input.isEmpty()) {
             call.reject("Missing PDF data");
             return;
         }
 
+        // Handle base64 strings containing data URI schemes (e.g. "data:application/pdf;base64,") or whitespace
+        String cleanBase64 = base64Input;
+        if (cleanBase64.contains(",")) {
+            cleanBase64 = cleanBase64.substring(cleanBase64.indexOf(",") + 1);
+        }
+        cleanBase64 = cleanBase64.replaceAll("\\s+", "");
+
         final byte[] pdfBytes;
         try {
-            pdfBytes = Base64.decode(base64, Base64.DEFAULT);
+            pdfBytes = Base64.decode(cleanBase64, Base64.DEFAULT);
         } catch (IllegalArgumentException e) {
-            call.reject("Invalid PDF data");
+            call.reject("Invalid PDF data: " + e.getMessage());
             return;
         }
 
         final Activity activity = getActivity();
-        if (activity == null) {
+        if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
             call.reject("No activity available");
             return;
         }
 
-        final String name = jobName != null ? jobName : "Document";
+        final String name = (jobName != null && !jobName.trim().isEmpty()) ? jobName.trim() : "Document";
 
         activity.runOnUiThread(() -> {
             try {
@@ -72,7 +82,7 @@ public class NativePrintPlugin extends Plugin {
                         .setColorMode(PrintAttributes.COLOR_MODE_COLOR)
                         .build();
 
-                printManager.print(name, new PdfPrintAdapter(pdfBytes, name), attributes);
+                printManager.print(name, new PdfPrintAdapter(context, pdfBytes, name), attributes);
                 call.resolve();
             } catch (Exception e) {
                 call.reject("Print failed: " + e.getMessage());
@@ -82,16 +92,38 @@ public class NativePrintPlugin extends Plugin {
 
     /**
      * Streams the already-rendered PDF bytes into Android's print framework.
-     * All pages are written as-is; the PDF is exactly A4 so the dialog preview
-     * matches the paper.
+     * All pages are written as-is; the PDF is rendered to match the paper.
      */
     private static class PdfPrintAdapter extends PrintDocumentAdapter {
+        private final Context context;
         private final byte[] pdfBytes;
         private final String jobName;
 
-        PdfPrintAdapter(byte[] pdfBytes, String jobName) {
+        PdfPrintAdapter(Context context, byte[] pdfBytes, String jobName) {
+            this.context = context;
             this.pdfBytes = pdfBytes;
             this.jobName = jobName;
+        }
+
+        private int getPdfPageCount(Context ctx, byte[] bytes) {
+            File tempFile = null;
+            try {
+                tempFile = File.createTempFile("print_preview", ".pdf", ctx.getCacheDir());
+                try (FileOutputStream fos = new FileOutputStream(tempFile)) {
+                    fos.write(bytes);
+                }
+                try (ParcelFileDescriptor pfd = ParcelFileDescriptor.open(tempFile, ParcelFileDescriptor.MODE_READ_ONLY);
+                     PdfRenderer renderer = new PdfRenderer(pfd)) {
+                    return renderer.getPageCount();
+                }
+            } catch (Exception ignored) {
+            } finally {
+                if (tempFile != null && tempFile.exists()) {
+                    //noinspection ResultOfMethodCallIgnored
+                    tempFile.delete();
+                }
+            }
+            return PrintDocumentInfo.PAGE_COUNT_UNKNOWN;
         }
 
         @Override
@@ -105,11 +137,17 @@ public class NativePrintPlugin extends Plugin {
                 callback.onLayoutCancelled();
                 return;
             }
-            PrintDocumentInfo info = new PrintDocumentInfo.Builder(jobName + ".pdf")
+
+            int pageCount = getPdfPageCount(context, pdfBytes);
+            String fileName = jobName.toLowerCase().endsWith(".pdf") ? jobName : jobName + ".pdf";
+
+            PrintDocumentInfo info = new PrintDocumentInfo.Builder(fileName)
                     .setContentType(PrintDocumentInfo.CONTENT_TYPE_DOCUMENT)
-                    .setPageCount(PrintDocumentInfo.PAGE_COUNT_UNKNOWN)
+            .setPageCount(pageCount)
                     .build();
-            callback.onLayoutFinished(info, true);
+
+            boolean changed = !Objects.equals(newAttributes, oldAttributes);
+            callback.onLayoutFinished(info, changed);
         }
 
         @Override
@@ -118,19 +156,22 @@ public class NativePrintPlugin extends Plugin {
                 ParcelFileDescriptor destination,
                 CancellationSignal cancellationSignal,
                 WriteResultCallback callback) {
-            OutputStream out = null;
-            try {
-                out = new FileOutputStream(destination.getFileDescriptor());
+            if (cancellationSignal.isCanceled()) {
+                callback.onWriteCancelled();
+                return;
+            }
+
+            try (OutputStream out = new FileOutputStream(destination.getFileDescriptor())) {
                 out.write(pdfBytes);
                 out.flush();
-                callback.onWriteFinished(new PageRange[]{PageRange.ALL_PAGES});
+
+                if (cancellationSignal.isCanceled()) {
+                    callback.onWriteCancelled();
+                } else {
+                    callback.onWriteFinished(new PageRange[]{PageRange.ALL_PAGES});
+                }
             } catch (Exception e) {
                 callback.onWriteFailed(e.getMessage());
-            } finally {
-                try {
-                    if (out != null) out.close();
-                } catch (Exception ignored) {
-                }
             }
         }
     }

@@ -9,6 +9,7 @@ import {
   getAuth,
   signInAnonymously,
   signInWithPopup,
+  signInWithCredential,
   signInWithEmailAndPassword,
   signOut,
   GoogleAuthProvider,
@@ -16,6 +17,21 @@ import {
   type Auth,
   type User,
 } from "firebase/auth";
+import { Capacitor, registerPlugin } from "@capacitor/core";
+
+export interface NativeGoogleAuthPlugin {
+  signIn(options?: { webClientId?: string }): Promise<{
+    idToken?: string;
+    serverAuthCode?: string;
+    email: string;
+    displayName?: string;
+    id?: string;
+    photoUrl?: string;
+  }>;
+  signOut(): Promise<void>;
+}
+
+const NativeGoogleAuth = registerPlugin<NativeGoogleAuthPlugin>("NativeGoogleAuth");
 
 type FirebaseConfig = {
   apiKey: string;
@@ -63,15 +79,9 @@ function validateFirebaseConfig(config: FirebaseConfig): void {
           .toUpperCase()}`,
       )
       .join(", ")}`;
-    // During SSR/build we want to fail fast — give a clear error. In the
-    // browser, prefer a soft failure so the app can still render and provide
-    // a useful UI (the runtime will later surface Firebase errors if used).
     if (typeof window === "undefined") {
       throw new Error(msg);
     }
-    // Client-side: warn but don't throw to avoid crashing in environments
-    // where NEXT_PUBLIC env vars are not present (e.g. local experiments).
-    // Firebase usage will still fail later if actually invoked.
     // eslint-disable-next-line no-console
     console.warn(msg);
   }
@@ -83,9 +93,6 @@ export function getFirebaseApp(): FirebaseApp {
   const config = readFirebaseConfig();
   validateFirebaseConfig(config);
 
-  // Dev-only client-side debug: log the project and domain so developers can
-  // verify the client is pointed at the intended Firebase project. Mask the
-  // API key partially to avoid accidental exposure in logs.
   if (typeof window !== "undefined" && process.env.NODE_ENV !== "production") {
     const maskedApiKey = config.apiKey
       ? config.apiKey.replace(/.(?=.{4})/g, "*")
@@ -99,7 +106,6 @@ export function getFirebaseApp(): FirebaseApp {
     });
   }
 
-  // Server-side debug: log project id used by server processes.
   if (typeof window === "undefined") {
     // eslint-disable-next-line no-console
     console.info("Firebase server config projectId:", config.projectId);
@@ -112,22 +118,14 @@ export function getFirebaseApp(): FirebaseApp {
 export function getFirestoreDb(): Firestore {
   if (firestoreDb) return firestoreDb;
 
-  // Long polling is forced to make the SDK more robust on restrictive
-  // networks (corporate proxies, antivirus, CGNAT ISPs) where the default
-  // WebChannel transport can be interrupted. Prefer a persistent local cache
-  // when available, but gracefully fall back when IndexedDB/persistence is
-  // not supported (SSR, private browsing, or blocked storage).
   try {
     if (typeof window === "undefined") {
-      // Server-side: do not attempt to use IndexedDB/persistence.
       firestoreDb = initializeFirestore(getFirebaseApp(), {
         experimentalForceLongPolling: true,
       });
       return firestoreDb;
     }
 
-    // Quick feature-detect for IndexedDB. Some browsers disable it (private
-    // modes) which makes persistentLocalCache throw when used.
     const hasIndexedDB = typeof indexedDB !== "undefined" && indexedDB !== null;
 
     if (hasIndexedDB) {
@@ -140,14 +138,10 @@ export function getFirestoreDb(): Firestore {
       return firestoreDb;
     }
   } catch (err) {
-    // Fall through to a safe non-persistent initialization below.
-    // The SDK will still work online; it just won't persist data across
-    // reloads or support multi-tab coordination.
     // eslint-disable-next-line no-console
     console.warn("Could not enable persistent local cache, falling back to non-persistent Firestore.", err);
   }
 
-  // Fallback: initialize without the persistent local cache.
   firestoreDb = initializeFirestore(getFirebaseApp(), {
     experimentalForceLongPolling: true,
   });
@@ -179,9 +173,6 @@ export async function ensureFirebaseAuth(): Promise<void> {
         }
 
         if (!auth.currentUser) {
-          // If the browser is currently offline, skip anonymous sign-in —
-          // it will fail and only produces noisy warnings. The app can still
-          // function in a read-only/offline capacity until connectivity.
           if (typeof navigator !== "undefined" && !navigator.onLine) {
             console.warn("Navigator offline: skipping anonymous sign-in until online.");
           } else {
@@ -206,18 +197,42 @@ export function getGoogleAuthProvider(): GoogleAuthProvider {
   const provider = new GoogleAuthProvider();
   provider.addScope("profile");
   provider.addScope("email");
+  provider.setCustomParameters({ prompt: "select_account" });
   return provider;
 }
 
-/** Sign in with a Google popup and return the authenticated user. */
+/** Sign in with Google (Native device account picker on mobile / popup on web) and return the authenticated user. */
 export async function signInWithGoogle(): Promise<User> {
   const auth = getFirebaseAuth();
+
+  if (typeof window !== "undefined" && Capacitor.isNativePlatform()) {
+    try {
+      const webClientId = process.env.NEXT_PUBLIC_FIREBASE_WEB_CLIENT_ID || "";
+      const res = await NativeGoogleAuth.signIn({ webClientId });
+
+      if (res.idToken) {
+        const credential = GoogleAuthProvider.credential(res.idToken);
+        const userCredential = await signInWithCredential(auth, credential);
+        return userCredential.user;
+      }
+    } catch (e: unknown) {
+      console.warn("Native Google sign-in failed or was canceled:", e);
+      // Fall through to web popup if native sign in fails or is canceled
+    }
+  }
+
   const credential = await signInWithPopup(auth, getGoogleAuthProvider());
   return credential.user;
 }
 
 /** Sign the current user out. */
 export async function signOutUser(): Promise<void> {
+  if (typeof window !== "undefined" && Capacitor.isNativePlatform()) {
+    try {
+      await NativeGoogleAuth.signOut();
+    } catch (ignored) {
+    }
+  }
   await signOut(getFirebaseAuth());
 }
 

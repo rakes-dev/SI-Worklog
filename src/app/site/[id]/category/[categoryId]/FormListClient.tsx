@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -21,6 +21,8 @@ import {
 import { useAppStore } from "@/store/useAppStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { currentMonth, formatCurrency, formatDate, monthLabel } from "@/utils/helpers";
+import { rememberWork } from "@/utils/recents";
+
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import ToastContainer from "@/components/ui/Toast";
 import { useToast } from "@/hooks/useToast";
@@ -55,6 +57,15 @@ export default function FormListClient() {
 
   const site = sites.find((s) => s.id === siteId);
   const category = categories.find((c) => c.id === categoryId);
+
+  // Opening a category counts as "working" in it — remember it so this
+  // category becomes the default preselect in the New Form modal and floats
+  // to the top of the site page's category grid.
+  useEffect(() => {
+    if (siteId && categoryId) {
+      rememberWork(user?.email, siteId, categoryId);
+    }
+  }, [siteId, categoryId, user?.email]);
 
   const activeForms = useMemo(
     () =>
@@ -110,6 +121,7 @@ export default function FormListClient() {
         ownerEmail: user.email.trim().toLowerCase(),
         empName,
       });
+      rememberWork(user.email, site.id, category.id);
       addToast("success", "Form created", `"${form.formName}" is ready.`);
       router.push(`/form-editor?formId=${form.id}`);
     } catch (error) {
