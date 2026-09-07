@@ -68,21 +68,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Read ONLY our own allowlist record — this is all the security rules let
       // a non-admin read. Admin surfaces load the full list separately.
       const me = await fetchMyUser(myEmail);
+      const isAuthorized = Boolean(me);
       set({
         allowedUsers: me ? [me] : [],
         role: me?.role ?? null,
-        authorized: Boolean(me),
-        accessError: null,
+        authorized: isAuthorized,
+        accessError: isAuthorized
+          ? null
+          : `Your account (${myEmail}) is not on the authorized user list. Please contact an admin to give your email access.`,
       });
 
-      // EVENT-DRIVEN live-sync bridge: on a cold page reload, AppLayout's
-      // effects can fire before Firebase restores the session / the allowlist
-      // read settles. Now that the role is known, bind the Firestore listeners
-      // directly — this closes that race. (Dynamic import avoids a static
-      // module cycle between the two stores.)
-      void import("@/store/useAppStore").then(({ useAppStore }) => {
-        useAppStore.getState().startLiveSync();
-      });
+      if (isAuthorized) {
+        // EVENT-DRIVEN live-sync bridge: on a cold page reload, AppLayout's
+        // effects can fire before Firebase restores the session / the allowlist
+        // read settles. Now that the role is known, bind the Firestore listeners
+        // directly — this closes that race. (Dynamic import avoids a static
+        // module cycle between the two stores.)
+        void import("@/store/useAppStore").then(({ useAppStore }) => {
+          useAppStore.getState().startLiveSync();
+        });
+      }
     } catch (error) {
       // The read failed for CONNECTIVITY reasons (the answer is unknown, not
       // "unauthorized"). Keep the gate OPEN while the app stays usable; the
@@ -106,12 +111,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const user = await signInWithGoogle();
       await get().setAuth(user);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Google sign-in error:", error);
+      const msg =
+        error instanceof Error && error.message
+          ? error.message
+          : "Google sign-in failed. Make sure Google provider is enabled in Firebase.";
       set({
         status: "unauthenticated",
-        accessError:
-          "Google sign-in failed. Make sure the Google provider is enabled and the current origin is an authorized domain in Firebase Authentication.",
+        accessError: msg,
       });
     }
   },
