@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "419242085054",
+    "project_id": "si-worklog-41d35",
+    "storage_bucket": "si-worklog-41d35.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:419242085054:android:844ea2a464cd3292ddecef",
+        "android_client_info": {
+          "package_name": "com.si_worklog.com"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "419242085054-tnuika9m35r55hn8n1g06hr1fa4j4meq.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBUtEl1dZVYd8xgx5nVOFN_x9V55y2MIqk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "419242085054-tnuika9m35r55hn8n1g06hr1fa4j4meq.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
