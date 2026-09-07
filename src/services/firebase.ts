@@ -206,18 +206,17 @@ export async function signInWithGoogle(): Promise<User> {
   const auth = getFirebaseAuth();
 
   if (typeof window !== "undefined" && Capacitor.isNativePlatform()) {
-    try {
-      const webClientId = process.env.NEXT_PUBLIC_FIREBASE_WEB_CLIENT_ID || "";
-      const res = await NativeGoogleAuth.signIn({ webClientId });
+    const webClientId = process.env.NEXT_PUBLIC_FIREBASE_WEB_CLIENT_ID || "";
+    const res = await NativeGoogleAuth.signIn({ webClientId });
 
-      if (res.idToken) {
-        const credential = GoogleAuthProvider.credential(res.idToken);
-        const userCredential = await signInWithCredential(auth, credential);
-        return userCredential.user;
-      }
-    } catch (e: unknown) {
-      console.warn("Native Google sign-in failed or was canceled:", e);
-      // Fall through to web popup if native sign in fails or is canceled
+    if (res.idToken) {
+      const credential = GoogleAuthProvider.credential(res.idToken);
+      const userCredential = await signInWithCredential(auth, credential);
+      return userCredential.user;
+    } else {
+      throw new Error(
+        `Native Google Sign-In succeeded for ${res.email}, but no ID token was returned by Google Play Services.`
+      );
     }
   }
 
