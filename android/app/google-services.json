@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "419242085054-fgjh1ak3gi54tbu12mmftlsd49s4oh65.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.si_worklog.com",
+            "certificate_hash": "f2c8ea3616fd1a2ad9614b178c3646f12b693570"
+          }
+        },
+        {
           "client_id": "419242085054-tnuika9m35r55hn8n1g06hr1fa4j4meq.apps.googleusercontent.com",
           "client_type": 3
         }
