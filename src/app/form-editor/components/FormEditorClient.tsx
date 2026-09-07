@@ -103,11 +103,14 @@ const site = existingForm ? sites.find((s) => s.id === existingForm.siteId) : un
   const [copyModalOpen, setCopyModalOpen] = useState(false);
   const [initialized, setInitialized] = useState(false);
   const [arcItems, setArcItems] = useState<ArcItem[]>([]);
-  const [autoSaveTimer, setAutoSaveTimer] = useState<ReturnType<
-    typeof setTimeout
-  > | null>(null);
-  const [lastSavedData, setLastSavedData] = useState<string>("");
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  // Auto-save state lives in refs so the debounced save never re-triggers
+  // itself through render-induced churn: the pending timer, the "last saved"
+  // comparison key and the in-flight flag are all read from the latest render.
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSavedKeyRef = useRef("");
+  const autoSavingRef = useRef(false);
+  const saveStateRef = useRef<SaveState>("idle");
   const initialLoadCompleteRef = useRef(false);
   const printLayoutRef = useRef<HTMLDivElement>(null);
   const pdfExportRef = useRef<HTMLDivElement>(null);
@@ -229,52 +232,133 @@ const site = existingForm ? sites.find((s) => s.id === existingForm.siteId) : un
     [syncedSummaryRows, measurementRows, signatures, existingForm],
   );
 
-  // Auto-save: debounce 2s after any change
-  useEffect(() => {
-    if (!initialized || !existingForm || !signatures || !hasUnsavedChanges) return;
-    if (autoSaveTimer) clearTimeout(autoSaveTimer);
+  // --- Auto-save -----------------------------------------------------------
+  // Keeps the save-state ref and UI state in sync so delayed "idle" resets only
+  // fire for the state they were scheduled for (a later error won't be cleared
+  // by an older "saved" reset).
+  const setNextSaveState = useCallback((next: SaveState) => {
+    saveStateRef.current = next;
+    setSaveState(next);
+  }, []);
 
-    const timer = setTimeout(() => {
+  // A "save key" captures every field that matters but intentionally EXCLUDES
+  // the volatile `updatedAt`/`createdAt` timestamps that buildFormData stamps
+  // on EVERY call — otherwise the string comparison below would never match and
+  // the editor would keep re-saving forever even when nothing changed.
+  const buildSaveKey = useCallback((formData: WorkForm): string => {
+    const keyForm: Partial<WorkForm> = { ...formData };
+    delete keyForm.updatedAt;
+    delete keyForm.createdAt;
+    return JSON.stringify({
+      formData: keyForm,
+      summaryRows: formData.summaryRows,
+      measurementRows: formData.measurementRows,
+    });
+  }, []);
+
+  // Key for whatever the user is currently looking at (live field values + the
+  // synced rows). Used by both the debounced saver and the flush-on-exit paths.
+  const currentSaveKey = useCallback((): string => {
+    const values = getValues();
+    return buildSaveKey(buildFormData(values));
+  }, [getValues, buildFormData, buildSaveKey]);
+
+  // Persists right now if anything has changed since the last successful save.
+  // Safe to call from anywhere: it dedupes against lastSavedKeyRef and never
+  // starts a second write while one is already in flight.
+  const flushAutoSave = useCallback(async (): Promise<void> => {
+    if (autoSavingRef.current || !initialized || !existingForm || !signatures) {
+      return;
+    }
+    const key = currentSaveKey();
+    if (key === lastSavedKeyRef.current) return;
+
+    autoSavingRef.current = true;
+    setNextSaveState("saving");
+    try {
       const values = getValues();
       const formData = buildFormData(values);
-      const dataKey = JSON.stringify({
-        formData,
-        summaryRows: syncedSummaryRows,
-        measurementRows,
-      });
-      if (dataKey === lastSavedData) return;
-
-      setLastSavedData(dataKey);
-      setSaveState("saving");
-      updateForm(formData)
-        .then(() => {
-          setHasUnsavedChanges(false);
-          setSaveState("saved");
-          setTimeout(() => setSaveState("idle"), 2000);
-        })
-        .catch(() => {
-          setSaveState("error");
-          setTimeout(() => setSaveState("idle"), 2000);
-        });
-    }, 2000);
-
-    setAutoSaveTimer(timer);
-    return () => {
-      if (timer) clearTimeout(timer);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+      await updateForm(formData);
+      lastSavedKeyRef.current = key;
+      // If the user kept typing while the write was in flight, keep the dirty
+      // flag so the debounce effect schedules the follow-up save.
+      if (currentSaveKey() === key) {
+        setHasUnsavedChanges(false);
+      }
+      setNextSaveState("saved");
+      setTimeout(() => {
+        if (saveStateRef.current === "saved") setNextSaveState("idle");
+      }, 2000);
+    } catch (error) {
+      console.error("Auto-save failed:", error);
+      setNextSaveState("error");
+      setTimeout(() => {
+        if (saveStateRef.current === "error") setNextSaveState("idle");
+      }, 3000);
+    } finally {
+      autoSavingRef.current = false;
+    }
   }, [
     initialized,
     existingForm,
     signatures,
-    syncedSummaryRows,
-    measurementRows,
+    currentSaveKey,
     getValues,
     buildFormData,
     updateForm,
-    lastSavedData,
-    hasUnsavedChanges,
   ]);
+
+  // Debounce: 2s after the latest change, persist. Each change resets the
+  // timer and the effect's cleanup clears it when the editor re-renders or
+  // unmounts — no stale timers can fire after a save has landed.
+  useEffect(() => {
+    if (!initialized || !existingForm || !signatures || !hasUnsavedChanges)
+      return;
+
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => {
+      autoSaveTimerRef.current = null;
+      void flushAutoSave();
+    }, 2000);
+
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialized, existingForm, signatures, hasUnsavedChanges, flushAutoSave]);
+
+  // Flush pending edits when the component unmounts (in-app navigation) so the
+  // last window of typing is never silently dropped.
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
+      }
+      if (!autoSavingRef.current && lastSavedKeyRef.current !== currentSaveKey()) {
+        void flushAutoSave();
+      }
+    };
+  }, [currentSaveKey, flushAutoSave]);
+
+  // Best-effort flush for tab/window/webview close. A fetch started here may or
+  // may not complete before teardown, but it covers the common navigation cases.
+  useEffect(() => {
+    const onPageHide = () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
+      }
+      if (!autoSavingRef.current && lastSavedKeyRef.current !== currentSaveKey()) {
+        void flushAutoSave();
+      }
+    };
+    window.addEventListener("pagehide", onPageHide);
+    return () => window.removeEventListener("pagehide", onPageHide);
+  }, [currentSaveKey, flushAutoSave]);
 
   const handleDuplicateForm = async () => {
     if (!existingForm) return;
@@ -295,6 +379,7 @@ const site = existingForm ? sites.find((s) => s.id === existingForm.siteId) : un
     try {
       const formData = buildFormData(values);
       await updateForm(formData);
+      lastSavedKeyRef.current = buildSaveKey(formData);
       setHasUnsavedChanges(false);
       setSaveState("saved");
       addToast("success", "Form saved", "All changes saved successfully.");
@@ -334,6 +419,7 @@ const site = existingForm ? sites.find((s) => s.id === existingForm.siteId) : un
       // Save first, then print
       const formData = buildFormData(values);
       await updateForm(formData);
+      lastSavedKeyRef.current = buildSaveKey(formData);
       setHasUnsavedChanges(false);
       setSaveState("saved");
       addToast("success", "Form saved", "Saved before printing.");
@@ -396,6 +482,7 @@ const site = existingForm ? sites.find((s) => s.id === existingForm.siteId) : un
       // Save first so the exported PDF reflects the latest data.
       const formData = buildFormData(values);
       await updateForm(formData);
+      lastSavedKeyRef.current = buildSaveKey(formData);
       setHasUnsavedChanges(false);
       setSaveState("saved");
       setTimeout(() => setSaveState("idle"), 2000);
@@ -506,7 +593,7 @@ const site = existingForm ? sites.find((s) => s.id === existingForm.siteId) : un
       </div>
 
       {/* Screen layout */}
-      <div className="no-print min-h-full p-4 lg:p-6 xl:p-8 pb-[calc(6rem_+_env(safe-area-inset-bottom))] lg:pb-8 max-w-screen-2xl mx-auto">
+      <div className="no-print min-h-full p-4 lg:p-6 xl:p-8 pb-[calc(8rem_+_env(safe-area-inset-bottom))] lg:pb-8 max-w-screen-2xl mx-auto">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
@@ -616,11 +703,17 @@ const site = existingForm ? sites.find((s) => s.id === existingForm.siteId) : un
           </div>
         </div>
 
-        {/* Unsaved changes banner */}
-        {isDirty && saveState === "idle" && (
+        {/* Save status banner */}
+        {saveState === "error" && (
+          <div className="mb-4 flex items-center gap-2 px-4 py-2.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-300">
+            <AlertCircle size={15} />
+            Couldn't save your changes — check your connection, then press "Save Form" to retry.
+          </div>
+        )}
+        {hasUnsavedChanges && saveState === "idle" && (
           <div className="mb-4 flex items-center gap-2 px-4 py-2.5 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg text-sm text-yellow-800 dark:text-yellow-300">
             <AlertCircle size={15} />
-            You have unsaved changes — click "Save Form" to keep them.
+            Auto-save is on — your changes will be saved automatically in a moment.
           </div>
         )}
 
@@ -650,22 +743,39 @@ const site = existingForm ? sites.find((s) => s.id === existingForm.siteId) : un
           <SignatureSection />
 
           {/* Sticky Save Bar */}
-          <div className="fixed bottom-0 left-0 right-0 lg:left-sidebar lg:left-sidebar-collapsed bg-card border-t border-border px-3 pt-2 pb-[calc(0.5rem_+_env(safe-area-inset-bottom))] flex items-center justify-between gap-2 z-20 no-print">
-            <div className="flex items-center gap-1.5 text-sm min-w-0">
+          <div className="fixed bottom-[calc(3.5rem_+_env(safe-area-inset-bottom))] lg:bottom-0 left-0 right-0 lg:left-sidebar lg:left-sidebar-collapsed bg-card border-t border-border px-3 pt-2 pb-2 flex items-center justify-between gap-2 z-20 no-print">
+            <div className="flex items-center gap-1.5 text-sm min-w-0 flex-1">
               <FileText size={14} className="text-muted-foreground shrink-0" />
-              <span className="text-muted-foreground truncate">
+              <span className="min-w-0 flex-1 truncate">
                 <span className="font-semibold font-tabular text-foreground">
                   ₹
                   {grandTotal.toLocaleString("en-IN", {
                     minimumFractionDigits: 2,
                   })}
                 </span>
+                <span className="text-muted-foreground hidden sm:inline whitespace-nowrap">
+                  {" "}· {totalArea.toFixed(2)}{" "}
+                  {aggregateAreaUnitLabel(measurementRows.map((r) => r.uom))}
+                </span>
               </span>
-              <span className="text-muted-foreground hidden sm:inline">·</span>
-              <span className="text-muted-foreground hidden sm:inline whitespace-nowrap">
-                {totalArea.toFixed(2)}{" "}
-                {aggregateAreaUnitLabel(measurementRows.map((r) => r.uom))}
-              </span>
+              {saveState === "saving" && (
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground shrink-0">
+                  <Loader2 size={12} className="animate-spin" />
+                  Saving…
+                </span>
+              )}
+              {saveState === "saved" && (
+                <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400 shrink-0">
+                  <CheckCircle2 size={12} />
+                  Saved
+                </span>
+              )}
+              {saveState === "error" && (
+                <span className="inline-flex items-center gap-1 text-xs text-red-500 shrink-0">
+                  <AlertCircle size={12} />
+                  Save failed
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-1.5">
               <button

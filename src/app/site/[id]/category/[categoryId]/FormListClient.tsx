@@ -226,8 +226,8 @@ if (!site || !category) {
             {category.name}
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {site.name} · {user?.displayName || user?.email} · {activeForms.length} form·
-            {activeForms.length !== 1 ? "s" : ""}
+            {site.name} · {user?.displayName || user?.email} ·{" "}
+            {activeForms.length} form{activeForms.length !== 1 ? "s" : ""}
           </p>
         </div>
         <button

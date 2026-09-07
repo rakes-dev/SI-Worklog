@@ -189,13 +189,23 @@ export default function CategoriesClient() {
                   ₹{formatCurrency(amount)}
                 </span>
               </div>
-              <div className="flex items-center gap-1 text-xs font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="flex items-center gap-1 text-xs font-medium text-primary opacity-70 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                 Open category
               </div>
             </Link>
           );
         })}
       </div>
+
+      {/* Mobile quick-create FAB */}
+      <button
+        onClick={() => setShowQuickCreate(true)}
+        disabled={perCategory.length === 0}
+        className="fixed bottom-20 right-4 lg:hidden w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:opacity-90 transition-opacity scale-press z-20 no-print disabled:opacity-60"
+        aria-label="Create new form"
+      >
+        <Plus size={24} />
+      </button>
 
       <QuickCreateFormModal
         open={showQuickCreate}
