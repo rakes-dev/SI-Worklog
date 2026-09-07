@@ -31,12 +31,21 @@ public class NativeGoogleAuthPlugin extends Plugin {
     public void signIn(PluginCall call) {
         String webClientId = call.getString("webClientId");
 
+        if (webClientId == null || webClientId.trim().isEmpty() || webClientId.contains("xxxxxx")) {
+            int resId = getContext().getResources().getIdentifier("default_web_client_id", "string", getContext().getPackageName());
+            if (resId != 0) {
+                webClientId = getContext().getString(resId);
+            }
+        }
+
         GoogleSignInOptions.Builder gsoBuilder = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
                 .requestEmail()
                 .requestProfile();
 
         if (webClientId != null && !webClientId.trim().isEmpty()) {
             gsoBuilder.requestIdToken(webClientId.trim());
+        } else {
+            Log.w(TAG, "No webClientId provided. ID token will not be included in GoogleSignInAccount.");
         }
 
         GoogleSignInOptions gso = gsoBuilder.build();
@@ -74,6 +83,8 @@ public class NativeGoogleAuthPlugin extends Plugin {
             Log.e(TAG, "Google sign in failed code=" + e.getStatusCode(), e);
             if (e.getStatusCode() == 12501) {
                 call.reject("Google sign in canceled by user");
+            } else if (e.getStatusCode() == 10) {
+                call.reject("Google sign in DEVELOPER_ERROR (code 10): Ensure webClientId or default_web_client_id matches Firebase Console and SHA-1 fingerprint is registered.");
             } else {
                 call.reject("Google sign in failed (code " + e.getStatusCode() + "): " + e.getLocalizedMessage());
             }
