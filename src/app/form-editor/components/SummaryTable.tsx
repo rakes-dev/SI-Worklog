@@ -7,6 +7,7 @@ import {
   calcSummaryRow,
   defaultSummaryRow,
   formatCurrency,
+  generateId,
 } from "@/utils/helpers";
 
 interface SummaryTableProps {
@@ -82,14 +83,18 @@ export default function SummaryTable({
   };
 
   const duplicateRow = (id: string) => {
-    const src = rows.find((r) => r.id === id);
-    if (!src) return;
+    const srcIndex = rows.findIndex((r) => r.id === id);
+    if (srcIndex < 0) return;
+    const src = rows[srcIndex];
     const dup: SummaryRow = {
       ...src,
-      id: `sr-${Date.now()}`,
-      slNo: rows.length + 1,
+      id: generateId("sr"),
     };
-    onChange([...rows, dup]);
+    // Insert the copy directly below the source row so it appears right where
+    // the user expects and never collides with an existing trailing row.
+    const updated = [...rows];
+    updated.splice(srcIndex + 1, 0, dup);
+    onChange(renumberRows(updated));
   };
 
   interface SummaryNumInputProps {
