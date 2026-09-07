@@ -14,7 +14,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
 
   useEffect(() => {
-    if (status === "authenticated" && authorized !== null) {
+    if (status === "authenticated" && authorized === true) {
       router.replace(role === "admin" ? "/admin" : "/");
     }
   }, [status, authorized, role, router]);
@@ -112,15 +112,14 @@ export default function LoginPage() {
           </form>
 
           {accessError && (
-            <p className="mt-3 text-xs text-red-500 leading-relaxed">
+            <p className="mt-3 text-xs text-red-500 leading-relaxed font-medium">
               {accessError}
             </p>
           )}
 
           <p className="mt-4 text-xs text-muted-foreground leading-relaxed">
             Note: only emails added by an admin can sign in. Google and
-            Email/Password must be enabled in Firebase Authentication, with{" "}
-            <span className="font-mono">localhost:4028</span> authorized.
+            Email/Password must be enabled in Firebase Authentication.
           </p>
         </div>
 
