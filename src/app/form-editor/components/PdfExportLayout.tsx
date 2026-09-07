@@ -127,7 +127,7 @@ export default function PdfExportLayout({ form, job }: PdfExportLayoutProps) {
         background: "#ffffff",
         color: "#000000",
         fontFamily: "Arial, Helvetica, sans-serif",
-        fontSize: "10pt",
+        fontSize: "11pt",
       }}
     >
       <style>{`
@@ -157,8 +157,8 @@ export default function PdfExportLayout({ form, job }: PdfExportLayoutProps) {
           border-bottom: 0.5px solid #000000;
         }
         .pdf-section {
-          font-weight: bold;
-          font-size: 11pt;
+          font-weight: 800;
+          font-size: 12pt;
           padding: 3px 6px;
           margin-bottom: 4pt;
           border: 0.5px solid #000000;
@@ -184,20 +184,20 @@ export default function PdfExportLayout({ form, job }: PdfExportLayoutProps) {
                     marginBottom: "5pt",
                   }}
                 >
-                  <span style={{ fontSize: "8pt", whiteSpace: "nowrap" }}>
+                  <span style={{ fontSize: "9pt", whiteSpace: "nowrap" }}>
                     Measurement Sheet No.: {form.sheetNo}
                   </span>
                   <span
                     style={{
-                      fontSize: "14pt",
-                      fontWeight: "bold",
+                      fontSize: "15pt",
+                      fontWeight: 'Bold',
                       textAlign: "center",
                       flex: 1,
                     }}
                   >
                     STANDARD INTERIOR
                   </span>
-                  <span style={{ fontSize: "8pt", whiteSpace: "nowrap" }}>
+                  <span style={{ fontSize: "9pt", whiteSpace: "nowrap" }}>
                     Date: {formatDate(form.date)}
                   </span>
                 </div>
@@ -205,14 +205,14 @@ export default function PdfExportLayout({ form, job }: PdfExportLayoutProps) {
                 {/* Header info table */}
                 <table
                   className="pdf-table"
-                  style={{ marginBottom: "8pt", fontSize: "8pt" }}
+                  style={{ marginBottom: "8pt", fontSize: "9pt" }}
                 >
                   <tbody>
                     <tr>
                       <td
                         style={{
                           width: "25%",
-                          fontWeight: "bold",
+                          fontWeight: 'Bold',
                           ...CELL_PAD,
                         }}
                       >
@@ -224,7 +224,7 @@ export default function PdfExportLayout({ form, job }: PdfExportLayoutProps) {
                       <td
                         style={{
                           width: "25%",
-                          fontWeight: "bold",
+                          fontWeight: 'Bold',
                           ...CELL_PAD,
                         }}
                       >
@@ -235,11 +235,11 @@ export default function PdfExportLayout({ form, job }: PdfExportLayoutProps) {
                       </td>
                     </tr>
                     <tr>
-                      <td style={{ fontWeight: "bold", ...CELL_PAD }}>
+                      <td style={{ fontWeight: 'Bold', ...CELL_PAD }}>
                         Total Sheets:
                       </td>
                       <td style={CELL_PAD}>{form.totalSheets}</td>
-                      <td style={{ fontWeight: "bold", ...CELL_PAD }}>
+                      <td style={{ fontWeight: 'Bold', ...CELL_PAD }}>
                         Work End Date:
                       </td>
                       <td style={CELL_PAD}>{formatDate(form.workEndDate)}</td>
@@ -322,7 +322,7 @@ export default function PdfExportLayout({ form, job }: PdfExportLayoutProps) {
                           <td
                             colSpan={isCarpenter ? 6 : 7}
                             style={{
-                              fontWeight: "bold",
+                              fontWeight: 800,
                               textAlign: "right",
                               ...CELL_PAD,
                             }}
@@ -331,7 +331,7 @@ export default function PdfExportLayout({ form, job }: PdfExportLayoutProps) {
                           </td>
                           <td
                             style={{
-                              fontWeight: "bold",
+                              fontWeight: 800,
                               textAlign: "right",
                               ...CELL_PAD,
                             }}
@@ -445,7 +445,7 @@ export default function PdfExportLayout({ form, job }: PdfExportLayoutProps) {
                         >
                           <div
                             style={{
-                              fontWeight: "bold",
+                              fontWeight: 'Bold',
                               borderBottom: "0.5px solid #000",
                               paddingBottom: "3px",
                               fontSize: "8.5pt",
@@ -453,7 +453,7 @@ export default function PdfExportLayout({ form, job }: PdfExportLayoutProps) {
                           >
                             {s.label}
                           </div>
-                          <div style={{ marginTop: "12pt", fontSize: "8pt" }}>
+                          <div style={{ marginTop: "12pt", fontSize: "9pt" }}>
                             <div
                               style={{
                                 borderBottom: "0.5px dashed #999",

@@ -12,6 +12,7 @@ import {
   isRftUom,
   isSqftUom,
   defaultMeasurementRow,
+  generateId,
 } from "@/utils/helpers";
 import MeasInput from "./MeasInput";
 import FtInInput from "./FtInInput";
@@ -147,14 +148,19 @@ export default function MeasurementTable({
   };
 
   const duplicateRow = (id: string) => {
-    const src = rows.find((r) => r.id === id);
-    if (!src) return;
-    onChange(
-      appendTrailingEmptyRow([
-        ...rows,
-        { ...src, id: `mr-${Date.now()}`, slNo: rows.length + 1 },
-      ]),
-    );
+    const srcIndex = rows.findIndex((r) => r.id === id);
+    if (srcIndex < 0) return;
+    const src = rows[srcIndex];
+    const dup: MeasurementRow = {
+      ...src,
+      id: generateId("mr"),
+    };
+    // Insert the copy directly below the source row. Intentionally does NOT go
+    // through appendTrailingEmptyRow — duplicating must produce exactly one new
+    // row (the copy), never an extra blank row.
+    const updated = [...rows];
+    updated.splice(srcIndex + 1, 0, dup);
+    onChange(renumberRows(updated));
   };
 
   // Extract unique job types from ARC items for autocomplete suggestions
