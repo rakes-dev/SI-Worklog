@@ -100,20 +100,26 @@ export default function SitesHome() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-3 gap-3 mb-6">
         <div className="bg-card border border-border rounded-lg p-4 flex flex-col gap-1.5">
-          <FileText size={16} className="text-blue-500" />
-          <p className="text-2xl font-bold font-tabular text-foreground">{totalForms}</p>
+          <div className="flex items-center gap-2">
+            <FileText size={16} className="text-blue-500 shrink-0" />
+            <p className="text-xl sm:text-2xl font-bold font-tabular text-foreground">{totalForms}</p>
+          </div>
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Forms</p>
         </div>
         <div className="bg-card border border-border rounded-lg p-4 flex flex-col gap-1.5">
-          <IndianRupee size={16} className="text-emerald-500" />
-          <p className="text-2xl font-bold font-tabular text-foreground">₹{formatCurrency(totalAmount)}</p>
+          <div className="flex items-center gap-2">
+            <IndianRupee size={16} className="text-emerald-500 shrink-0" />
+            <p className="text-xl sm:text-2xl font-bold font-tabular text-foreground whitespace-nowrap">₹{formatCurrency(totalAmount)}</p>
+          </div>
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Value</p>
         </div>
         <div className="bg-card border border-border rounded-lg p-4 flex flex-col gap-1.5">
-          <Building2 size={16} className="text-purple-500" />
-          <p className="text-2xl font-bold font-tabular text-foreground">{activeSites.length}</p>
+          <div className="flex items-center gap-2">
+            <Building2 size={16} className="text-purple-500 shrink-0" />
+            <p className="text-xl sm:text-2xl font-bold font-tabular text-foreground">{activeSites.length}</p>
+          </div>
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Sites</p>
         </div>
       </div>
@@ -178,7 +184,7 @@ export default function SitesHome() {
                   ₹{formatCurrency(amount)}
                 </span>
               </div>
-              <div className="flex items-center gap-1 text-xs font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="flex items-center gap-1 text-xs font-medium text-primary opacity-70 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                 <Plus size={12} /> Open site
               </div>
             </Link>
