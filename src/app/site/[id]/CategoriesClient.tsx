@@ -8,6 +8,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { describeError } from "@/services/db";
 import { formatCurrency } from "@/utils/helpers";
+import { byRecencyThenOrder, loadLastWork } from "@/utils/recents";
 import QuickCreateFormModal from "@/app/components/QuickCreateFormModal";
 import ToastContainer from "@/components/ui/Toast";
 import { useToast } from "@/hooks/useToast";
@@ -17,7 +18,7 @@ export default function CategoriesClient() {
   // to siteId for readability.
   const { id: siteId } = useParams<{ id: string }>();
   const { sites, categories, forms, seedDefaults } = useAppStore();
-  const { role } = useAuthStore();
+  const { user, role } = useAuthStore();
   const { toasts, addToast, removeToast } = useToast();
 
   const [showQuickCreate, setShowQuickCreate] = useState(false);
@@ -50,8 +51,12 @@ export default function CategoriesClient() {
   const activeForms = forms.filter((f) => !f.isDeleted);
 
   const perCategory = useMemo(() => {
-    return activeCategories
-      .map((category) => {
+    // Order categories by the user's own work recency: the category they
+    // worked in most recently floats to the top; untouched categories keep
+    // their configured order.
+    const lastWork = loadLastWork(user?.email);
+    return byRecencyThenOrder(
+      activeCategories.map((category) => {
         const catForms = activeForms.filter(
           (f) => f.siteId === siteId && f.categoryId === category.id,
         );
@@ -60,9 +65,12 @@ export default function CategoriesClient() {
           count: catForms.length,
           amount: catForms.reduce((sum, f) => sum + (f.grandTotal || 0), 0),
         };
-      })
-      .sort((a, b) => a.category.order - b.category.order);
-  }, [activeCategories, activeForms, siteId]);
+      }),
+      ({ category }) => category.id,
+      ({ category }) => lastWork.categoryAt[category.id] ?? 0,
+      ({ category }) => category.order,
+    );
+  }, [activeCategories, activeForms, siteId, user?.email]);
 
   if (!site) {
     return (

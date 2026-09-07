@@ -14,7 +14,14 @@ const config: CapacitorConfig = {
   server: {
     androidScheme: 'https',
     url: 'https://si-worklog.netlify.app',
-    allowNavigation: ['si-worklog.netlify.app', '*.netlify.app'],
+    allowNavigation: [
+      'si-worklog.netlify.app',
+      '*.netlify.app',
+      '*.firebaseapp.com',
+      '*.google.com',
+      'accounts.google.com',
+      'accounts.google.*',
+    ],
   },
 };
 

@@ -7,6 +7,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { describeError } from "@/services/db";
 import { formatCurrency } from "@/utils/helpers";
+import { byRecencyThenOrder, loadLastWork } from "@/utils/recents";
 import QuickCreateFormModal from "./QuickCreateFormModal";
 import ToastContainer from "@/components/ui/Toast";
 import { useToast } from "@/hooks/useToast";
@@ -48,17 +49,23 @@ export default function SitesHome() {
   const activeForms = forms.filter((f) => !f.isDeleted);
 
   const perSite = useMemo(() => {
-    return activeSites
-      .map((site) => {
+    // The site the user worked in most recently comes first; the rest keep
+    // their configured order. Mirrors the category ordering on site pages.
+    const lastWork = loadLastWork(user?.email);
+    return byRecencyThenOrder(
+      activeSites.map((site) => {
         const siteForms = activeForms.filter((f) => f.siteId === site.id);
         return {
           site,
           count: siteForms.length,
           amount: siteForms.reduce((sum, f) => sum + (f.grandTotal || 0), 0),
         };
-      })
-      .sort((a, b) => a.site.order - b.site.order);
-  }, [activeSites, activeForms]);
+      }),
+      ({ site }) => site.id,
+      ({ site }) => lastWork.siteAt[site.id] ?? 0,
+      ({ site }) => site.order,
+    );
+  }, [activeSites, activeForms, user?.email]);
 
   const totalForms = activeForms.length;
   const totalAmount = activeForms.reduce((sum, f) => sum + (f.grandTotal || 0), 0);

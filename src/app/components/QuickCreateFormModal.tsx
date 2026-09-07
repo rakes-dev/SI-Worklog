@@ -6,6 +6,7 @@ import { Hammer, Loader2, Paintbrush, X } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { describeError } from "@/services/db";
+import { loadLastWork, rememberWork } from "@/utils/recents";
 import ToastContainer from "@/components/ui/Toast";
 import { useToast } from "@/hooks/useToast";
 
@@ -40,13 +41,27 @@ export default function QuickCreateFormModal({
   const [creating, setCreating] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // Reset the selection every time the modal opens (and honour the preselect).
+  // Reset the selection every time the modal opens. Defaults come from the
+  // user's "last worked" memory: preselected site (when opened from a site
+  // page) wins, otherwise the last site they created a form in — and the last
+  // category is preselected as long as it belongs to that same site choice.
   useEffect(() => {
-    if (open) {
-      setSiteId(defaultSiteId ?? "");
-      setCategoryId("");
-      setErrorMsg("");
-    }
+    if (!open) return;
+    const last = loadLastWork(user?.email);
+    const preferredSiteId = defaultSiteId ?? last.lastSiteId;
+    const siteIsValid =
+      Boolean(preferredSiteId) &&
+      activeSites.some((s) => s.id === preferredSiteId);
+    const categoryIsValid =
+      Boolean(last.lastCategoryId) &&
+      preferredSiteId === last.lastSiteId &&
+      activeCategories.some((c) => c.id === last.lastCategoryId);
+    setSiteId(siteIsValid ? preferredSiteId : "");
+    setCategoryId(categoryIsValid ? last.lastCategoryId : "");
+    setErrorMsg("");
+    // Lists/auth are read at the moment of opening; re-running on their later
+    // changes would clobber a selection the user is already making.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, defaultSiteId]);
 
   const site = activeSites.find((s) => s.id === siteId);
@@ -65,6 +80,9 @@ export default function QuickCreateFormModal({
         ownerEmail: user.email.trim().toLowerCase(),
         empName: user.displayName || user.email,
       });
+      // Remember this site+category as the user's last worked — it becomes the
+      // default selection next time they open this modal.
+      rememberWork(user.email, site.id, category.id);
       onClose();
       router.push(`/form-editor?formId=${form.id}`);
     } catch (error) {
