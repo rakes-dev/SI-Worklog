@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next";
 import { DM_Sans, IBM_Plex_Mono } from "next/font/google";
 import PwaRegister from "@/components/PwaRegister";
 import NativeBackHandler from "@/components/NativeBackHandler";
+import { SuggestionProvider } from "@/components/ui/HorizontalSuggestions";
 import "../styles/tailwind.css";
 
 const dmSans = DM_Sans({
@@ -54,7 +55,7 @@ export default function RootLayout({
       <body className={dmSans.className}>
         <PwaRegister />
         <NativeBackHandler />
-        {children}
+        <SuggestionProvider>{children}</SuggestionProvider>
       </body>
     </html>
   );
