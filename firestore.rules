@@ -36,14 +36,18 @@ service cloud.firestore {
       return isAllowlisted() && myRole() == 'admin';
     }
 
+    function isAdminViewer() {
+      return isAllowlisted() && myRole() == 'admin_viewer';
+    }
+
     // Any employee on the allowlist (an admin is allowlisted too).
     function isAllowed() {
       return isAllowlisted();
     }
 
-    // --- Forms: owner-or-admin ------------------------------------------
+    // --- Forms: owner-or-admin-or-admin_viewer read --------------------------
     match /forms/{formId} {
-      allow read: if isAdmin() ||
+      allow read: if isAdmin() || isAdminViewer() ||
         (hasEmail() && resource.data.ownerEmail == myEmail());
       // A user may only create forms they own; admins may create for anyone.
       allow create: if isAdmin() ||
@@ -56,17 +60,17 @@ service cloud.firestore {
 
     // --- Sites & categories: allowed read, admin write ------------------
     match /sites/{siteId} {
-      allow read: if isAllowed();
+      allow read: if isAllowed() || isAdminViewer();
       allow write: if isAdmin();
     }
     match /categories/{categoryId} {
-      allow read: if isAllowed();
+      allow read: if isAllowed() || isAdminViewer();
       allow write: if isAdmin();
     }
 
     // --- ARC rate card: allowed read, admin write ----------------------
     match /arc/{arcId} {
-      allow read: if isAllowed();
+      allow read: if isAllowed() || isAdminViewer();
       allow write: if isAdmin();
     }
 

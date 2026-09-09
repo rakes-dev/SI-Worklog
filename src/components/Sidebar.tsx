@@ -11,6 +11,7 @@ import {
   ChevronLeft,
   ChevronRight,
   FolderOpen,
+  ClipboardList,
 } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -49,6 +50,14 @@ const NAV_ITEMS = [
     icon: BarChart3,
     badge: null,
     roles: ["admin"],
+  },
+  {
+    key: "nav-admin-overview",
+    href: "/admin",
+    label: "Overview",
+    icon: ClipboardList,
+    badge: null,
+    roles: ["admin_viewer"],
   },
 ];
 

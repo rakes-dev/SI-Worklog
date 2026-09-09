@@ -10,7 +10,7 @@ import {
 } from "firebase/firestore";
 import { getFirestoreDb } from "@/services/firebase";
 
-export type UserRole = "user" | "admin";
+export type UserRole = "user" | "admin" | "admin_viewer";
 
 export interface AllowedUser {
   email: string;

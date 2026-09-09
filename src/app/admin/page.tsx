@@ -74,13 +74,20 @@ export default function AdminPage() {
     if (status === "unauthenticated") router.replace("/login");
   }, [status, router]);
 
-  // Redirect non-admins who navigate here directly. The Sidebar already hides
-  // the Admin link from them, but this guards the route itself.
+  // Redirect non-admin non-viewer users who navigate here directly. The Sidebar
+  // already hides the Admin link from them, but this guards the route itself.
   useEffect(() => {
-    if (status === "authenticated" && role === "user") {
+    if (status === "authenticated" && role !== "admin" && role !== "admin_viewer") {
       router.replace("/");
     }
   }, [status, role, router]);
+
+  // Restrict admin_viewer to the overview tab only.
+  useEffect(() => {
+    if (status === "authenticated" && role === "admin_viewer" && tab !== "overview") {
+      setTab("overview");
+    }
+  }, [status, role, tab]);
 
     const activeForms = useMemo(() => {
     return forms.filter((f) => !f.isDeleted && (selectedMonth === "" || f.month === selectedMonth));
@@ -195,7 +202,9 @@ if (isLoadingData) {
 
       {/* Tabs */}
       <div className="flex flex-wrap gap-2 mb-6">
-        {TAB_LABELS.map((t) => (
+        {TAB_LABELS
+          .filter((t) => role === "admin_viewer" ? t.key === "overview" : true)
+          .map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
