@@ -12,8 +12,7 @@ interface FtInInputProps {
 
 /**
  * Feet + inches dual input for cft / rft / sqft rows. The user enters feet and inches;
- * it is converted to meters for storage (keeping the existing data model), and
- * cft / rft / sqft are then calculated from the feet value.
+ * it is converted to meters for storage.
  */
 export default function FtInInput({ value, disabled = false, onChange }: FtInInputProps) {
   const totalFt = typeof value === 'number' && Number.isFinite(value) ? metersToFeet(value) : 0;
@@ -36,7 +35,7 @@ export default function FtInInput({ value, disabled = false, onChange }: FtInInp
     <div className="flex items-center gap-1">
       <input
         type="number"
-        min="0"
+        inputMode="decimal"
         value={ft}
         disabled={disabled}
         onChange={(e) => {
@@ -48,7 +47,7 @@ export default function FtInInput({ value, disabled = false, onChange }: FtInInp
       />
       <input
         type="number"
-        min="0"
+        inputMode="decimal"
         step="0.01"
         value={inch}
         disabled={disabled}

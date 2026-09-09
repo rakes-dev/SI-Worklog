@@ -73,11 +73,12 @@ export function calcMeasurementRow(row: MeasurementRow): number {
 
   let area: number;
 
-  // If only length is given (width is 0/empty), treat as circle item.
-  // Area = π × (diameter/2)² × no
-  if (l > 0 && w === 0) {
-    const radius = l / 2;
-    area = Math.PI * radius * radius * n;
+  // If non-zero length is given and width is 0/empty, treat as circle item.
+  // Area = sign * π * (radius)² * no
+  if (l !== 0 && w === 0) {
+    const sign = l < 0 ? -1 : 1;
+    const radius = Math.abs(l) / 2;
+    area = sign * Math.PI * radius * radius * n;
   } else {
     area = l * w * n;
   }

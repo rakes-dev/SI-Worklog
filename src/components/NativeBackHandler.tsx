@@ -6,14 +6,10 @@ import { Capacitor } from "@capacitor/core";
 /**
  * Android hardware back-button handling for the installed Capacitor app.
  *
- * Without this listener the default behaviour navigates the WebView back only
- * while it has entries — and with the remote-loaded Next.js app the history
- * is often exhausted, so pressing back immediately CLOSES the app instead of
- * returning to the previous screen.
- *
  * Registering a `backButton` listener takes over completely:
- *   - if the WebView can go back  → navigate back (previous app state)
- *   - otherwise                   → exit the app (expected on the home page)
+ *   - if an input is currently focused → blur it (dismiss keyboard & suggestions)
+ *   - if the WebView can go back      → navigate back (previous app state)
+ *   - otherwise                       → exit the app (expected on the home page)
  *
  * No-op in a regular browser.
  */
@@ -30,6 +26,16 @@ export default function NativeBackHandler() {
         const listener = await App.addListener(
           "backButton",
           ({ canGoBack }) => {
+            const active = document.activeElement;
+            if (
+              active instanceof HTMLInputElement ||
+              active instanceof HTMLTextAreaElement ||
+              active instanceof HTMLSelectElement
+            ) {
+              active.blur();
+              return;
+            }
+
             if (canGoBack) {
               window.history.back();
             } else {

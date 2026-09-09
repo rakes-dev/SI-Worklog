@@ -26,9 +26,10 @@ const SIG_LABELS = [
   { key: 'measurementCheck' as const, label: 'Measurement Check' },
 ];
 
-const FIRST_PAGE_MAX_ROWS_WITH_SUMMARY = 31;
-const FIRST_PAGE_MAX_ROWS_WITHOUT_SUMMARY = 31;
-const SUBSEQUENT_PAGE_MAX_ROWS = 27;
+const FIRST_PAGE_LIMIT_LARGE = 33;
+const TOTAL_THRESHOLD = FIRST_PAGE_LIMIT_LARGE + 1;
+const FIRST_PAGE_LIMIT_SMALL = 28;
+const SUBSEQUENT_PAGE_MAX_ROWS = 40;
 
 function isEmptySummaryRow(row: PaintForm['summaryRows'][number]): boolean {
   return (
@@ -87,9 +88,14 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
   // If more than 6 summary rows, deduct 1 additional row (summary table takes more space)
   const summaryDeduction = visibleSummaryRows.length > 5 ? 1 : 0;
 
+  const totalRows = visibleSummaryRows.length + visibleMeasurementRows.length;
+  const isLarge = totalRows >= TOTAL_THRESHOLD;
+
+  const firstPageMaxRows = isLarge ? FIRST_PAGE_LIMIT_LARGE : FIRST_PAGE_LIMIT_SMALL;
+
   const firstPageLimit = hasSummaryRows
-    ? Math.max(1, FIRST_PAGE_MAX_ROWS_WITH_SUMMARY - locationDeduction - summaryDeduction)
-    : FIRST_PAGE_MAX_ROWS_WITHOUT_SUMMARY;
+    ? Math.max(1, firstPageMaxRows - locationDeduction - summaryDeduction)
+    : firstPageMaxRows;
 
   // Split measurement rows into pages
   const measurementPages: Array<{
