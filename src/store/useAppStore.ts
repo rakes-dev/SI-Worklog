@@ -93,7 +93,7 @@ export function startLiveSync(set: (partial: Partial<AppStore>) => void): void {
         scheduleRetry(setup, 750);
         return;
       }
-      const isAdmin = role === "admin";
+      const isAdmin = role === "admin" || role === "admin_viewer";
       if (!sitesUnsub) {
         sitesUnsub = dbService.observeSites(
           (sites) => set({ sites, isLoadingData: false }), () => {},
