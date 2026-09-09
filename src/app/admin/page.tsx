@@ -323,7 +323,7 @@ if (isLoadingData) {
       {tab === "manage" && <SiteCategoryManager />}
       {tab === "master" && <MasterSummary />}
       {tab === "users" && <UserManagement />}
-      {tab === "overview" && <DataTools showBackup />}
+      {tab === "overview" && role === "admin" && <DataTools showBackup />}
       </div>
     </AppLayout>
   );
