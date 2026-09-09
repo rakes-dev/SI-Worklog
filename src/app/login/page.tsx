@@ -15,7 +15,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (status === "authenticated" && authorized === true) {
-      router.replace(role === "admin" ? "/admin" : "/");
+      router.replace((role === "admin" || role === "admin_viewer") ? "/admin" : "/");
     }
   }, [status, authorized, role, router]);
 
