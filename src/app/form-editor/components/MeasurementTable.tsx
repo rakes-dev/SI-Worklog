@@ -16,6 +16,7 @@ import {
 } from "@/utils/helpers";
 import MeasInput from "./MeasInput";
 import FtInInput from "./FtInInput";
+import { useSuggestions } from "@/components/ui/HorizontalSuggestions";
 
 const LOCATION_SUGGESTIONS = [
   "Bed side table",
@@ -65,11 +66,10 @@ export default function MeasurementTable({
   arcItems = [],
   formType = "painting",
 }: MeasurementTableProps) {
-  const [draggedRowId, setDraggedRowId] = React.useState<string | null>(null);
+  const { showSuggestions, hideSuggestions } = useSuggestions();
   const [overRowId, setOverRowId] = React.useState<string | null>(null);
   const isCarpenter = formType === "carpenter";
   const linUnit = linearUnitLabel(rows.map((r) => r.uom));
-  // cft / rft / sqft rows use feet+inches inputs for length/width/height.
   const isFtIn = (uom?: string) => isCftUom(uom) || isRftUom(uom) || isSqftUom(uom);
 
   const hasFilledMeasurementValues = (row: MeasurementRow) => {
@@ -100,13 +100,11 @@ export default function MeasurementTable({
   const reorderRows = (sourceId: string, targetId: string) => {
     const sourceIndex = rows.findIndex((row) => row.id === sourceId);
     const targetIndex = rows.findIndex((row) => row.id === targetId);
-    if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex)
-      return;
+    if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return;
 
     const updated = [...rows];
     const [movedRow] = updated.splice(sourceIndex, 1);
-    const adjustedTargetIndex =
-      sourceIndex < targetIndex ? targetIndex - 1 : targetIndex;
+    const adjustedTargetIndex = sourceIndex < targetIndex ? targetIndex - 1 : targetIndex;
     updated.splice(adjustedTargetIndex, 0, movedRow);
     onChange(renumberRows(updated));
   };
@@ -155,15 +153,12 @@ export default function MeasurementTable({
       ...src,
       id: generateId("mr"),
     };
-    // Insert the copy directly below the source row. Intentionally does NOT go
-    // through appendTrailingEmptyRow — duplicating must produce exactly one new
-    // row (the copy), never an extra blank row.
     const updated = [...rows];
     updated.splice(srcIndex + 1, 0, dup);
     onChange(renumberRows(updated));
   };
 
-  // Extract unique job types from ARC items for autocomplete suggestions
+  // Extract unique job types from ARC items for horizontal suggestions
   const uniqueJobTypes = useMemo(() => {
     const set = new Set<string>();
     arcItems.forEach((item) => {
@@ -171,25 +166,6 @@ export default function MeasurementTable({
     });
     return Array.from(set);
   }, [arcItems]);
-
-  const textInput = (
-    rowId: string,
-    field: "jobType" | "location" | "coat",
-    value: string,
-    placeholder: string,
-    className: string,
-    listId?: string,
-    maxLength?: number,
-  ) => (
-    <input
-      list={listId}
-      value={value}
-      onChange={(e) => updateRow(rowId, field, e.target.value)}
-      maxLength={maxLength}
-      className={className}
-      placeholder={placeholder}
-    />
-  );
 
   const handleArcSelect = (rowId: string, val: string) => {
     const matched = arcItems.find((item) => item.arc_no === val);
@@ -215,15 +191,39 @@ export default function MeasurementTable({
     }
   };
 
-  const arcInput = (row: MeasurementRow) => (
-    <input
-      list={`arc-options-${row.id}`}
-      value={row.arcNo ?? ""}
-      onChange={(e) => handleArcSelect(row.id, e.target.value)}
-      className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-center text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
-      placeholder="ARC-001"
-    />
-  );
+  const showLocationSuggestions = (rowId: string, query: string) => {
+    const q = query.toLowerCase().trim();
+    const filtered = LOCATION_SUGGESTIONS.filter((loc) =>
+      !q || loc.toLowerCase().includes(q),
+    ).map((loc) => ({ label: loc, value: loc }));
+    showSuggestions(`loc-${rowId}`, filtered, (selected) => {
+      updateRow(rowId, "location", selected);
+    });
+  };
+
+  const showJobTypeSuggestions = (rowId: string, query: string) => {
+    const q = query.toLowerCase().trim();
+    const filtered = uniqueJobTypes
+      .filter((jt) => !q || jt.toLowerCase().includes(q))
+      .map((jt) => ({ label: jt, value: jt }));
+    showSuggestions(`jt-${rowId}`, filtered, (selected) => {
+      updateRow(rowId, "jobType", selected);
+    });
+  };
+
+  const showArcSuggestions = (rowId: string, query: string) => {
+    const q = query.toLowerCase().trim();
+    const filtered = arcItems
+      .filter((item) => !q || item.arc_no.toLowerCase().includes(q) || (item.job_type && item.job_type.toLowerCase().includes(q)))
+      .map((item) => ({
+        label: item.arc_no,
+        value: item.arc_no,
+        sublabel: item.job_type || (item.description ? item.description.substring(0, 25) : undefined),
+      }));
+    showSuggestions(`arc-${rowId}`, filtered, (selected) => {
+      handleArcSelect(rowId, selected);
+    });
+  };
 
   return (
     <div className="bg-card border border-border rounded-lg overflow-hidden">
@@ -234,9 +234,7 @@ export default function MeasurementTable({
           </h3>
           <p className="text-xs text-muted-foreground mt-0.5">
             Select an ARC No. to auto-fill Job Type, Coat & Rate — Summary
-            updates automatically. Total Area = Length × Width × No. (If only
-            Length is given, it's treated as a circle: Area = π × (Length/2)² ×
-            No.)
+            updates automatically.
           </p>
         </div>
         <button
@@ -297,52 +295,60 @@ export default function MeasurementTable({
               rows.map((row) => (
                 <tr
                   key={row.id}
-                  className={`border-b border-border transition-transform duration-150 ease-out group ${overRowId === row.id ? "bg-secondary/30 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]" : "hover:bg-secondary/20"}`}
+                  className={`border-b border-border transition-transform duration-150 ease-out group ${
+                    overRowId === row.id
+                      ? "bg-secondary/30 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]"
+                      : "hover:bg-secondary/20"
+                  }`}
                   style={{ willChange: "transform" }}
                 >
                   <td className="px-2 py-1.5 text-center text-xs text-muted-foreground font-tabular">
                     {row.slNo}
                   </td>
                   <td className="px-1 py-1.5">
-                    {arcInput(row)}
-                    <datalist id={`arc-options-${row.id}`}>
-                      {arcItems.map((item) => (
-                        <option key={item.id} value={item.arc_no}>
-                          {item.job_type || item.description.substring(0, 30)}{" "}
-                          (₹{item.final_rate})
-                        </option>
-                      ))}
-                    </datalist>
+                    <input
+                      value={row.arcNo ?? ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        handleArcSelect(row.id, val);
+                        showArcSuggestions(row.id, val);
+                      }}
+                      onFocus={() => showArcSuggestions(row.id, row.arcNo ?? "")}
+                      onBlur={() => hideSuggestions(`arc-${row.id}`)}
+                      className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-center text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
+                      placeholder="ARC-001"
+                      autoComplete="off"
+                    />
                   </td>
                   <td className="px-1 py-1.5">
-                    {textInput(
-                      row.id,
-                      "jobType",
-                      row.jobType ?? "",
-                      "e.g. Civil Repair",
-                      "w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-foreground focus:outline-none focus:border-ring focus:bg-card transition",
-                      `jobtype-options-${row.id}`,
-                    )}
-                    <datalist id={`jobtype-options-${row.id}`}>
-                      {uniqueJobTypes.map((jt, i) => (
-                        <option key={i} value={jt} />
-                      ))}
-                    </datalist>
+                    <input
+                      value={row.jobType ?? ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        updateRow(row.id, "jobType", val);
+                        showJobTypeSuggestions(row.id, val);
+                      }}
+                      onFocus={() => showJobTypeSuggestions(row.id, row.jobType ?? "")}
+                      onBlur={() => hideSuggestions(`jt-${row.id}`)}
+                      className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
+                      placeholder="e.g. Civil Repair"
+                      autoComplete="off"
+                    />
                   </td>
                   <td className="px-1 py-1.5">
-                    {textInput(
-                      row.id,
-                      "location",
-                      row.location,
-                      "e.g. Bed side table",
-                      "w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-foreground focus:outline-none focus:border-ring focus:bg-card transition",
-                      `location-options-${row.id}`,
-                    )}
-                    <datalist id={`location-options-${row.id}`}>
-                      {LOCATION_SUGGESTIONS.map((loc, i) => (
-                        <option key={i} value={loc} />
-                      ))}
-                    </datalist>
+                    <input
+                      value={row.location}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        updateRow(row.id, "location", val);
+                        showLocationSuggestions(row.id, val);
+                      }}
+                      onFocus={() => showLocationSuggestions(row.id, row.location)}
+                      onBlur={() => hideSuggestions(`loc-${row.id}`)}
+                      className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
+                      placeholder="e.g. Bed side table"
+                      autoComplete="off"
+                    />
                   </td>
                   <td className="px-1 py-1.5">
                     {isCarpenter ? (
@@ -362,13 +368,13 @@ export default function MeasurementTable({
                         />
                       )
                     ) : (
-                      textInput(
-                        row.id,
-                        "coat",
-                        row.coat,
-                        "1st",
-                        "w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-center text-foreground focus:outline-none focus:border-ring focus:bg-card transition",
-                      )
+                      <input
+                        value={row.coat}
+                        onChange={(e) => updateRow(row.id, "coat", e.target.value)}
+                        className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-center text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
+                        placeholder="1st"
+                        autoComplete="off"
+                      />
                     )}
                   </td>
                   <td className="px-1 py-1.5">

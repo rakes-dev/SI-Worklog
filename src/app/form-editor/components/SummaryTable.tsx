@@ -9,6 +9,29 @@ import {
   formatCurrency,
   generateId,
 } from "@/utils/helpers";
+import { useSuggestions } from "@/components/ui/HorizontalSuggestions";
+
+const COMPLAINT_SUGGESTIONS = [
+  "Engineer Dept.",
+  "Housekeeping",
+  "Guest Complaint",
+  "Maintenance",
+  "Front Office",
+  "F&B Dept.",
+  "Direct Work",
+];
+
+const PAINT_TYPE_SUGGESTIONS = [
+  "Emulsion Paint",
+  "Enamel Paint",
+  "Melamyne Polish",
+  "PU Polish",
+  "DUCO Paint",
+  "Textured Paint",
+  "Primer Coat",
+  "Wall Putty",
+  "Lamination",
+];
 
 interface SummaryTableProps {
   rows: SummaryRow[];
@@ -25,9 +48,9 @@ export default function SummaryTable({
   arcItems = [],
   formType = "painting",
 }: SummaryTableProps) {
+  const { showSuggestions, hideSuggestions } = useSuggestions();
   const isCarpenter = formType === "carpenter";
   const totalCols = isCarpenter ? 8 : 9;
-  const [draggedRowId, setDraggedRowId] = React.useState<string | null>(null);
   const [overRowId, setOverRowId] = React.useState<string | null>(null);
 
   const updateRow = (
@@ -90,11 +113,76 @@ export default function SummaryTable({
       ...src,
       id: generateId("sr"),
     };
-    // Insert the copy directly below the source row so it appears right where
-    // the user expects and never collides with an existing trailing row.
     const updated = [...rows];
     updated.splice(srcIndex + 1, 0, dup);
     onChange(renumberRows(updated));
+  };
+
+  const handleArcSelect = (rowId: string, val: string) => {
+    const matched = arcItems.find((item) => item.arc_no === val);
+    if (matched) {
+      const rateValue: number | "" =
+        typeof matched.final_rate === "number" ? matched.final_rate : "";
+      const updated = rows.map((r) => {
+        if (r.id !== rowId) return r;
+        const next: SummaryRow = {
+          ...r,
+          arcNo: val,
+          paintType: matched.job_type || matched.description,
+          coat: matched.coat ? String(matched.coat) : "",
+          rate: rateValue,
+        };
+        next.amount = calcSummaryRow(next);
+        return next;
+      });
+      onChange(updated);
+    } else {
+      updateRow(rowId, "arcNo", val);
+    }
+  };
+
+  const showComplaintSuggestions = (rowId: string, query: string) => {
+    const q = query.toLowerCase().trim();
+    const filtered = COMPLAINT_SUGGESTIONS.filter((c) =>
+      !q || c.toLowerCase().includes(q),
+    ).map((c) => ({ label: c, value: c }));
+    showSuggestions(`cs-${rowId}`, filtered, (selected) => {
+      updateRow(rowId, "complaintSource", selected);
+    });
+  };
+
+  const showPaintTypeSuggestions = (rowId: string, query: string) => {
+    const q = query.toLowerCase().trim();
+    const filtered = PAINT_TYPE_SUGGESTIONS.filter((p) =>
+      !q || p.toLowerCase().includes(q),
+    ).map((p) => ({ label: p, value: p }));
+    showSuggestions(`pt-${rowId}`, filtered, (selected) => {
+      updateRow(rowId, "paintType", selected);
+    });
+  };
+
+  const showArcSuggestions = (rowId: string, query: string, paintTypeQuery: string) => {
+    const q = query.toLowerCase().trim();
+    const pq = paintTypeQuery.toLowerCase().trim();
+    const filteredArcItems = pq
+      ? arcItems.filter(
+          (item) =>
+            (item.job_type && item.job_type.toLowerCase().includes(pq)) ||
+            (item.description && item.description.toLowerCase().includes(pq)),
+        )
+      : arcItems;
+
+    const filtered = filteredArcItems
+      .filter((item) => !q || item.arc_no.toLowerCase().includes(q) || (item.job_type && item.job_type.toLowerCase().includes(q)))
+      .map((item) => ({
+        label: item.arc_no,
+        value: item.arc_no,
+        sublabel: item.job_type || (item.description ? item.description.substring(0, 25) : undefined),
+      }));
+
+    showSuggestions(`sarc-${rowId}`, filtered, (selected) => {
+      handleArcSelect(rowId, selected);
+    });
   };
 
   interface SummaryNumInputProps {
@@ -103,9 +191,6 @@ export default function SummaryTable({
     value: number | "";
   }
 
-  /** Numeric cell for qty / rate — always displays 2 decimal places once
-   *  the user leaves the field (blur). While typing, the raw text is shown
-   *  so `1` → `1.00`, `.3` → `0.30`, `2.3` → `2.30`. */
   const SummaryNumInput = ({ rowId, field, value }: SummaryNumInputProps) => {
     const [text, setText] = useState<string | null>(null);
 
@@ -206,156 +291,126 @@ export default function SummaryTable({
                 </td>
               </tr>
             ) : (
-              rows.map((row) => {
-                // Filter ARC items based on the current row's paintType
-                const query = row.paintType
-                  ? row.paintType.toLowerCase().trim()
-                  : "";
-                const filteredArcItems = query
-                  ? arcItems.filter(
-                      (item) =>
-                        (item.job_type &&
-                          item.job_type.toLowerCase().includes(query)) ||
-                        (item.description &&
-                          item.description.toLowerCase().includes(query)),
-                    )
-                  : arcItems;
-
-                return (
-                  <tr
-                    key={row.id}
-                    className={`border-b border-border transition-transform duration-150 ease-out group ${overRowId === row.id ? "bg-secondary/30 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]" : "hover:bg-secondary/20"}`}
-                    style={{ willChange: "transform" }}
-                  >
-                    <td className="px-2 py-1.5 text-center text-xs text-muted-foreground font-tabular">
-                      {row.slNo}
-                    </td>
+              rows.map((row) => (
+                <tr
+                  key={row.id}
+                  className={`border-b border-border transition-transform duration-150 ease-out group ${
+                    overRowId === row.id
+                      ? "bg-secondary/30 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)]"
+                      : "hover:bg-secondary/20"
+                  }`}
+                  style={{ willChange: "transform" }}
+                >
+                  <td className="px-2 py-1.5 text-center text-xs text-muted-foreground font-tabular">
+                    {row.slNo}
+                  </td>
+                  <td className="px-1 py-1.5">
+                    <input
+                      value={row.complaintSource}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        updateRow(row.id, "complaintSource", val);
+                        showComplaintSuggestions(row.id, val);
+                      }}
+                      onFocus={() => showComplaintSuggestions(row.id, row.complaintSource)}
+                      onBlur={() => hideSuggestions(`cs-${row.id}`)}
+                      className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
+                      placeholder="Engineer Dept."
+                      autoComplete="off"
+                    />
+                  </td>
+                  <td className="px-1 py-1.5">
+                    <input
+                      value={row.paintType}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        updateRow(row.id, "paintType", val);
+                        showPaintTypeSuggestions(row.id, val);
+                      }}
+                      onFocus={() => showPaintTypeSuggestions(row.id, row.paintType)}
+                      onBlur={() => hideSuggestions(`pt-${row.id}`)}
+                      className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
+                      placeholder="e.g. Emulsion"
+                      autoComplete="off"
+                    />
+                  </td>
+                  {!isCarpenter && (
                     <td className="px-1 py-1.5">
                       <input
-                        value={row.complaintSource}
+                        value={row.coat}
                         onChange={(e) =>
-                          updateRow(row.id, "complaintSource", e.target.value)
+                          updateRow(row.id, "coat", e.target.value)
                         }
-                        className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
-                        placeholder="Engineer Dept."
-                      />
-                    </td>
-                    <td className="px-1 py-1.5">
-                      <input
-                        value={row.paintType}
-                        onChange={(e) =>
-                          updateRow(row.id, "paintType", e.target.value)
-                        }
-                        className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
-                        placeholder="e.g. Emulsion"
-                      />
-                    </td>
-                    {!isCarpenter && (
-                      <td className="px-1 py-1.5">
-                        <input
-                          value={row.coat}
-                          onChange={(e) =>
-                            updateRow(row.id, "coat", e.target.value)
-                          }
-                          className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-center text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
-                          placeholder="1st"
-                        />
-                      </td>
-                    )}
-                    <td className="px-1 py-1.5">
-                      <input
-                        list={`arc-options-${row.id}`}
-                        value={row.arcNo}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          const matched = arcItems.find(
-                            (item) => item.arc_no === val,
-                          );
-                          if (matched) {
-                            const rateValue: number | "" =
-                              typeof matched.final_rate === "number"
-                                ? matched.final_rate
-                                : "";
-                            const updated = rows.map((r) => {
-                              if (r.id !== row.id) return r;
-                              const next: SummaryRow = {
-                                ...r,
-                                arcNo: val,
-                                paintType:
-                                  matched.job_type || matched.description,
-                                coat: matched.coat ? String(matched.coat) : "",
-                                rate: rateValue,
-                              };
-                              next.amount = calcSummaryRow(next);
-                              return next;
-                            });
-                            onChange(updated);
-                          } else {
-                            updateRow(row.id, "arcNo", val);
-                          }
-                        }}
                         className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-center text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
-                        placeholder="ARC-001"
+                        placeholder="1st"
+                        autoComplete="off"
                       />
-                      <datalist id={`arc-options-${row.id}`}>
-                        {filteredArcItems.map((item) => (
-                          <option key={item.id} value={item.arc_no}>
-                            {item.job_type || item.description.substring(0, 30)}{" "}
-                            (₹{item.final_rate})
-                          </option>
-                        ))}
-                      </datalist>
                     </td>
-                    <td className="px-1 py-1.5">
-                      <SummaryNumInput rowId={row.id} field="qty" value={row.qty} />
-                    </td>
-                    <td className="px-1 py-1.5">
-                      <SummaryNumInput rowId={row.id} field="rate" value={row.rate} />
-                    </td>
-                    <td className="px-2 py-1.5 text-right text-xs font-tabular font-semibold text-foreground">
-                      {formatCurrency(row.amount)}
-                    </td>
-                    <td className="px-1 py-1.5">
-                      <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          type="button"
-                          onClick={() => moveUp(row.id)}
-                          title="Move up"
-                          className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                          disabled={row.slNo === 1}
-                        >
-                          <ChevronUp size={14} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => moveDown(row.id)}
-                          title="Move down"
-                          className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                          disabled={row.slNo === rows.length}
-                        >
-                          <ChevronDown size={14} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => duplicateRow(row.id)}
-                          title="Duplicate row"
-                          className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-                        >
-                          <Copy size={12} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => deleteRow(row.id)}
-                          title="Delete row"
-                          className="p-1 rounded text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
+                  )}
+                  <td className="px-1 py-1.5">
+                    <input
+                      value={row.arcNo}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        handleArcSelect(row.id, val);
+                        showArcSuggestions(row.id, val, row.paintType);
+                      }}
+                      onFocus={() => showArcSuggestions(row.id, row.arcNo, row.paintType)}
+                      onBlur={() => hideSuggestions(`sarc-${row.id}`)}
+                      className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-center text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
+                      placeholder="ARC-001"
+                      autoComplete="off"
+                    />
+                  </td>
+                  <td className="px-1 py-1.5">
+                    <SummaryNumInput rowId={row.id} field="qty" value={row.qty} />
+                  </td>
+                  <td className="px-1 py-1.5">
+                    <SummaryNumInput rowId={row.id} field="rate" value={row.rate} />
+                  </td>
+                  <td className="px-2 py-1.5 text-right text-xs font-tabular font-semibold text-foreground">
+                    {formatCurrency(row.amount)}
+                  </td>
+                  <td className="px-1 py-1.5">
+                    <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        type="button"
+                        onClick={() => moveUp(row.id)}
+                        title="Move up"
+                        className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        disabled={row.slNo === 1}
+                      >
+                        <ChevronUp size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveDown(row.id)}
+                        title="Move down"
+                        className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        disabled={row.slNo === rows.length}
+                      >
+                        <ChevronDown size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => duplicateRow(row.id)}
+                        title="Duplicate row"
+                        className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                      >
+                        <Copy size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteRow(row.id)}
+                        title="Delete row"
+                        className="p-1 rounded text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
             )}
           </tbody>
           <tfoot>
