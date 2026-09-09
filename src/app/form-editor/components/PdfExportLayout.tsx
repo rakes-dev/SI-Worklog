@@ -53,8 +53,10 @@ const SIG_LABELS = [
   { key: "measurementCheck" as const, label: "Measurement Check" },
 ];
 
-const FIRST_PAGE_MAX_ROWS = 27;
-const SUBSEQUENT_PAGE_MAX_ROWS = 32;
+const FIRST_PAGE_LIMIT_LARGE = 33;
+const TOTAL_THRESHOLD = FIRST_PAGE_LIMIT_LARGE + 1;
+const FIRST_PAGE_LIMIT_SMALL = 28;
+const SUBSEQUENT_PAGE_MAX_ROWS = 40;
 
 const CELL_PAD = { padding: "2px 4px" } as const;
 
@@ -75,9 +77,15 @@ export default function PdfExportLayout({ form, job }: PdfExportLayoutProps) {
     return total + Math.floor(locLen / 35);
   }, 0);
   const summaryDeduction = visibleSummaryRows.length > 5 ? 1 : 0;
+
+  const totalRows = visibleSummaryRows.length + visibleMeasurementRows.length;
+  const isLarge = totalRows >= TOTAL_THRESHOLD;
+
+  const firstPageMaxRows = isLarge ? FIRST_PAGE_LIMIT_LARGE : FIRST_PAGE_LIMIT_SMALL;
+
   const firstPageLimit = hasSummaryRows
-    ? Math.max(1, FIRST_PAGE_MAX_ROWS - locationDeduction - summaryDeduction)
-    : FIRST_PAGE_MAX_ROWS;
+    ? Math.max(1, firstPageMaxRows - locationDeduction - summaryDeduction)
+    : firstPageMaxRows;
 
   const allRows = visibleMeasurementRows.map((row, index) => ({
     ...row,

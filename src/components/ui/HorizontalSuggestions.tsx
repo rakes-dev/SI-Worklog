@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useCallback } from "react";
+import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
 
 export interface SuggestionItem {
   label: string;
@@ -58,6 +58,48 @@ export function SuggestionProvider({ children }: { children: React.ReactNode }) 
       return prev;
     });
   }, []);
+
+  // Monitor viewport & keyboard state to auto-close suggestions when keyboard closes or Back is pressed
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleResize = () => {
+      if (window.visualViewport) {
+        // When keyboard closes, visualViewport expands back to full height
+        const isKeyboardOpen =
+          window.visualViewport.height < window.innerHeight * 0.85;
+        if (!isKeyboardOpen && activeFieldId) {
+          hideSuggestions();
+          if (document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+          }
+        }
+      }
+    };
+
+    const handleFocusOut = () => {
+      setTimeout(() => {
+        const active = document.activeElement;
+        if (
+          !(active instanceof HTMLInputElement) &&
+          !(active instanceof HTMLTextAreaElement) &&
+          !(active instanceof HTMLSelectElement)
+        ) {
+          hideSuggestions();
+        }
+      }, 100);
+    };
+
+    window.visualViewport?.addEventListener("resize", handleResize);
+    window.addEventListener("resize", handleResize);
+    window.addEventListener("focusout", handleFocusOut);
+
+    return () => {
+      window.visualViewport?.removeEventListener("resize", handleResize);
+      window.removeEventListener("resize", handleResize);
+      window.removeEventListener("focusout", handleFocusOut);
+    };
+  }, [activeFieldId, hideSuggestions]);
 
   return (
     <SuggestionContext.Provider
