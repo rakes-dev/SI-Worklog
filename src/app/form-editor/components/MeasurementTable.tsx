@@ -130,7 +130,11 @@ export default function MeasurementTable({
       next.totalArea = calcMeasurementRow(next);
       return next;
     });
-    onChange(appendTrailingEmptyRow(updated));
+    onChange(updated);
+  };
+
+  const handleBlur = () => {
+    onChange(appendTrailingEmptyRow(rows));
   };
 
   const addRow = () => {
@@ -185,7 +189,7 @@ export default function MeasurementTable({
         next.totalArea = calcMeasurementRow(next);
         return next;
       });
-      onChange(appendTrailingEmptyRow(updated));
+      onChange(updated);
     } else {
       updateRow(rowId, "arcNo", val);
     }
@@ -314,7 +318,10 @@ export default function MeasurementTable({
                         showArcSuggestions(row.id, val);
                       }}
                       onFocus={() => showArcSuggestions(row.id, row.arcNo ?? "")}
-                      onBlur={() => hideSuggestions(`arc-${row.id}`)}
+                      onBlur={() => {
+                        hideSuggestions(`arc-${row.id}`);
+                        handleBlur();
+                      }}
                       className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-center text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
                       placeholder="ARC-001"
                       autoComplete="off"
@@ -329,7 +336,10 @@ export default function MeasurementTable({
                         showJobTypeSuggestions(row.id, val);
                       }}
                       onFocus={() => showJobTypeSuggestions(row.id, row.jobType ?? "")}
-                      onBlur={() => hideSuggestions(`jt-${row.id}`)}
+                      onBlur={() => {
+                        hideSuggestions(`jt-${row.id}`);
+                        handleBlur();
+                      }}
                       className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
                       placeholder="e.g. Civil Repair"
                       autoComplete="off"
@@ -344,7 +354,10 @@ export default function MeasurementTable({
                         showLocationSuggestions(row.id, val);
                       }}
                       onFocus={() => showLocationSuggestions(row.id, row.location)}
-                      onBlur={() => hideSuggestions(`loc-${row.id}`)}
+                      onBlur={() => {
+                        hideSuggestions(`loc-${row.id}`);
+                        handleBlur();
+                      }}
                       className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
                       placeholder="e.g. Bed side table"
                       autoComplete="off"
@@ -371,6 +384,7 @@ export default function MeasurementTable({
                       <input
                         value={row.coat}
                         onChange={(e) => updateRow(row.id, "coat", e.target.value)}
+                        onBlur={handleBlur}
                         className="w-full px-1.5 py-1 bg-input border border-transparent rounded text-xs text-center text-foreground focus:outline-none focus:border-ring focus:bg-card transition"
                         placeholder="1st"
                         autoComplete="off"

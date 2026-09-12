@@ -70,24 +70,25 @@ export function SuggestionProvider({ children }: { children: React.ReactNode }) 
           window.visualViewport.height < window.innerHeight * 0.85;
         if (!isKeyboardOpen && activeFieldId) {
           hideSuggestions();
-          if (document.activeElement instanceof HTMLElement) {
-            document.activeElement.blur();
-          }
         }
       }
     };
 
-    const handleFocusOut = () => {
+    const handleFocusOut = (e: FocusEvent) => {
       setTimeout(() => {
         const active = document.activeElement;
+        const related = e.relatedTarget;
         if (
-          !(active instanceof HTMLInputElement) &&
-          !(active instanceof HTMLTextAreaElement) &&
-          !(active instanceof HTMLSelectElement)
+          (active instanceof HTMLInputElement) ||
+          (active instanceof HTMLTextAreaElement) ||
+          (active instanceof HTMLSelectElement) ||
+          (related instanceof HTMLInputElement) ||
+          (related instanceof HTMLTextAreaElement)
         ) {
-          hideSuggestions();
+          return;
         }
-      }, 100);
+        hideSuggestions();
+      }, 150);
     };
 
     window.visualViewport?.addEventListener("resize", handleResize);
