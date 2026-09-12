@@ -11,7 +11,7 @@ import {
   linearCellValue,
   linearUnitSuffix,
 } from '@/utils/helpers';
-import { Bold } from 'lucide-react';
+// import { 700 } from 'lucide-react';
 
 interface PrintLayoutProps {
   form: PaintForm;
@@ -236,7 +236,7 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                     <span
                       style={{
                         fontSize: '15pt',
-                        fontWeight: 'Bold',
+                        fontWeight: '700',
                         textAlign: 'center',
                         flex: 1,
                       }}
@@ -264,7 +264,7 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                         <td
                           style={{
                             width: '25%',
-                            fontWeight: 'Bold',
+                            fontWeight: '700',
                             padding: '2px',
                             paddingLeft: '4px',
                           }}
@@ -283,7 +283,7 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                         <td
                           style={{
                             width: '25%',
-                            fontWeight: 'Bold',
+                            fontWeight: '700',
                             padding: '2px',
                             paddingLeft: '4px',
                           }}
@@ -303,7 +303,7 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                       <tr>
                         <td
                           style={{
-                            fontWeight: 'Bold',
+                            fontWeight: '700',
                             padding: '2px',
                             paddingLeft: '4px',
                           }}
@@ -313,7 +313,7 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                         <td style={{ padding: '2px', paddingLeft: '4px' }}>{form.totalSheets}</td>
                         <td
                           style={{
-                            fontWeight: 'Bold',
+                            fontWeight: '700',
                             padding: '2px',
                             paddingLeft: '4px',
                           }}
@@ -332,7 +332,7 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                     <>
                       <div
                         style={{
-                          fontWeight: 'Bold',
+                          fontWeight: '700',
                           marginBottom: '4pt',
                           fontSize: '12pt',
                           border: '1px solid #000',
@@ -458,7 +458,7 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                             <td
                               colSpan={isCarpenter ? 6 : 7}
                               style={{
-                                fontWeight: 'Bold',
+                                fontWeight: '700',
                                 padding: '5px',
                                 textAlign: 'right',
                                 borderTop: '2px solid #000',
@@ -468,7 +468,7 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                             </td>
                             <td
                               style={{
-                                fontWeight: 'Bold',
+                                fontWeight: '700',
                                 padding: '5px',
                                 textAlign: 'right',
                                 borderTop: '2px solid #000',
@@ -487,7 +487,7 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
               {/* Section B — Measurement Sheet */}
               <div
                 style={{
-                  fontWeight: 'Bold',
+                  fontWeight: '700',
                   marginTop: !isFirstPage || hasSummaryRows ? '10pt' : '0',
                   marginBottom: '4pt',
                   fontSize: '11pt',
@@ -631,7 +631,7 @@ export default function PrintLayout({ form, job }: PrintLayoutProps) {
                           >
                             <div
                               style={{
-                                fontWeight: 'Bold',
+                                fontWeight: '700',
                                 borderBottom: '1px solid #eee',
                                 paddingBottom: '3px',
                                 fontSize: '8.5pt',
