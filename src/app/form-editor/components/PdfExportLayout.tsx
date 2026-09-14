@@ -147,29 +147,32 @@ export default function PdfExportLayout({ form, job }: PdfExportLayoutProps) {
           display: flex;
           flex-direction: column;
           background: #ffffff;
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
+          text-rendering: optimizeLegibility;
         }
         .pdf-table {
           width: 100%;
           table-layout: fixed;
           border-collapse: separate;
           border-spacing: 0;
-          border-top: 0.5px solid #000000;
-          border-left: 0.5px solid #000000;
+          border-top: 1px solid #000000;
+          border-left: 1px solid #000000;
         }
         .pdf-table th, .pdf-table td {
           box-sizing: border-box;
           vertical-align: middle;
           padding: 2px 4px;
           word-wrap: break-word;
-          border-right: 0.5px solid #000000;
-          border-bottom: 0.5px solid #000000;
+          border-right: 1px solid #000000;
+          border-bottom: 1px solid #000000;
         }
         .pdf-section {
           font-weight: 800;
           font-size: 12pt;
           padding: 3px 6px;
           margin-bottom: 4pt;
-          border: 0.5px solid #000000;
+          border: 1px solid #000000;
           background: #f0f0f0;
         }
       `}</style>
@@ -448,13 +451,13 @@ export default function PdfExportLayout({ form, job }: PdfExportLayoutProps) {
                             verticalAlign: "top",
                             padding: "5px",
                             height: "30pt",
-                            border: "0.5px solid #000",
+                            border: "1px solid #000",
                           }}
                         >
                           <div
                             style={{
                               fontWeight: 'Bold',
-                              borderBottom: "0.5px solid #000",
+                              borderBottom: "1px solid #000",
                               paddingBottom: "3px",
                               fontSize: "8.5pt",
                             }}
