@@ -8,19 +8,8 @@ import { printPdf } from "./nativePrint";
  * `<PdfExportLayout />`, containing one or more `.pdf-page` sheets) into an
  * A4 portrait PDF.
  *
- * The source layout is `display:none` on screen (export-only), so we clone it,
- * place the clone off-viewport and make it visible so html2canvas can capture
- * it. Each `.pdf-page` is captured separately; if a page is taller than one A4
- * sheet it is split across consecutive PDF pages.
- *
- * Delivery:
- * - `mode: "deliver"` (default) → **Browser**: normal file download.
- *   **Native app (Capacitor)**: written to the cache dir and handed to the OS
- *   share sheet (which includes the Android/iOS Print service), because
- *   WebView downloads are not supported.
- * - `mode: "print"` → opens the **system print dialog** (Android PrintManager
- *   with every installed printer service + "Save as PDF"; iOS falls back to
- *   the share sheet).
+ * Captures high-DPI lossless images of the layout to ensure razor-sharp text
+ * and crisp table borders when printing from mobile devices or saving as PDF.
  */
 export async function exportPrintLayoutToPdf(
   root: HTMLElement,
@@ -57,8 +46,9 @@ export async function exportPrintLayoutToPdf(
     let firstPdfPage = true;
 
     for (const el of targets) {
+      // Use scale: 3.5 for 300+ DPI razor-sharp print resolution
       const canvas = await html2canvas(el, {
-        scale: 2,
+        scale: 3.5,
         useCORS: true,
         backgroundColor: "#ffffff",
         logging: false,
@@ -71,9 +61,6 @@ export async function exportPrintLayoutToPdf(
       while (yOffsetPx < canvas.height) {
         const h = Math.min(sliceHeightPx, canvas.height - yOffsetPx);
 
-        // Ignore a tiny remaining sliver (subpixel rounding can make a page a
-        // couple of pixels taller than a full A4 sheet). Skipping it prevents
-        // an extra, essentially-blank page from being added.
         if (h * mmPerPx < 3) break;
 
         const slice = document.createElement("canvas");
@@ -95,13 +82,16 @@ export async function exportPrintLayoutToPdf(
         );
 
         if (!firstPdfPage) pdf.addPage();
+        // Use lossless PNG to prevent JPEG compression blur on text and borders
         pdf.addImage(
-          slice.toDataURL("image/jpeg", 0.95),
-          "JPEG",
+          slice.toDataURL("image/png"),
+          "PNG",
           0,
           0,
           pageWidthMm,
           h * mmPerPx,
+          undefined,
+          "FAST",
         );
         firstPdfPage = false;
 
