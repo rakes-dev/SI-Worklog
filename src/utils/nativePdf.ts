@@ -1,4 +1,11 @@
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, registerPlugin } from "@capacitor/core";
+
+export interface NativePrintPluginInterface {
+  print(options: { base64: string; jobName: string }): Promise<void>;
+  saveToDownloads(options: { base64: string; fileName: string }): Promise<{ path: string }>;
+}
+
+const NativePrint = registerPlugin<NativePrintPluginInterface>("NativePrint");
 
 /**
  * True when the web app is running inside a native Capacitor shell (the
@@ -25,13 +32,9 @@ export function blobToBase64(blob: Blob): Promise<string> {
 /**
  * Deliver a generated PDF to the user.
  *
- * - **Browser**: triggers a normal file download (unchanged behaviour).
- * - **Native app (installed APK/iOS)**: WebView downloads are not supported,
- *   so the file is written to the app's cache directory and handed to the
- *   OS share sheet instead. On Android the share sheet includes the system
- *   Print service, Gmail, Drive, "Save to Files", etc.
- *
- * Returns how the file was delivered so the caller can show the right toast.
+ * - **Browser**: triggers a normal file download.
+ * - **Android (Native)**: saves PDF directly into Android's default Downloads folder (`MediaStore.Downloads`).
+ * - **iOS / Fallback**: writes to Cache directory and opens the OS Share sheet.
  */
 export async function shareOrSavePdf(
   blob: Blob,
@@ -53,11 +56,22 @@ export async function shareOrSavePdf(
     return "downloaded";
   }
 
-  // Native path — dynamic imports keep these plugins out of the web bundle.
+  const base64 = await blobToBase64(blob);
+
+  if (Capacitor.getPlatform() === "android") {
+    try {
+      // Use native MediaStore.Downloads API on Android to write directly to Android's default Downloads folder
+      await NativePrint.saveToDownloads({ base64, fileName: name });
+      return "downloaded";
+    } catch (e) {
+      console.warn("MediaStore saveToDownloads failed, falling back to Share sheet:", e);
+    }
+  }
+
+  // Fallback for iOS or if MediaStore fails
   const { Filesystem, Directory } = await import("@capacitor/filesystem");
   const { Share } = await import("@capacitor/share");
 
-  const base64 = await blobToBase64(blob);
   const result = await Filesystem.writeFile({
     path: name,
     data: base64,

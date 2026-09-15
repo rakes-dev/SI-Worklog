@@ -49,7 +49,7 @@ import SignatureSection from "./SignatureSection";
 import PrintLayout from "./PrintLayout";
 import PdfExportLayout from "./PdfExportLayout";
 import CopyFormModal from "./CopyFormModal";
-import { exportPrintLayoutToPdf } from "@/utils/pdfExport";
+import { exportFormToPdf } from "@/utils/pdfExport";
 import { isNativeApp } from "@/utils/nativePdf";
 import ToastContainer from "@/components/ui/Toast";
 import { useToast } from "@/hooks/useToast";
@@ -401,15 +401,15 @@ const site = existingForm ? sites.find((s) => s.id === existingForm.siteId) : un
       .replace(/\s+/g, " ")
       .trim();
 
-  /** Render the hidden A4 PDF layout and deliver it (download / share sheet). */
+  /** Render the vector A4 PDF and deliver it (download / share sheet / print). */
   const generateFormPdf = async (
     formName: string,
   ): Promise<"downloaded" | "shared" | "printed" | null> => {
-    const root = pdfExportRef.current;
-    if (!root || !existingForm) return null;
+    if (!existingForm) return null;
     const siteName = sanitizeFileName(existingForm.siteName || "Job");
     const name = sanitizeFileName(formName);
-    return exportPrintLayoutToPdf(root, `${siteName} - ${name}`);
+    const formData = buildFormData(getValues());
+    return exportFormToPdf(formData, jobForPrint, `${siteName} - ${name}`);
   };
 
   const handlePrint = async (values: PaintForm) => {
@@ -426,25 +426,13 @@ const site = existingForm ? sites.find((s) => s.id === existingForm.siteId) : un
       setTimeout(() => setSaveState("idle"), 2000);
 
       if (isNativeApp()) {
-        // window.print() does nothing in the native WebView — render the same
-        // A4 PDF and hand it to the OS print framework. On Android this opens
-        // the system print dialog (every installed printer service + "Save as
-        // PDF"); iOS falls back to the share sheet, which includes Print.
         const formName =
           existingForm?.formName || formData.formName || "Form";
-        const root = pdfExportRef.current;
-        if (!root) {
-          addToast(
-            "error",
-            "Print failed",
-            "Print layout is not ready yet. Please try again.",
-          );
-          return;
-        }
         const siteName = sanitizeFileName(existingForm.siteName || "Job");
         const name = sanitizeFileName(formName);
-        const delivered = await exportPrintLayoutToPdf(
-          root,
+        const delivered = await exportFormToPdf(
+          formData,
+          jobForPrint,
           `${siteName} - ${name}`,
           "print",
         );
