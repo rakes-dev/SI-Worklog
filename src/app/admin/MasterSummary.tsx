@@ -5,6 +5,7 @@ import { useAppStore } from '@/store/useAppStore';
 import { formatCurrency, formatDate, normalizeKey } from '@/utils/helpers';
 import {
   downloadMasterSummaryExcel,
+  extractRoomNumberFromArea,
   type MasterExcelSection,
   type MasterExcelRowData,
 } from '@/utils/masterSummaryExcel';
@@ -25,16 +26,21 @@ interface MasterRow {
 
 interface Filters {
   siteName: string[]; // multi-select — multiple sites can be selected
-  category: string;
+  category: string[]; // multi-select — multiple categories can be selected
   areaName: string;
   arcNo: string;
   dateFrom: string;
   dateTo: string;
 }
 
+/** Filter keys holding an array of selected values (checkbox dropdowns). */
+type MultiFilterKey = 'siteName' | 'category';
+/** Filter keys holding a single value (plain <select> / date inputs). */
+type SingleFilterKey = 'areaName' | 'arcNo' | 'dateFrom' | 'dateTo';
+
 const EMPTY_FILTERS: Filters = {
   siteName: [],
-  category: '',
+  category: [],
   areaName: '',
   arcNo: '',
   dateFrom: '',
@@ -44,7 +50,8 @@ const EMPTY_FILTERS: Filters = {
 export default function MasterSummary() {
   const { forms, categories } = useAppStore();
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
-  const [siteNameOpen, setSiteNameOpen] = useState(false);
+  // Only one checkbox dropdown stays open at a time.
+  const [openMulti, setOpenMulti] = useState<MultiFilterKey | null>(null);
 
   // Build the flat list of rows from every job + form.
   const allRows = useMemo<MasterRow[]>(() => {
@@ -134,11 +141,15 @@ export default function MasterSummary() {
             return true;
           };
 
+    // A multi-select is "unfiltered" when nothing is selected, otherwise the
+    // row's value only has to match ONE of the selected values (OR semantics).
+    const inSelected = (selected: string[], value: string) =>
+      selected.length === 0 || selected.some((v) => q(value) === q(v));
+
     return allRows.filter(
       (r) =>
-        (filters.siteName.length === 0 ||
-          filters.siteName.some((s) => q(r.siteName) === q(s))) &&
-        (!filters.category || q(r.category) === q(filters.category)) &&
+        inSelected(filters.siteName, r.siteName) &&
+        inSelected(filters.category, r.category) &&
         (!filters.areaName || q(r.areaName) === q(filters.areaName)) &&
         (!filters.arcNo || q(r.arcNo) === q(filters.arcNo)) &&
         inRange(r.workStartDate)
@@ -161,56 +172,81 @@ export default function MasterSummary() {
 
   const activeCount =
     (filters.siteName.length > 0 ? 1 : 0) +
-    (filters.category ? 1 : 0) +
+    (filters.category.length > 0 ? 1 : 0) +
     (filters.areaName ? 1 : 0) +
     (filters.arcNo ? 1 : 0) +
     (filters.dateFrom ? 1 : 0) +
     (filters.dateTo ? 1 : 0);
 
-  const setFilter = (key: keyof Filters, value: string | string[]) =>
+  const setFilter = (key: SingleFilterKey, value: string) =>
     setFilters((prev) => ({ ...prev, [key]: value }));
 
   const clear = () => {
     setFilters(EMPTY_FILTERS);
-    setSiteNameOpen(false);
+    setOpenMulti(null);
   };
 
   // Export the currently visible (filtered) rows. Columns are derived from the
   // ARCs actually present (deduped, unknown ones added automatically) and the
-  // header labels use the ARC job type. Each filtered summary row becomes its
-  // own data row so the exported row count matches the panel.
+  // header labels use the ARC job type. Rows are arranged by CATEGORY name:
+  // each category becomes one highlighted group whose Description column holds
+  // the category name, followed by a TOTAL line for that category.
   const handleExport = () => {
     const sections: MasterExcelSection[] = [];
-    const siteMap = new Map<
+    const groupMap = new Map<
       string,
       { sec: MasterExcelSection; rowsByKey: Map<string, MasterExcelRowData> }
     >();
 
-    for (const r of rows) {
-      const siteLabel = r.siteName !== '—' ? r.siteName : r.category;
-      const siteKey = normalizeKey(siteLabel);
-      let entry = siteMap.get(siteKey);
+    // Arrange all rows by category name (case-insensitive), then by site name,
+    // then by date, so every category's rows stay together in the export.
+    const sortedRows = [...rows].sort((a, b) => {
+      const byCategory = a.category.localeCompare(b.category, undefined, {
+        sensitivity: 'base',
+      });
+      if (byCategory !== 0) return byCategory;
+      const bySite = a.siteName.localeCompare(b.siteName, undefined, {
+        sensitivity: 'base',
+      });
+      if (bySite !== 0) return bySite;
+      return (a.workStartDate || '').localeCompare(b.workStartDate || '');
+    });
+
+    for (const r of sortedRows) {
+      // Group by category name so each category gets one section + one TOTAL
+      // line. Rows without a category fall back to their site name.
+      const groupLabel = r.category !== '—' ? r.category : r.siteName;
+      const groupKey = normalizeKey(groupLabel);
+      let entry = groupMap.get(groupKey);
       if (!entry) {
         entry = {
           sec: {
-            siteName: siteLabel === '—' ? '' : siteLabel,
-            category: r.category === '—' ? '' : r.category,
+            siteName: '',
+            category: groupLabel === '—' ? '' : groupLabel,
             rows: [],
           },
           rowsByKey: new Map<string, MasterExcelRowData>(),
         };
-        siteMap.set(siteKey, entry);
+        groupMap.set(groupKey, entry);
         sections.push(entry.sec);
       }
 
       const date = r.workStartDate !== '—' ? r.workStartDate : '';
-      const desc = r.siteName !== '—' ? r.siteName : ''; // Description = Site Name
+      // Description column = category name.
+      const desc = groupLabel === '—' ? '' : groupLabel;
       // Each summary row gets its own Excel row (keyed by the source row id),
       // so the exported row count matches the panel row count.
       const rowKey = r.key;
       let dataRow = entry.rowsByKey.get(rowKey);
       if (!dataRow) {
-        dataRow = { date, description: desc, key: rowKey, lines: [] };
+        dataRow = {
+          date,
+          roomNo: extractRoomNumberFromArea(r.areaName),
+          description: desc,
+          siteName: r.siteName === '—' ? '' : r.siteName,
+          key: rowKey,
+          lines: [],
+        };
         entry.rowsByKey.set(rowKey, dataRow);
         entry.sec.rows.push(dataRow);
       }
@@ -230,7 +266,7 @@ export default function MasterSummary() {
   const inputCls =
     'px-3 py-2 rounded-md border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring';
 
-  const renderSelect = (label: string, key: keyof Filters, values: string[]) => (
+  const renderSelect = (label: string, key: SingleFilterKey, values: string[]) => (
     <label className="flex flex-col gap-1">
       <span className="text-xs font-medium text-muted-foreground">{label}</span>
       <select
@@ -248,63 +284,97 @@ export default function MasterSummary() {
     </label>
   );
 
-  const toggleSiteName = (value: string) => {
+  // Adds the value to the filter's array when missing, removes it when present.
+  const toggleMulti = (key: MultiFilterKey, value: string) => {
     setFilters((prev) => {
-      const next = prev.siteName.includes(value)
-        ? prev.siteName.filter((item) => item !== value)
-        : [...prev.siteName, value];
-      return { ...prev, siteName: next };
+      const current = prev[key];
+      const next = current.includes(value)
+        ? current.filter((item) => item !== value)
+        : [...current, value];
+      return { ...prev, [key]: next };
     });
-    setSiteNameOpen(false);
   };
 
-  const renderSiteNameFilter = (label: string, key: keyof Filters, values: string[]) => (
-    <label className="flex flex-col gap-1">
-      <span className="text-xs font-medium text-muted-foreground">{label}</span>
-      <div className="relative min-w-[14rem]">
-        <button
-          type="button"
-          onClick={() => setSiteNameOpen((prev) => !prev)}
-          className={`${inputCls} w-full flex items-center justify-between gap-2`}
-          aria-expanded={siteNameOpen}
-        >
-          <span className="truncate text-left">
-            {filters.siteName.length > 0
-              ? `${filters.siteName.length} Site Name${filters.siteName.length === 1 ? '' : 's'}`
-              : 'Site Name'}
-          </span>
-          <ChevronDown size={14} className={`shrink-0 transition-transform ${siteNameOpen ? 'rotate-180' : ''}`} />
-        </button>
+  /**
+   * Checkbox dropdown filter — any number of values can be selected and the
+   * panel stays open so several can be ticked in one go. Used by both the
+   * Site Name and Category filters.
+   */
+  const renderMultiSelect = (
+    label: string,
+    pluralLabel: string,
+    key: MultiFilterKey,
+    values: string[]
+  ) => {
+    const selected = filters[key];
+    const isOpen = openMulti === key;
 
-        {siteNameOpen && (
-          <div className="absolute z-20 mt-2 w-full rounded-md border border-border bg-card shadow-lg overflow-hidden">
-            <div className="max-h-64 overflow-auto p-2 space-y-1">
-              {values.map((value) => {
-                const checked = filters.siteName.includes(value);
-                return (
-                  <label
-                    key={value}
-                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-foreground hover:bg-secondary"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleSiteName(value)}
-                      className="h-4 w-4 rounded border-border text-primary focus:ring-ring"
-                    />
-                    <span className="truncate">{value}</span>
-                  </label>
-                );
-              })}
+    return (
+      <div className="flex flex-col gap-1">
+        <span className="text-xs font-medium text-muted-foreground">{label}</span>
+        <div className="relative min-w-[14rem]">
+          <button
+            type="button"
+            onClick={() => setOpenMulti((prev) => (prev === key ? null : key))}
+            className={`${inputCls} w-full flex items-center justify-between gap-2`}
+            aria-expanded={isOpen}
+            aria-label={label}
+          >
+            <span className="truncate text-left" title={selected.join(', ')}>
+              {selected.length > 0
+                ? `${selected.length} ${selected.length === 1 ? label : pluralLabel}`
+                : label}
+            </span>
+            <ChevronDown
+              size={14}
+              className={`shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+            />
+          </button>
+
+          {isOpen && (
+            <div className="absolute z-20 mt-2 w-full rounded-md border border-border bg-card shadow-lg overflow-hidden">
+              <div className="max-h-64 overflow-auto p-2 space-y-1">
+                {values.map((value) => {
+                  const checked = selected.includes(value);
+                  return (
+                    <label
+                      key={value}
+                      className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-foreground hover:bg-secondary"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleMulti(key, value)}
+                        className="h-4 w-4 rounded border-border text-primary focus:ring-ring"
+                      />
+                      <span className="truncate">{value}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2">
+                <button
+                  type="button"
+                  onClick={() => setFilters((prev) => ({ ...prev, [key]: [...values] }))}
+                  className="text-[11px] font-medium text-primary hover:underline"
+                >
+                  Select all
+                </button>
+                <button
+                  type="button"
+                  disabled={selected.length === 0}
+                  onClick={() => setFilters((prev) => ({ ...prev, [key]: [] }))}
+                  className="text-[11px] font-medium text-muted-foreground hover:text-foreground hover:underline disabled:opacity-40 disabled:cursor-not-allowed disabled:no-underline"
+                >
+                  Clear
+                </button>
+              </div>
             </div>
-            <div className="border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
-              Selection closes automatically after each click.
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
-    </label>
-  );
+    );
+  };
 
   return (
     <div className="bg-card border border-border rounded-xl mt-6 overflow-hidden">
@@ -339,8 +409,9 @@ export default function MasterSummary() {
       <div className="px-5 pt-4 border-b border-border">
         <div className="flex flex-wrap gap-3">
           {options.category.length > 0 &&
-            renderSelect('Category', 'category', options.category)}
-          {options.siteName.length > 0 && renderSiteNameFilter('Site Name', 'siteName', options.siteName)}
+            renderMultiSelect('Category', 'Categories', 'category', options.category)}
+          {options.siteName.length > 0 &&
+            renderMultiSelect('Site Name', 'Site Names', 'siteName', options.siteName)}
           {options.areaName.length > 0 && renderSelect('Area Name', 'areaName', options.areaName)}
           {options.arcNo.length > 0 && renderSelect('ARC No', 'arcNo', options.arcNo)}
 
