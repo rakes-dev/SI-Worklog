@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
   Building2,
+  CalendarDays,
   ChevronLeft,
   Copy,
   Eye,
@@ -22,10 +23,20 @@ import { useAppStore } from "@/store/useAppStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { currentMonth, formatCurrency, formatDate, monthLabel } from "@/utils/helpers";
 import { rememberWork } from "@/utils/recents";
+import type { WorkForm } from "@/types";
 
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import ToastContainer from "@/components/ui/Toast";
 import { useToast } from "@/hooks/useToast";
+
+/**
+ * Normalize a form's month bucket. `month` is stored as "YYYY-MM"; slicing also
+ * tolerates legacy docs that stored a full ISO date, so the month filter can
+ * never silently miss a form because of a formatting difference.
+ */
+function monthKey(form: WorkForm): string {
+  return (form.month || "").slice(0, 7);
+}
 
 export default function FormListClient() {
   // The route folders are [id] and [categoryId] — `id` is aliased to siteId.
@@ -53,7 +64,9 @@ export default function FormListClient() {
   const [permanentDeleteTarget, setPermanentDeleteTarget] = useState<string | null>(
     null,
   );
-  const [selectedMonth, setSelectedMonth] = useState<string>(currentMonth());
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => currentMonth());
+  // Once the user picks a month by hand we stop auto-correcting the selection.
+  const [monthPinned, setMonthPinned] = useState(false);
 
   const site = sites.find((s) => s.id === siteId);
   const category = categories.find((c) => c.id === categoryId);
@@ -67,6 +80,52 @@ export default function FormListClient() {
     }
   }, [siteId, categoryId, user?.email]);
 
+  // Live + trashed form counts per month for this site+category. Drives both the
+  // dropdown options and the "this month is empty" recovery affordance.
+  const monthStats = useMemo(() => {
+    const stats = new Map<string, { active: number; deleted: number }>();
+    forms.forEach((f) => {
+      if (f.siteId !== siteId || f.categoryId !== categoryId) return;
+      const key = monthKey(f);
+      if (!key) return;
+      const entry = stats.get(key) ?? { active: 0, deleted: 0 };
+      if (f.isDeleted) entry.deleted += 1;
+      else entry.active += 1;
+      stats.set(key, entry);
+    });
+    return stats;
+  }, [forms, siteId, categoryId]);
+
+  // Newest month that actually holds live forms ("" when the category is empty).
+  const latestMonthWithForms = useMemo(() => {
+    const months = Array.from(monthStats.entries())
+      .filter(([, s]) => s.active > 0)
+      .map(([m]) => m)
+      .sort()
+      .reverse();
+    return months[0] ?? "";
+  }, [monthStats]);
+
+  // Always includes the current month so "Back to current month" is reachable
+  // even before a form exists for it — this is what stops the <select> from
+  // rendering blank when its value has no matching <option>.
+  const monthOptions = useMemo(() => {
+    const keys = new Set(monthStats.keys());
+    keys.add(currentMonth());
+    keys.add(selectedMonth);
+    return Array.from(keys).sort().reverse(); // newest first
+  }, [monthStats, selectedMonth]);
+
+  // Opening on a month with no forms makes the page look broken, so while the
+  // user hasn't chosen a month themselves, prefer the current month when it has
+  // forms and otherwise fall back to the newest month that does.
+  useEffect(() => {
+    if (monthPinned) return;
+    const hasCurrent = (monthStats.get(currentMonth())?.active ?? 0) > 0;
+    const target = hasCurrent ? currentMonth() : latestMonthWithForms;
+    if (target && target !== selectedMonth) setSelectedMonth(target);
+  }, [monthPinned, monthStats, latestMonthWithForms, selectedMonth]);
+
   const activeForms = useMemo(
     () =>
       forms
@@ -75,7 +134,7 @@ export default function FormListClient() {
             !f.isDeleted &&
             f.siteId === siteId &&
             f.categoryId === categoryId &&
-            f.month === selectedMonth,
+            monthKey(f) === selectedMonth,
         )
         .sort(
           (a, b) =>
@@ -85,20 +144,23 @@ export default function FormListClient() {
   );
 
   const deletedForms = useMemo(
-    () => forms.filter((f) => f.isDeleted && f.siteId === siteId && f.categoryId === categoryId && f.month === selectedMonth),
+    () =>
+      forms.filter(
+        (f) =>
+          f.isDeleted &&
+          f.siteId === siteId &&
+          f.categoryId === categoryId &&
+          monthKey(f) === selectedMonth,
+      ),
     [forms, siteId, categoryId, selectedMonth],
   );
 
-  // All distinct months that have forms for this site+category (for the month selector)
-  const availableMonths = useMemo(() => {
-    const months = new Set<string>();
-    forms.forEach((f) => {
-      if (f.siteId === siteId && f.categoryId === categoryId && f.month) {
-        months.add(f.month);
-      }
-    });
-    return Array.from(months).sort().reverse(); // newest first
-  }, [forms, siteId, categoryId]);
+  // Total live forms in this category across every month — lets the empty state
+  // say "no forms in <month>" instead of the misleading "no forms yet".
+  const activeFormsTotal = useMemo(
+    () => Array.from(monthStats.values()).reduce((sum, s) => sum + s.active, 0),
+    [monthStats],
+  );
 
   const displayForms = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -109,6 +171,17 @@ export default function FormListClient() {
         (f.suitPublicAreaName || "").toLowerCase().includes(q),
     );
   }, [activeForms, search]);
+
+  // The selected month has no live forms, but the category does have forms in
+  // another month — distinguish that from a genuinely empty category.
+  const viewingEmptyMonth =
+    !search && activeForms.length === 0 && activeFormsTotal > 0;
+
+  const goToLatestMonth = () => {
+    if (!latestMonthWithForms) return;
+    setMonthPinned(true);
+    setSelectedMonth(latestMonthWithForms);
+  };
 
   const handleNewForm = async () => {
     if (!site || !category || !user?.email) return;
@@ -247,25 +320,35 @@ if (!site || !category) {
       {/* Month selector */}
       <div className="flex flex-wrap items-center gap-3 mb-5">
         <div className="flex items-center gap-2">
-          <label className="text-sm text-muted-foreground">Month:</label>
+          <label htmlFor="month-filter" className="text-sm text-muted-foreground">
+            Month:
+          </label>
           <select
+            id="month-filter"
             value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
+            onChange={(e) => {
+              setMonthPinned(true);
+              setSelectedMonth(e.target.value);
+            }}
             className="px-3 py-1.5 rounded-md border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring transition"
           >
-            {availableMonths.length === 0 && (
-              <option value={selectedMonth}>{monthLabel(selectedMonth)}</option>
-            )}
-            {availableMonths.map((m) => (
-              <option key={m} value={m}>
-                {monthLabel(m)}
-              </option>
-            ))}
+            {monthOptions.map((m) => {
+              const active = monthStats.get(m)?.active ?? 0;
+              return (
+                <option key={m} value={m}>
+                  {monthLabel(m)}
+                  {active > 0 ? ` (${active})` : ""}
+                </option>
+              );
+            })}
           </select>
         </div>
         {selectedMonth !== currentMonth() && (
           <button
-            onClick={() => setSelectedMonth(currentMonth())}
+            onClick={() => {
+              setMonthPinned(true);
+              setSelectedMonth(currentMonth());
+            }}
             className="text-sm text-primary hover:underline"
           >
             Back to current month
@@ -299,14 +382,29 @@ if (!site || !category) {
             <FileText size={28} className="text-muted-foreground" />
           </div>
           <h3 className="font-semibold text-foreground text-lg mb-1">
-            {search ? "No forms match your search" : "No forms yet"}
+            {search
+              ? "No forms match your search"
+              : viewingEmptyMonth
+                ? `No forms in ${monthLabel(selectedMonth)}`
+                : "No forms yet"}
           </h3>
           <p className="text-muted-foreground text-sm max-w-sm">
             {search
               ? "Try adjusting your search."
-              : "Create your first form here — the site and employee details are filled in automatically."}
+              : viewingEmptyMonth
+                ? `This category has forms in ${monthLabel(latestMonthWithForms)}. Switch months to see them.`
+                : "Create your first form here — the site and employee details are filled in automatically."}
           </p>
-          {!search && (
+          {viewingEmptyMonth && (
+            <button
+              onClick={goToLatestMonth}
+              className="mt-4 flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:opacity-90 transition-opacity scale-press"
+            >
+              <CalendarDays size={16} />
+              Show {monthLabel(latestMonthWithForms)}
+            </button>
+          )}
+          {!search && !viewingEmptyMonth && (
             <button
               onClick={handleNewForm}
               disabled={creating}
