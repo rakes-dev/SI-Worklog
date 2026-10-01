@@ -344,13 +344,13 @@ export async function exportFormToPdf(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   cursorY = (doc as any).lastAutoTable.finalY + 8;
 
-  // ---- Signature block ----
+  // ---- Signature block: anchored at the bottom of the page (matching web layout) ----
   const SIG_BLOCK_H = 20;
-  if (cursorY + SIG_BLOCK_H > PAGE_H - MARGIN - 6) {
+  const sigY = PAGE_H - MARGIN - SIG_BLOCK_H; // 267mm (anchored to the bottom)
+  if (cursorY > sigY) {
     doc.addPage();
-    cursorY = MARGIN;
   }
-  drawSignatureRow(doc, cursorY);
+  drawSignatureRow(doc, sigY);
 
   // ---- "Page X of Y" footer on every page ----
   const totalPages = doc.getNumberOfPages();
