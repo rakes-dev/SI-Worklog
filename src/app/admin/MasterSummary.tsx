@@ -9,10 +9,18 @@ import {
   type MasterExcelSection,
   type MasterExcelRowData,
 } from '@/utils/masterSummaryExcel';
+import type { FormType } from '@/types';
 import { ChevronDown, ClipboardList, Download, Filter, Loader2, X } from 'lucide-react';
 
 interface MasterRow {
+  /** Unique per summary item — used as the React key in the on-screen table. */
   key: string;
+  /** Source form id: the Excel export collapses a form's summary items into ONE row. */
+  formId: string;
+  /** Form's "Measurement Sheet No." — becomes the SL value in the Excel export. */
+  sheetNo: number;
+  /** Form's `formType` — a carpentry-only export switches the sheet heading. */
+  formType: FormType;
   siteName: string;
   category: string;
   areaName: string;
@@ -72,6 +80,9 @@ export default function MasterSummary() {
           summary.forEach((r) => {
             out.push({
               key: `${form.id}-${r.id}`,
+              formId: form.id,
+              formType: form.formType,
+              sheetNo: form.sheetNo || 0,
               siteName: form.siteName?.trim() || '—',
               category: categoryName,
               areaName: form.suitPublicAreaName?.trim() || '—',
@@ -90,6 +101,9 @@ export default function MasterSummary() {
         if (!form.suitPublicAreaName && !form.workStartDate) return;
         out.push({
           key: `${form.id}`,
+          formId: form.id,
+          formType: form.formType,
+          sheetNo: form.sheetNo || 0,
           siteName: form.siteName?.trim() || '—',
           category: categoryName,
           areaName: form.suitPublicAreaName?.trim() || '—',
@@ -191,6 +205,10 @@ export default function MasterSummary() {
   // header labels use the ARC job type. Rows are arranged by CATEGORY name:
   // each category becomes one highlighted group whose Description column holds
   // the category name, followed by a TOTAL line for that category.
+  //
+  // Inside a category there is ONE exported row per measurement FORM: the SL
+  // column shows that form's "Measurement Sheet No." and every summary item of
+  // the form is merged into the ARC columns of that single row.
   const handleExport = () => {
     const sections: MasterExcelSection[] = [];
     const groupMap = new Map<
@@ -199,7 +217,8 @@ export default function MasterSummary() {
     >();
 
     // Arrange all rows by category name (case-insensitive), then by site name,
-    // then by date, so every category's rows stay together in the export.
+    // then by the form's Measurement Sheet No. so a category's forms are listed
+    // in sheet order, then by date — keeping every category's rows together.
     const sortedRows = [...rows].sort((a, b) => {
       const byCategory = a.category.localeCompare(b.category, undefined, {
         sensitivity: 'base',
@@ -209,7 +228,10 @@ export default function MasterSummary() {
         sensitivity: 'base',
       });
       if (bySite !== 0) return bySite;
-      return (a.workStartDate || '').localeCompare(b.workStartDate || '');
+      if (a.sheetNo !== b.sheetNo) return a.sheetNo - b.sheetNo;
+      const byDate = (a.workStartDate || '').localeCompare(b.workStartDate || '');
+      if (byDate !== 0) return byDate;
+      return a.key.localeCompare(b.key);
     });
 
     for (const r of sortedRows) {
@@ -234,9 +256,10 @@ export default function MasterSummary() {
       const date = r.workStartDate !== '—' ? r.workStartDate : '';
       // Description column = category name.
       const desc = groupLabel === '—' ? '' : groupLabel;
-      // Each summary row gets its own Excel row (keyed by the source row id),
-      // so the exported row count matches the panel row count.
-      const rowKey = r.key;
+      // One exported row per FORM — not per summary item. Keying by formId makes
+      // every summary item of a form accumulate into the same Excel row, so all
+      // of the form's quantities sit in one row headed by its sheet number.
+      const rowKey = r.formId;
       let dataRow = entry.rowsByKey.get(rowKey);
       if (!dataRow) {
         dataRow = {
@@ -245,6 +268,8 @@ export default function MasterSummary() {
           description: desc,
           siteName: r.siteName === '—' ? '' : r.siteName,
           key: rowKey,
+          sheetNo: r.sheetNo,
+          formType: r.formType,
           lines: [],
         };
         entry.rowsByKey.set(rowKey, dataRow);

@@ -1,4 +1,12 @@
-import type { Job, PaintForm, SummaryRow, MeasurementRow, FormSignatures, FormType } from '@/types';
+import type {
+  Job,
+  PaintForm,
+  SummaryRow,
+  MeasurementRow,
+  FormSignatures,
+  FormType,
+  WorkForm,
+} from '@/types';
 
 export function generateId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 9999)
@@ -368,6 +376,30 @@ export function defaultMeasurementRow(slNo: number): MeasurementRow {
     no: '',
     totalArea: 0,
   };
+}
+
+/**
+ * The next Measurement Sheet No. for one site + category within a month.
+ *
+ * Sheet numbers are assigned automatically and are unique inside that scope:
+ * every form added to the same site, category and month takes the next serial
+ * (1, 2, 3 …) no matter which user created it, and the count restarts at 1 for
+ * each new month. Soft-deleted forms are still counted so a number is never
+ * handed out twice while its previous form can be restored.
+ */
+export function nextSheetNo(
+  forms: Pick<WorkForm, 'siteId' | 'categoryId' | 'month' | 'sheetNo'>[],
+  siteId: string,
+  categoryId: string,
+  month: string
+): number {
+  let max = 0;
+  for (const f of forms) {
+    if (f.siteId !== siteId || f.categoryId !== categoryId) continue;
+    if ((f.month || '') !== month) continue;
+    if (typeof f.sheetNo === 'number' && f.sheetNo > max) max = f.sheetNo;
+  }
+  return max + 1;
 }
 
 export function defaultForm(
