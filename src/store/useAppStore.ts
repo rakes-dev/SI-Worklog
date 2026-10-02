@@ -5,7 +5,7 @@ import { persist } from "zustand/middleware";
 import type { FormType, Site, WorkCategory, WorkForm } from "@/types";
 import { dbService, type SeedResult } from "@/services/db";
 import { slugify } from "@/constants/seed";
-import { currentMonth, defaultForm, generateId } from "@/utils/helpers";
+import { currentMonth, defaultForm, generateId, nextSheetNo } from "@/utils/helpers";
 
 interface CreateFormInput {
   site: Site;
@@ -192,14 +192,13 @@ export const useAppStore = create<AppStore>()(
         // === FORMS ===============================================
         createForm: async ({ site, category, ownerEmail, empName }) => {
           const owner = ownerEmail.trim().toLowerCase();
-          const mineInCategory = get().forms.filter(
-            (f) =>
-              f.siteId === site.id &&
-              f.categoryId === category.id &&
-              f.ownerEmail === owner &&
-              !f.isDeleted,
-          ).length;
-          const base = defaultForm("", mineInCategory + 1, category.defaultFormType);
+          const month = currentMonth();
+          // The Measurement Sheet No. is assigned automatically and is unique per
+          // site + category + month for EVERY user — the month's first form is 1,
+          // the next 2, and so on. (It is deliberately no longer scoped to the
+          // creating user, which previously let two users both get sheet no. 1.)
+          const sheetNo = nextSheetNo(get().forms, site.id, category.id, month);
+          const base = defaultForm("", sheetNo, category.defaultFormType);
           const form: WorkForm = {
             ...base,
             id: generateId("form"),
@@ -209,7 +208,7 @@ export const useAppStore = create<AppStore>()(
             categoryId: category.id,
             ownerEmail: owner,
             empName: empName.trim(),
-            month: currentMonth(),
+            month,
           };
           set((s) => ({ forms: [...s.forms, form] }));
           await persistForm(form);
@@ -261,12 +260,17 @@ export const useAppStore = create<AppStore>()(
         duplicateForm: async (id) => {
           const src = get().forms.find((f) => f.id === id);
           if (!src) return undefined;
+          // A duplicate is a brand-new form in the same site + category + month,
+          // so it takes the next free Measurement Sheet No. instead of inheriting
+          // the source's number (which must stay unique inside the scope).
+          const now = new Date().toISOString();
           const copy: WorkForm = {
             ...src,
             id: generateId("form"),
             formName: `${src.formName} (Copy)`,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
+            sheetNo: nextSheetNo(get().forms, src.siteId, src.categoryId, src.month),
+            createdAt: now,
+            updatedAt: now,
           };
           set((s) => ({ forms: [...s.forms, copy] }));
           await persistForm(copy);
@@ -276,6 +280,9 @@ export const useAppStore = create<AppStore>()(
         copyForm: async (id, target) => {
           const src = get().forms.find((f) => f.id === id);
           if (!src) return undefined;
+          // The copy lands in a DIFFERENT site/category, so its Measurement Sheet
+          // No. is the next free serial inside that target scope (same month as
+          // the source form).
           const copy: WorkForm = {
             ...src,
             id: generateId("form"),
@@ -284,6 +291,7 @@ export const useAppStore = create<AppStore>()(
             siteAddress: target.site.address,
             categoryId: target.category.id,
             formName: `${src.formName} (Copy)`,
+            sheetNo: nextSheetNo(get().forms, target.site.id, target.category.id, src.month),
           };
           set((s) => ({ forms: [...s.forms, copy] }));
           await persistForm(copy);
