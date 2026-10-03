@@ -379,14 +379,10 @@ export function defaultMeasurementRow(slNo: number): MeasurementRow {
 }
 
 /**
- * The next Measurement Sheet No. for one site + category within a month.
+ * Legacy helper retained for older stored data and admin repair flows.
  *
- * Sheet numbers are assigned automatically and are unique inside that scope:
- * every form added to the same site, category and month takes the next serial
- * (1, 2, 3 …) no matter which user created it, and the count restarts at 1 for
- * each new month (a form from an earlier month never pushes the new month's
- * sequence forward). Soft-deleted forms are still counted so a number is never
- * handed out twice while its previous form can be restored.
+ * Measurement Sheet No. is now entered manually on the form, so automatic
+ * sequence allocation is no longer used when creating or duplicating forms.
  */
 export function nextSheetNo(
   forms: Pick<WorkForm, 'siteId' | 'categoryId' | 'month' | 'sheetNo'>[],
