@@ -384,7 +384,8 @@ export function defaultMeasurementRow(slNo: number): MeasurementRow {
  * Sheet numbers are assigned automatically and are unique inside that scope:
  * every form added to the same site, category and month takes the next serial
  * (1, 2, 3 …) no matter which user created it, and the count restarts at 1 for
- * each new month. Soft-deleted forms are still counted so a number is never
+ * each new month (a form from an earlier month never pushes the new month's
+ * sequence forward). Soft-deleted forms are still counted so a number is never
  * handed out twice while its previous form can be restored.
  */
 export function nextSheetNo(
@@ -393,10 +394,14 @@ export function nextSheetNo(
   categoryId: string,
   month: string
 ): number {
+  // Compare month buckets exactly the way the UI does (YYYY-MM): slicing also
+  // tolerates legacy docs that stored a full ISO date in `month`, so a form from
+  // an earlier month can never leak into (or be skipped by) this month's count.
+  const bucket = month.slice(0, 7);
   let max = 0;
   for (const f of forms) {
     if (f.siteId !== siteId || f.categoryId !== categoryId) continue;
-    if ((f.month || '') !== month) continue;
+    if ((f.month || '').slice(0, 7) !== bucket) continue;
     if (typeof f.sheetNo === 'number' && f.sheetNo > max) max = f.sheetNo;
   }
   return max + 1;
