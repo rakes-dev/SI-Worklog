@@ -10,13 +10,19 @@
 // Layout:
 //   Row 1: blank
 //   Row 2: STANDARD INTERIOR                          (merged, centered, bold)
-//   Row 3: (ROOM AREA MAINTENANCE JOB) / <site name> (merged, centered, bold)
+//   Row 3: (ROOM AREA MAINTENANCE JOB) / <site name> (merged, centered, bold);
+//           reads (ROOM / PUBLIC CARPENTRY AREA MAINTENANCE JOB) instead when
+//           only carpentry forms are being exported
 //   Row 4: ENGG. PNT-POLS JOB. (<range>)              (merged, centered, bold)
 //   Row 5: column headers (SL | DATE | Room No | Description | one per ARC)
 //   Row 6: ARC SL.NO. row (ARC ref under each column)
 //   Then, per category (sorted by category name): a highlighted header row with
-//   the category name, its data rows (Room No + Description = category name) and
-//   a TOTAL line; a GRAND TOTAL line across every category closes the sheet.
+//   the category name, then ONE data row per measurement FORM — the SL column
+//   holds that form's "Measurement Sheet No." and every summary line of the form
+//   is summed into the ARC columns of that same single row — and a TOTAL line;
+//   a GRAND TOTAL line across every category closes the sheet.
+
+import type { FormType } from '@/types';
 
 /** A single quantity line on a data row (whose column is keyed by ARC). */
 export interface MasterExcelLine {
@@ -25,7 +31,11 @@ export interface MasterExcelLine {
   jobType: string; // job-type label shown in this ARC's column header
 }
 
-/** One exported data row (e.g. room + category + date), holding ARC/qty lines. */
+/**
+ * One exported data row. There is exactly ONE row per measurement FORM: all of
+ * that form's summary items are merged into its `lines`, so the whole form reads
+ * as a single row whose SL cell carries its "Measurement Sheet No.".
+ */
 export interface MasterExcelRowData {
   date: string; // ISO yyyy-mm-dd, or '' when unknown
   /** 4-digit room number, taken from the form's "Suit / Public Area Name". */
@@ -33,6 +43,13 @@ export interface MasterExcelRowData {
   description: string;
   siteName: string;
   key: string;
+  /** Form's "Measurement Sheet No." — written in the SL column (0 = running index). */
+  sheetNo: number;
+  /**
+   * Source form's `formType`. When EVERY exported row is a carpentry form the
+   * row-3 heading switches to the "… PUBLIC CARPENTRY …" wording.
+   */
+  formType: FormType;
   lines: MasterExcelLine[];
 }
 
@@ -497,6 +514,17 @@ export function downloadMasterSummaryExcel(sections: MasterExcelSection[]): void
     .filter((v) => v !== '' && v !== '—')
     .join(', ');
 
+  // ---- Row-3 heading: name the trade when only carpentry is exported. ----
+  // Every exported row coming from a carpentry form means the caller filtered
+  // down to carpentry-only data, so the heading names that trade; a mixed or
+  // painting-only export keeps the generic room-area wording.
+  const exportRows = sections.flatMap((s) => s.rows);
+  const carpentryOnly =
+    exportRows.length > 0 && exportRows.every((r) => r.formType === 'carpenter');
+  const heading = carpentryOnly
+    ? 'ROOM / PUBLIC CARPENTRY AREA MAINTENANCE JOB'
+    : 'ROOM AREA MAINTENANCE JOB';
+
   // ---- Date range for the row-4 subtitle. ----
   let min = '';
   let max = '';
@@ -526,9 +554,10 @@ export function downloadMasterSummaryExcel(sections: MasterExcelSection[]): void
     style: 'title',
     mergeAcross: totalCols - 1,
   });
-  // Row 3: room-area heading, with the site name appended after a slash.
+  // Row 3: room-area heading (carpentry wording when only carpentry is
+  // exported), with the site name appended after a slash.
   addRow({
-    value: `(ROOM AREA MAINTENANCE JOB)${siteLabel ? ` / ${siteLabel}` : ''}`,
+    value: `(${heading})${siteLabel ? ` / ${siteLabel}` : ''}`,
     style: 'subtitle',
     mergeAcross: totalCols - 1,
   });
@@ -565,8 +594,11 @@ export function downloadMasterSummaryExcel(sections: MasterExcelSection[]): void
     const totals = new Array<number>(arcs.length).fill(0);
 
     for (const r of s.rows) {
+      // SL carries the form's Measurement Sheet No.; a form that was never
+      // assigned one falls back to the running row index.
+      const slValue = r.sheetNo > 0 ? r.sheetNo : sl;
       const cells: XlsxCell[] = [
-        { value: sl, style: 'num' },
+        { value: slValue, style: 'num' },
         { value: r.date ? fmtPadded(r.date) : '', style: 'text' },
         { value: r.roomNo, style: 'text' },
         { value: r.description, style: 'text' },

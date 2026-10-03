@@ -98,12 +98,14 @@ export default function FormTopFields({
           </label>
           <input
             type="number"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            min={1}
+            readOnly
             {...register("sheetNo", { valueAsNumber: true, min: 1 })}
-            className="px-3 py-2 rounded-md border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring font-tabular"
+            title="Assigned automatically — the next free number in this category for this month"
+            className="px-3 py-2 rounded-md border border-border bg-secondary text-muted-foreground text-sm focus:outline-none cursor-not-allowed font-tabular"
           />
+          <p className="text-xs text-muted-foreground">
+            Auto-assigned: unique per category, restarts at 1 each month.
+          </p>
         </div>
       </div>
     </div>
