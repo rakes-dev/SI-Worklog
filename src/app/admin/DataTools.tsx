@@ -99,7 +99,7 @@ export default function DataTools({ showBackup = true }: DataToolsProps) {
       addToast(
         "success",
         "Counters rebuilt",
-        `${result.counters} counter(s) seeded — highest sheet no. ${result.maxSheetNo}.`,
+        `${result.counters} counter(s) updated — highest sheet no. ${result.maxSheetNo}.`,
       );
     } catch (error) {
       console.error("Counter seed failed:", error);
