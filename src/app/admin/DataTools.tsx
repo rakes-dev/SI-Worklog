@@ -22,7 +22,7 @@ interface DataToolsProps {
 export default function DataTools({ showBackup = true }: DataToolsProps) {
   const { loadAll } = useAppStore();
   const { toasts, addToast, removeToast } = useToast();
-  const [busy, setBusy] = useState<"export" | "import" | "migrate" | null>(null);
+  const [busy, setBusy] = useState<"export" | "import" | "migrate" | "counters" | null>(null);
 
   const handleExport = async () => {
     setBusy("export");
@@ -87,6 +87,28 @@ export default function DataTools({ showBackup = true }: DataToolsProps) {
     }
   };
 
+  const handleSeedCounters = async () => {
+    if (!window.confirm(
+      "Rebuild the sheet-number counters from the forms that already exist? " +
+        "Run this once after deploying, so every site + category + month continues " +
+        "from its current Measurement Sheet No. instead of restarting at 1.",
+    )) return;
+    setBusy("counters");
+    try {
+      const result = await dbService.seedSheetCounters();
+      addToast(
+        "success",
+        "Counters rebuilt",
+        `${result.counters} counter(s) seeded — highest sheet no. ${result.maxSheetNo}.`,
+      );
+    } catch (error) {
+      console.error("Counter seed failed:", error);
+      addToast("error", "Rebuild failed", "Admins only — needs read access to every form.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   if (!showBackup) return null;
 
   return (
@@ -126,6 +148,15 @@ export default function DataTools({ showBackup = true }: DataToolsProps) {
         >
           {busy === "migrate" ? <Loader2 size={14} className="animate-spin" /> : <RefreshCcw size={14} />}
           Migrate Legacy Jobs → Forms
+        </button>
+
+        <button
+          onClick={handleSeedCounters}
+          disabled={busy !== null}
+          className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-md border border-border text-foreground hover:bg-secondary transition-colors disabled:opacity-60"
+        >
+          {busy === "counters" ? <Loader2 size={14} className="animate-spin" /> : <RefreshCcw size={14} />}
+          Rebuild Sheet-Number Counters
         </button>
       </div>
 
