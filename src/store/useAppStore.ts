@@ -197,7 +197,17 @@ export const useAppStore = create<AppStore>()(
           // site + category + month for EVERY user — the month's first form is 1,
           // the next 2, and so on. (It is deliberately no longer scoped to the
           // creating user, which previously let two users both get sheet no. 1.)
-          const sheetNo = nextSheetNo(get().forms, site.id, category.id, month);
+          // The authoritative number comes from a SHARED per-scope counter: an
+          // employee can only read their own forms (see firestore.rules), so the
+          // locally loaded list alone would let two users both start at 1. The
+          // local value is only the offline fallback.
+          const localFallback = nextSheetNo(get().forms, site.id, category.id, month);
+          const sheetNo = await dbService.allocateSheetNo(
+            site.id,
+            category.id,
+            month,
+            localFallback,
+          );
           const base = defaultForm("", sheetNo, category.defaultFormType);
           const form: WorkForm = {
             ...base,
@@ -268,7 +278,12 @@ export const useAppStore = create<AppStore>()(
             ...src,
             id: generateId("form"),
             formName: `${src.formName} (Copy)`,
-            sheetNo: nextSheetNo(get().forms, src.siteId, src.categoryId, src.month),
+            sheetNo: await dbService.allocateSheetNo(
+              src.siteId,
+              src.categoryId,
+              src.month,
+              nextSheetNo(get().forms, src.siteId, src.categoryId, src.month),
+            ),
             createdAt: now,
             updatedAt: now,
           };
@@ -291,7 +306,12 @@ export const useAppStore = create<AppStore>()(
             siteAddress: target.site.address,
             categoryId: target.category.id,
             formName: `${src.formName} (Copy)`,
-            sheetNo: nextSheetNo(get().forms, target.site.id, target.category.id, src.month),
+            sheetNo: await dbService.allocateSheetNo(
+              target.site.id,
+              target.category.id,
+              src.month,
+              nextSheetNo(get().forms, target.site.id, target.category.id, src.month),
+            ),
           };
           set((s) => ({ forms: [...s.forms, copy] }));
           await persistForm(copy);
