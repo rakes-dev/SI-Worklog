@@ -8,6 +8,7 @@ import {
   getDocs,
   onSnapshot,
   query,
+  runTransaction,
   setDoc,
   where,
   writeBatch,
@@ -47,6 +48,12 @@ const COLLECTION_FORMS = "forms";
 const COLLECTION_SITES = "sites";
 const COLLECTION_CATEGORIES = "categories";
 const COLLECTION_ARC = "arc";
+/**
+ * Sheet-number counters. Kept in their own collection because employees may only
+ * read their OWN forms (see firestore.rules), so a shared counter document is the
+ * only place every user can see — and extend — the same sequence.
+ */
+const COLLECTION_FORM_COUNTERS = "form_counters";
 
 /** Outcome of pushing the structure blueprint (sites + categories). */
 export interface SeedResult {
@@ -289,6 +296,15 @@ function sanitizeForFirestore<T>(value: T): T {
   return value;
 }
 
+/** Counter doc id — one counter per site + category + month. */
+function sheetCounterRef(siteId: string, categoryId: string, month: string) {
+  return doc(
+    getFirestoreDb(),
+    COLLECTION_FORM_COUNTERS,
+    `${siteId}__${categoryId}__${month.slice(0, 7)}`,
+  );
+}
+
 function formRef(id: string) {
   return doc(getFirestoreDb(), COLLECTION_FORMS, id);
 }
@@ -316,6 +332,7 @@ function sortByOrder<T extends { order: number; name: string }>(items: T[]): T[]
 const WRITE_TIMEOUT_MS = 15000; // single-doc writes (autosave, saves, deletes)
 const READ_TIMEOUT_MS = 20000; // blueprint existence checks
 const SEED_WRITE_TIMEOUT_MS = 45000; // blueprint writes get extra headroom
+const ALLOCATE_TIMEOUT_MS = 8000; // sheet-number allocation — must not block offline creation
 
 function withTimeout<T>(
   work: Promise<T>,
@@ -422,6 +439,150 @@ export const dbService = {
   /** Permanently remove a form document (used only from the trash). */
   async deleteFormDoc(id: string): Promise<void> {
     await withTimeout(deleteDoc(formRef(id)), "Form delete");
+  },
+
+  /**
+   * Atomically reserve the next Measurement Sheet No. for one site + category +
+   * month.
+   *
+   * The counter lives in its own document because an employee may only read forms
+   * they own, so two users creating a form in the same category cannot see each
+   * other's numbers. Reading and bumping this shared document in a transaction is
+   * what makes user Y continue after user X's 1, 2, 3 — and makes simultaneous
+   * creations take 4 and 5 rather than both 4.
+   *
+   * `fallback` is the caller's local sequence. It is used verbatim when the
+   * transaction cannot run (offline, or before the counters rules are deployed)
+   * so creating a form never blocks, and it also *heals* a counter that is behind
+   * — e.g. forms created before this counter existed.
+   */
+  async allocateSheetNo(
+    siteId: string,
+    categoryId: string,
+    month: string,
+    fallback: number,
+  ): Promise<number> {
+    const db = getFirestoreDb();
+    const bucket = month.slice(0, 7);
+    const ref = sheetCounterRef(siteId, categoryId, bucket);
+    const candidate = Math.max(1, Math.floor(fallback) || 1);
+    try {
+      return await withTimeout(
+        runTransaction(db, async (tx) => {
+          const snap = await tx.get(ref);
+          const current = snap.exists()
+            ? coerceNumber(snap.data()?.lastSheetNo, 0)
+            : 0;
+          const next = Math.max(current + 1, candidate);
+          tx.set(ref, {
+            siteId,
+            categoryId,
+            month: bucket,
+            lastSheetNo: next,
+            updatedAt: new Date().toISOString(),
+          });
+          return next;
+        }),
+        "Sheet number allocation",
+        ALLOCATE_TIMEOUT_MS,
+      );
+    } catch (error) {
+      console.warn(
+        "Sheet number allocation unavailable — using the local sequence.",
+        error,
+      );
+      // Deliberately NOT writing the shared counter here. A blind write cannot
+      // know the counter's current value, so replaying it later could REWIND the
+      // sequence (an offline device writing 1 over a 5) and hand duplicate
+      // numbers to the next online user. A behind-counter heals itself inside
+      // the transaction above via `candidate` on the next online allocation.
+      return candidate;
+    }
+  },
+
+  /**
+   * Admin repair: (re)seed every sheet-number counter from the highest
+   * Measurement Sheet No. already stored for that site + category + month.
+   *
+   * Run this once after the counters are deployed so an existing month carries on
+   * from its current numbers instead of restarting at 1 (and colliding with the
+   * forms already there). Only an admin can read every form, so only an admin can
+   * compute these maxima. Existing counters are never rewound: a counter that
+   * already sits ahead of the stored forms is left untouched.
+   */
+  async seedSheetCounters(): Promise<{ counters: number; maxSheetNo: number }> {
+    const db = getFirestoreDb();
+    const snap = await withTimeout(
+      getDocs(collection(db, COLLECTION_FORMS)),
+      "Sheet counter seed read",
+      READ_TIMEOUT_MS,
+    );
+
+    const scopes = new Map<
+      string,
+      { siteId: string; categoryId: string; month: string; max: number }
+    >();
+    for (const d of snap.docs) {
+      const data = d.data() as Partial<WorkForm>;
+      const siteId = coerceString(data.siteId);
+      const categoryId = coerceString(data.categoryId);
+      const month = coerceString(data.month).slice(0, 7);
+      if (!siteId || !categoryId || !month) continue;
+      const n = coerceNumber(data.sheetNo, 0);
+      const key = `${siteId}__${categoryId}__${month}`;
+      const seen = scopes.get(key);
+      if (!seen) scopes.set(key, { siteId, categoryId, month, max: n });
+      else if (n > seen.max) seen.max = n;
+    }
+
+    const entries = Array.from(scopes.values());
+    const maxSheetNo = entries.reduce((max, s) => Math.max(max, s.max), 0);
+    // Never rewind: a counter may already sit AHEAD of the stored forms
+    // (offline allocations, deleted forms), so carry the higher value and skip
+    // counters that are already up to date.
+    const existing = await withTimeout(
+      getDocs(collection(db, COLLECTION_FORM_COUNTERS)),
+      "Sheet counter seed read",
+      READ_TIMEOUT_MS,
+    );
+    const floor = new Map<string, number>();
+    for (const d of existing.docs) {
+      floor.set(
+        d.id,
+        coerceNumber((d.data() as { lastSheetNo?: unknown }).lastSheetNo, 0),
+      );
+    }
+    const pending = entries
+      .map((s) => ({
+        ...s,
+        max: Math.max(
+          s.max,
+          floor.get(`${s.siteId}__${s.categoryId}__${s.month}`) ?? 0,
+        ),
+      }))
+      .filter(
+        (s) =>
+          (floor.get(`${s.siteId}__${s.categoryId}__${s.month}`) ?? 0) < s.max,
+      );
+    // Firestore caps a batch at 500 writes — commit in chunks.
+    for (let i = 0; i < pending.length; i += 400) {
+      const batch = writeBatch(db);
+      for (const s of pending.slice(i, i + 400)) {
+        batch.set(sheetCounterRef(s.siteId, s.categoryId, s.month), {
+          siteId: s.siteId,
+          categoryId: s.categoryId,
+          month: s.month,
+          lastSheetNo: s.max,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+      await withTimeout(
+        batch.commit(),
+        "Sheet counter seed write",
+        SEED_WRITE_TIMEOUT_MS,
+      );
+    }
+    return { counters: pending.length, maxSheetNo };
   },
 
   /** Admin backup: export every form as JSON. */

@@ -82,6 +82,20 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // --- Sheet-number counters: one shared sequence per site+cat+month --------
+    // Employees can only read their OWN forms, so a shared counter document is
+    // the only place every user can see — and extend — the same sequence. An
+    // employee may only move a counter FORWARD (never rewind a sequence, and a
+    // brand-new counter may not start below 1); admins may seed/reset it from
+    // Admin → Data Tools.
+    match /form_counters/{counterId} {
+      allow read: if isAllowed() || isAdminViewer();
+      allow create, update: if isAllowed() &&
+        request.resource.data.lastSheetNo >=
+        (resource == null ? 1 : resource.data.lastSheetNo);
+      allow create, update, delete: if isAdmin();
+    }
+
     // --- Allowlist: a user reads only their own doc; admin manages all --
     match /app_users/{email} {
       allow read: if isAdmin() || (hasEmail() && email == myEmail());
