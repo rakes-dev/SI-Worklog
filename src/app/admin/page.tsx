@@ -19,6 +19,7 @@ import UserManagement from "./UserManagement";
 import MasterSummary from "./MasterSummary";
 import SiteCategoryManager from "./SiteCategoryManager";
 import DataTools from "./DataTools";
+import AuditLog from "./AuditLog";
 import { formatCurrency, normalizeKey, currentMonth, monthLabel } from "@/utils/helpers";
 import {
   Loader2,
@@ -30,15 +31,17 @@ import {
   ClipboardList,
   Layers,
   Ruler,
+  Activity,
 } from "lucide-react";
 
-type Tab = "overview" | "manage" | "master" | "users";
+type Tab = "overview" | "manage" | "master" | "users" | "audit";
 
 const TAB_LABELS: { key: Tab; label: string; icon: React.ReactNode }[] = [
   { key: "overview", label: "Overview", icon: <ClipboardList size={15} /> },
   { key: "manage", label: "Sites & Categories", icon: <Building2 size={15} /> },
   { key: "master", label: "Master Summary", icon: <FileText size={15} /> },
   { key: "users", label: "Users", icon: <Users size={15} /> },
+  { key: "audit", label: "Audit", icon: <Activity size={15} /> },
 ];
 export default function AdminPage() {
   const router = useRouter();
@@ -48,13 +51,18 @@ export default function AdminPage() {
   const availableMonths = useMemo(() => {
     const months = new Set<string>();
     forms.forEach((f) => {
-      if (!f.isDeleted && f.month) months.add(f.month);
+      if (!f.isDeleted) {
+        const fromWorkDate = (f.workStartDate || "").slice(0, 7);
+        const key = fromWorkDate && fromWorkDate.length >= 7 && fromWorkDate[4] === "-"
+          ? fromWorkDate
+          : (f.month || "").slice(0, 7);
+        if (key) months.add(key);
+      }
     });
     return Array.from(months).sort().reverse();
   }, [forms]);
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
-    if (availableMonths.length > 0) return currentMonth();
-    return "";
+    return currentMonth();
   });
 
   useEffect(() => {
@@ -90,7 +98,15 @@ export default function AdminPage() {
   }, [status, role, tab]);
 
     const activeForms = useMemo(() => {
-    return forms.filter((f) => !f.isDeleted && (selectedMonth === "" || f.month === selectedMonth));
+    return forms.filter((f) => {
+      if (f.isDeleted) return false;
+      if (selectedMonth === "") return true;
+      const fromWorkDate = (f.workStartDate || "").slice(0, 7);
+      const bucket = fromWorkDate && fromWorkDate.length >= 7 && fromWorkDate[4] === "-"
+        ? fromWorkDate
+        : (f.month || "").slice(0, 7);
+      return bucket === selectedMonth;
+    });
   }, [forms, selectedMonth]);
   const totalValue = activeForms.reduce((s, f) => s + (f.grandTotal ||0),0);
 
@@ -230,7 +246,6 @@ if (isLoadingData) {
               onChange={(e) => setSelectedMonth(e.target.value)}
               className="px-3 py-1.5 rounded-md border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             >
-              <option value="">All time</option>
               {availableMonths.map((m) => (
                 <option key={m} value={m}>
                   {monthLabel(m)}
@@ -323,6 +338,7 @@ if (isLoadingData) {
       {tab === "manage" && <SiteCategoryManager />}
       {tab === "master" && <MasterSummary />}
       {tab === "users" && <UserManagement />}
+      {tab === "audit" && <AuditLog />}
       {tab === "overview" && role === "admin" && <DataTools showBackup />}
       </div>
     </AppLayout>

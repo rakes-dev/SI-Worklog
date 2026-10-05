@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { useAuthStore } from "@/store/useAuthStore";
+import { dbService } from "@/services/db";
 import { currentMonth, formatCurrency, formatDate, monthLabel } from "@/utils/helpers";
 import { rememberWork } from "@/utils/recents";
 import type { WorkForm } from "@/types";
@@ -35,6 +36,10 @@ import { useToast } from "@/hooks/useToast";
  * never silently miss a form because of a formatting difference.
  */
 function monthKey(form: WorkForm): string {
+  const fromWorkDate = (form.workStartDate || "").slice(0, 7);
+  if (fromWorkDate && fromWorkDate.length >= 7 && fromWorkDate[4] === "-") {
+    return fromWorkDate;
+  }
   return (form.month || "").slice(0, 7);
 }
 
@@ -55,7 +60,7 @@ export default function FormListClient() {
     permanentlyDeleteForm,
     duplicateForm,
   } = useAppStore();
-  const { user } = useAuthStore();
+  const { user, role } = useAuthStore();
   const { toasts, addToast, removeToast } = useToast();
 
   const [search, setSearch] = useState("");
@@ -299,8 +304,7 @@ if (!site || !category) {
             {category.name}
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {site.name} · {user?.displayName || user?.email} ·{" "}
-            {activeForms.length} form{activeForms.length !== 1 ? "s" : ""}
+            {site.name} · {user?.displayName || user?.email} · {activeForms.length} form{activeForms.length !== 1 ? "s" : ""} · ₹{formatCurrency(activeForms.reduce((sum, f) => sum + (f.grandTotal || 0), 0))}
           </p>
         </div>
         <button

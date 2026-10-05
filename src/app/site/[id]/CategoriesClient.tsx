@@ -7,7 +7,7 @@ import { Building2, ChevronLeft, Hammer, Loader2, MapPin, Paintbrush, Plus } fro
 import { useAppStore } from "@/store/useAppStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { describeError } from "@/services/db";
-import { formatCurrency } from "@/utils/helpers";
+import { currentMonth, formatCurrency } from "@/utils/helpers";
 import { byRecencyThenOrder, loadLastWork } from "@/utils/recents";
 import QuickCreateFormModal from "@/app/components/QuickCreateFormModal";
 import ToastContainer from "@/components/ui/Toast";
@@ -48,7 +48,17 @@ export default function CategoriesClient() {
 
   const site = sites.find((s) => s.id === siteId);
   const activeCategories = categories.filter((c) => c.isActive);
-  const activeForms = forms.filter((f) => !f.isDeleted);
+  const currentMonthKey = currentMonth();
+  const formMonthKey = (f: typeof forms[number]) => {
+    const fromWorkDate = (f.workStartDate || "").slice(0, 7);
+    if (fromWorkDate && fromWorkDate.length >= 7 && fromWorkDate[4] === "-") {
+      return fromWorkDate;
+    }
+    return (f.month || "").slice(0, 7);
+  };
+  const currentMonthForms = forms.filter(
+    (f) => !f.isDeleted && formMonthKey(f) === currentMonthKey,
+  );
 
   const perCategory = useMemo(() => {
     // Order categories by the user's own work recency: the category they
@@ -57,7 +67,7 @@ export default function CategoriesClient() {
     const lastWork = loadLastWork(user?.email);
     return byRecencyThenOrder(
       activeCategories.map((category) => {
-        const catForms = activeForms.filter(
+        const catForms = currentMonthForms.filter(
           (f) => f.siteId === siteId && f.categoryId === category.id,
         );
         return {
@@ -70,7 +80,7 @@ export default function CategoriesClient() {
       ({ category }) => lastWork.categoryAt[category.id] ?? 0,
       ({ category }) => category.order,
     );
-  }, [activeCategories, activeForms, siteId, user?.email]);
+  }, [activeCategories, currentMonthForms, siteId, user?.email]);
 
   if (!site) {
     return (
@@ -116,7 +126,7 @@ export default function CategoriesClient() {
                 <span>·</span>
               </>
             )}
-            Choose a work category to view or create forms
+            Current month: {currentMonthForms.filter((f) => f.siteId === siteId).length} forms · ₹{formatCurrency(currentMonthForms.filter((f) => f.siteId === siteId).reduce((sum, f) => sum + (f.grandTotal || 0), 0))}
           </p>
         </div>
         <button

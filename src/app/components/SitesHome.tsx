@@ -6,7 +6,7 @@ import { Building2, FileText, IndianRupee, Loader2, MapPin, Plus } from "lucide-
 import { useAppStore } from "@/store/useAppStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { describeError } from "@/services/db";
-import { formatCurrency } from "@/utils/helpers";
+import { currentMonth, formatCurrency } from "@/utils/helpers";
 import { byRecencyThenOrder, loadLastWork } from "@/utils/recents";
 import QuickCreateFormModal from "./QuickCreateFormModal";
 import ToastContainer from "@/components/ui/Toast";
@@ -46,7 +46,17 @@ export default function SitesHome() {
   };
 
   const activeSites = sites.filter((s) => s.isActive);
-  const activeForms = forms.filter((f) => !f.isDeleted);
+  const currentMonthKey = currentMonth();
+  const formMonthKey = (f: typeof forms[number]) => {
+    const fromWorkDate = (f.workStartDate || "").slice(0, 7);
+    if (fromWorkDate && fromWorkDate.length >= 7 && fromWorkDate[4] === "-") {
+      return fromWorkDate;
+    }
+    return (f.month || "").slice(0, 7);
+  };
+  const currentMonthForms = forms.filter(
+    (f) => !f.isDeleted && formMonthKey(f) === currentMonthKey,
+  );
 
   const perSite = useMemo(() => {
     // The site the user worked in most recently comes first; the rest keep
@@ -54,7 +64,7 @@ export default function SitesHome() {
     const lastWork = loadLastWork(user?.email);
     return byRecencyThenOrder(
       activeSites.map((site) => {
-        const siteForms = activeForms.filter((f) => f.siteId === site.id);
+        const siteForms = currentMonthForms.filter((f) => f.siteId === site.id);
         return {
           site,
           count: siteForms.length,
@@ -65,10 +75,10 @@ export default function SitesHome() {
       ({ site }) => lastWork.siteAt[site.id] ?? 0,
       ({ site }) => site.order,
     );
-  }, [activeSites, activeForms, user?.email]);
+  }, [activeSites, currentMonthForms, user?.email]);
 
-  const totalForms = activeForms.length;
-  const totalAmount = activeForms.reduce((sum, f) => sum + (f.grandTotal || 0), 0);
+  const totalForms = currentMonthForms.length;
+  const totalAmount = currentMonthForms.reduce((sum, f) => sum + (f.grandTotal || 0), 0);
 
   return (
     <div className="min-h-full p-4 lg:p-6 xl:p-8 pb-[calc(6rem_+_env(safe-area-inset-bottom))] lg:pb-8 max-w-screen-2xl mx-auto">
@@ -80,7 +90,7 @@ export default function SitesHome() {
             Sites
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {role === "admin" ? "All employees' forms across work sites" : "My forms across work sites"} ·{" "}
+            {role === "admin" ? "Current month forms across work sites" : "Current month forms across work sites"} ·{" "}
             {user?.displayName || user?.email || "Me"}
           </p>
         </div>
