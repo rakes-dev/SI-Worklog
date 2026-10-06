@@ -855,11 +855,9 @@ export default function FormEditorClient() {
                 )}
               </button>
             </div>
-                disabled={saveState === "saving" || !canEditForm}
+          </div>
         </form>
-                  !canEditForm
-                    ? "Only the creator can save changes"
-                    : saveState === "saving"
+      </div>
 
       <CopyFormModal
         open={copyModalOpen}
