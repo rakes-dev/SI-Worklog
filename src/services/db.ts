@@ -4,13 +4,13 @@ import {
   collection,
   deleteDoc,
   doc,
+  query,
+  where,
   getDoc,
   getDocs,
   onSnapshot,
-  query,
   runTransaction,
   setDoc,
-  where,
   writeBatch,
   type DocumentReference,
   type Unsubscribe,
@@ -416,6 +416,58 @@ export const dbService = {
     );
   },
 
+  /**
+   * Live subscription to all forms within assigned sites.
+   * Uses one query per site id so Firestore rules can safely enforce
+   * site-scoped access without requiring a broad collection read.
+   */
+  observeUserFormsBySites(
+    _userEmail: string,
+    siteIds: string[],
+    onChange: (forms: WorkForm[]) => void,
+    onError?: (error: unknown) => void,
+  ): Unsubscribe {
+    const normalizedSiteIds = Array.from(
+      new Set(siteIds.map((id) => id.trim()).filter(Boolean)),
+    );
+
+    if (normalizedSiteIds.length === 0) {
+      onChange([]);
+      return () => {};
+    }
+
+    const db = getFirestoreDb();
+    const formsById = new Map<string, WorkForm>();
+
+    const unsubs = normalizedSiteIds.map((siteId) =>
+      onSnapshot(
+        query(
+          collection(db, COLLECTION_FORMS),
+          where("siteId", "==", siteId),
+        ),
+        (snap) => {
+          // Remove stale docs for this site, then add current docs.
+          for (const [id, form] of formsById) {
+            if (form.siteId === siteId) formsById.delete(id);
+          }
+          snap.docs.forEach((d) => {
+            const form = normalizeWorkForm(d.data() as Partial<WorkForm>);
+            formsById.set(form.id, form);
+          });
+          onChange(sortByCreatedDesc(Array.from(formsById.values())));
+        },
+        (error) => {
+          console.warn("Scoped live form sync unavailable.", error);
+          onError?.(error);
+        },
+      ),
+    );
+
+    return () => {
+      unsubs.forEach((u) => u());
+    };
+  },
+
   async getForm(id: string): Promise<WorkForm | undefined> {
     const snap = await getDoc(formRef(id));
     if (!snap.exists()) return undefined;
@@ -736,6 +788,47 @@ export const dbService = {
         onError?.(error);
       },
     );
+  },
+
+  /**
+   * Live subscription to a fixed set of site ids.
+   * Uses per-document listeners so Firestore rules can deny unassigned sites.
+   */
+  observeSitesByIds(
+    siteIds: string[],
+    onChange: (sites: Site[]) => void,
+    onError?: (error: unknown) => void,
+  ): Unsubscribe {
+    const normalizedSiteIds = Array.from(
+      new Set(siteIds.map((id) => id.trim()).filter(Boolean)),
+    );
+    if (normalizedSiteIds.length === 0) {
+      onChange([]);
+      return () => {};
+    }
+
+    const sitesById = new Map<string, Site>();
+    const unsubs = normalizedSiteIds.map((id) =>
+      onSnapshot(
+        siteRef(id),
+        (snap) => {
+          if (snap.exists()) {
+            sitesById.set(id, normalizeSite(snap.data(), id));
+          } else {
+            sitesById.delete(id);
+          }
+          onChange(sortByOrder(Array.from(sitesById.values())));
+        },
+        (error) => {
+          console.warn("Scoped live site sync unavailable.", error);
+          onError?.(error);
+        },
+      ),
+    );
+
+    return () => {
+      unsubs.forEach((u) => u());
+    };
   },
 
   async getSites(): Promise<Site[]> {

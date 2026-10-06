@@ -24,17 +24,27 @@ export default function QuickCreateFormModal({
 }: QuickCreateFormModalProps) {
   const router = useRouter();
   const { sites, categories, createForm } = useAppStore();
-  const { user } = useAuthStore();
+  const { user, role, assignedSiteIds } = useAuthStore();
   const { toasts, addToast, removeToast } = useToast();
 
+  const visibleSiteIds = useMemo(() => new Set(assignedSiteIds), [assignedSiteIds]);
+
   const activeSites = useMemo(
-    () => sites.filter((s) => s.isActive).sort((a, b) => a.order - b.order),
-    [sites],
+    () =>
+      sites
+        .filter(
+          (s) =>
+            s.isActive &&
+            (role === "admin" || role === "admin_viewer" || visibleSiteIds.has(s.id)),
+        )
+        .sort((a, b) => a.order - b.order),
+    [sites, role, visibleSiteIds],
   );
   const activeCategories = useMemo(
     () => categories.filter((c) => c.isActive).sort((a, b) => a.order - b.order),
     [categories],
   );
+  const hasAnyActiveSite = sites.some((s) => s.isActive);
 
   const [siteId, setSiteId] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -116,8 +126,9 @@ export default function QuickCreateFormModal({
 <div className="p-5 flex flex-col gap-4">
           {activeSites.length === 0 || activeCategories.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">
-              The work structure (sites / categories) is not set up yet. Ask an
-              admin to push it from Admin → Sites &amp; Categories.
+              {activeSites.length === 0 && hasAnyActiveSite
+                ? "No sites are assigned to your account yet. Ask an admin to assign at least one site."
+                : "The work structure (sites / categories) is not set up yet. Ask an admin to push it from Admin → Sites & Categories."}
             </p>
           ) : (
             <>

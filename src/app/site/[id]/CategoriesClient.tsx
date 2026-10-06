@@ -18,7 +18,7 @@ export default function CategoriesClient() {
   // to siteId for readability.
   const { id: siteId } = useParams<{ id: string }>();
   const { sites, categories, forms, seedDefaults } = useAppStore();
-  const { user, role } = useAuthStore();
+  const { user, role, assignedSiteIds } = useAuthStore();
   const { toasts, addToast, removeToast } = useToast();
 
   const [showQuickCreate, setShowQuickCreate] = useState(false);
@@ -46,7 +46,10 @@ export default function CategoriesClient() {
     }
   };
 
-  const site = sites.find((s) => s.id === siteId);
+  const visibleSiteIds = useMemo(() => new Set(assignedSiteIds), [assignedSiteIds]);
+  const hasSiteAccess =
+    role === "admin" || role === "admin_viewer" || visibleSiteIds.has(siteId);
+  const site = hasSiteAccess ? sites.find((s) => s.id === siteId) : undefined;
   const activeCategories = categories.filter((c) => c.isActive);
   const currentMonthKey = currentMonth();
   const formMonthKey = (f: typeof forms[number]) => {
@@ -88,9 +91,13 @@ export default function CategoriesClient() {
         <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4">
           <Building2 size={28} className="text-muted-foreground" />
         </div>
-        <h2 className="text-xl font-semibold text-foreground mb-2">Site not found</h2>
+        <h2 className="text-xl font-semibold text-foreground mb-2">
+          {hasSiteAccess ? "Site not found" : "Site access restricted"}
+        </h2>
         <p className="text-muted-foreground text-sm mb-5">
-          This site may have been removed or the link is invalid.
+          {hasSiteAccess
+            ? "This site may have been removed or the link is invalid."
+            : "You can only access sites assigned by an admin."}
         </p>
         <Link
           href="/"

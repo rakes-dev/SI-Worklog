@@ -15,6 +15,7 @@ export type UserRole = "user" | "admin" | "admin_viewer";
 export interface AllowedUser {
   email: string;
   role: UserRole;
+  assignedSiteIds?: string[];
   displayName?: string;
   addedBy?: string;
   createdAt?: string;
@@ -24,6 +25,27 @@ const COLLECTION = "app_users";
 
 function normEmail(email: string): string {
   return email.trim().toLowerCase();
+}
+
+function normalizeAssignedSiteIds(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const raw of value) {
+    if (typeof raw !== "string") continue;
+    const id = raw.trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+}
+
+function normalizeAllowedUser(record: AllowedUser): AllowedUser {
+  return {
+    ...record,
+    assignedSiteIds: normalizeAssignedSiteIds(record.assignedSiteIds),
+  };
 }
 
 /**
@@ -69,10 +91,12 @@ export async function fetchAllowedUsers(): Promise<AllowedUser[]> {
     () => getDocs(collection(db, COLLECTION)),
     "Allowlist read",
   );
-  return snap.docs.map((d) => ({
-    email: String(d.id).toLowerCase(),
-    ...(d.data() as Omit<AllowedUser, "email">),
-  }));
+  return snap.docs.map((d) =>
+    normalizeAllowedUser({
+      email: String(d.id).toLowerCase(),
+      ...(d.data() as Omit<AllowedUser, "email">),
+    }),
+  );
 }
 
 /**
@@ -94,10 +118,10 @@ export async function fetchMyUser(email: string): Promise<AllowedUser | null> {
       "Access record read",
     );
     if (snap.exists()) {
-      return {
+      return normalizeAllowedUser({
         email: norm,
         ...(snap.data() as Omit<AllowedUser, "email">),
-      };
+      });
     }
     // The server answered definitively: this email is not on the allowlist.
     return null;
@@ -116,8 +140,10 @@ export async function addAllowedUser(
   email: string,
   role: UserRole,
   addedBy: string,
+  assignedSiteIds: string[] = [],
 ): Promise<void> {
   const db = getFirestoreDb();
+  const normalizedAssignedSiteIds = normalizeAssignedSiteIds(assignedSiteIds);
   await withRetry(
     () =>
       setDoc(
@@ -125,6 +151,7 @@ export async function addAllowedUser(
         {
           email: normEmail(email),
           role,
+          assignedSiteIds: normalizedAssignedSiteIds,
           displayName: "",
           addedBy,
           createdAt: new Date().toISOString(),
@@ -146,6 +173,23 @@ export async function updateAllowedUserRole(
     () =>
       setDoc(doc(db, COLLECTION, normEmail(email)), { role }, { merge: true }),
     "Role update write",
+  );
+}
+
+/** Update a user's assigned site ids (admin action). */
+export async function updateAllowedUserAssignedSites(
+  email: string,
+  assignedSiteIds: string[],
+): Promise<void> {
+  const db = getFirestoreDb();
+  await withRetry(
+    () =>
+      setDoc(
+        doc(db, COLLECTION, normEmail(email)),
+        { assignedSiteIds: normalizeAssignedSiteIds(assignedSiteIds) },
+        { merge: true },
+      ),
+    "Assigned sites update write",
   );
 }
 

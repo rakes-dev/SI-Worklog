@@ -20,15 +20,20 @@ import { currentMonth, formatCurrency, formatDate, monthLabel } from "@/utils/he
 export default function ArchivePage() {
   const router = useRouter();
   const { forms, sites, categories } = useAppStore();
-  const { user, role } = useAuthStore();
+  const { user, role, assignedSiteIds } = useAuthStore();
   const [search, setSearch] = useState("");
   const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
+
+  const visibleSiteIds = useMemo(() => new Set(assignedSiteIds), [assignedSiteIds]);
 
   const filteredForms = useMemo(() => {
     const q = search.trim().toLowerCase();
     return forms.filter((f) => {
       if (f.isDeleted) return false;
       if (role !== "admin" && f.ownerEmail !== user?.email) return false;
+      if (role !== "admin" && role !== "admin_viewer" && !visibleSiteIds.has(f.siteId)) {
+        return false;
+      }
       if (q) {
         return (
           f.formName.toLowerCase().includes(q) ||
@@ -39,7 +44,7 @@ export default function ArchivePage() {
       }
       return true;
     });
-  }, [forms, search, role, user?.email]);
+  }, [forms, search, role, user?.email, visibleSiteIds]);
 
   const groupedByMonth = useMemo(() => {
     const groups = new Map<string, typeof forms>();

@@ -66,6 +66,7 @@ interface AppStore {
 let sitesUnsub: (() => void) | null = null;
 let categoriesUnsub: (() => void) | null = null;
 let formsUnsub: (() => void) | null = null;
+let currentSiteScope: string | null = null;
 let currentFormScope: string | null = null;
 let onlineListenersBound = false;
 let liveSyncDone = false;
@@ -87,24 +88,41 @@ export function startLiveSync(set: (partial: Partial<AppStore>) => void): void {
   const setup = async () => {
     try {
       const { useAuthStore } = await import("@/store/useAuthStore");
-      const { user, role } = useAuthStore.getState();
+      const { user, role, assignedSiteIds } = useAuthStore.getState();
       const email = user?.email?.trim().toLowerCase();
       if (!email) {
         scheduleRetry(setup, 750);
         return;
       }
       const isAdmin = role === "admin" || role === "admin_viewer";
-      if (!sitesUnsub) {
-        sitesUnsub = dbService.observeSites(
-          (sites) => set({ sites, isLoadingData: false }), () => {},
-        );
+      const normalizedAssignedSiteIds = Array.from(
+        new Set((assignedSiteIds ?? []).map((id) => id.trim()).filter(Boolean)),
+      ).sort();
+
+      const siteScope = isAdmin
+        ? "__all_sites__"
+        : normalizedAssignedSiteIds.join(",");
+      if (siteScope !== currentSiteScope) {
+        if (sitesUnsub) { sitesUnsub(); sitesUnsub = null; }
+        currentSiteScope = siteScope;
+        sitesUnsub = isAdmin
+          ? dbService.observeSites(
+              (sites) => set({ sites, isLoadingData: false }), () => {},
+            )
+          : dbService.observeSitesByIds(
+              normalizedAssignedSiteIds,
+              (sites) => set({ sites, isLoadingData: false }),
+              () => {},
+            );
       }
       if (!categoriesUnsub) {
         categoriesUnsub = dbService.observeCategories(
           (categories) => set({ categories, isLoadingData: false }), () => {},
         );
       }
-      const scope = isAdmin ? "__admin__" : email;
+      const scope = isAdmin
+        ? "__admin__"
+        : `${email}__${normalizedAssignedSiteIds.join(",")}`;
       if (scope !== currentFormScope) {
         if (formsUnsub) { formsUnsub(); formsUnsub = null; }
         currentFormScope = scope;
@@ -112,8 +130,11 @@ export function startLiveSync(set: (partial: Partial<AppStore>) => void): void {
           ? dbService.observeForms(
               (forms) => set({ forms, isLoadingData: false }), () => {},
             )
-          : dbService.observeUserForms(
-              email, (forms) => set({ forms, isLoadingData: false }), () => {},
+          : dbService.observeUserFormsBySites(
+              email,
+              normalizedAssignedSiteIds,
+              (forms) => set({ forms, isLoadingData: false }),
+              () => {},
             );
       }
       liveSyncDone = true;
@@ -180,6 +201,7 @@ export const useAppStore = create<AppStore>()(
           sitesUnsub = null;
           categoriesUnsub = null;
           formsUnsub = null;
+          currentSiteScope = null;
           currentFormScope = null;
           if (liveSyncRetryTimer) {
             clearTimeout(liveSyncRetryTimer);

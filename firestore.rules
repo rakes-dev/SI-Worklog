@@ -1,9 +1,10 @@
 rules_version = '2';
 
-// SI WorkLog — owner-or-admin security model.
+// SI WorkLog — assigned-site access model.
 // Each form is its own document owned by the employee who created it. Employees
-// see only their own forms; admins see everything. Sites, categories and the ARC
-// rate card are readable by any allowed user but writable only by admins.
+// can read all forms inside their assigned sites; admins see everything. Sites,
+// categories and the ARC rate card are readable by allowed users (site-scoped
+// for sites/forms) but writable only by admins.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -45,22 +46,38 @@ service cloud.firestore {
       return isAllowlisted();
     }
 
-    // --- Forms: owner-or-admin-or-admin_viewer read --------------------------
+    function myAssignedSites() {
+      return get(/databases/$(database)/documents/app_users/$(myEmail()))
+        .data.get('assignedSiteIds', []);
+    }
+
+    function hasSiteAccess(siteId) {
+      return myAssignedSites().hasAny([siteId]);
+    }
+
+    // --- Forms: assigned-site read; owner-only edit/delete -------------------
     match /forms/{formId} {
       allow read: if isAdmin() || isAdminViewer() ||
-        (hasEmail() && resource.data.ownerEmail == myEmail());
+        (isAllowed() && hasSiteAccess(resource.data.siteId));
       // A user may only create forms they own; admins may create for anyone.
       allow create: if isAdmin() ||
-        (isAllowed() && request.resource.data.ownerEmail == myEmail());
-      allow update: if isAdmin() ||
-        (hasEmail() && resource.data.ownerEmail == myEmail());
-      allow delete: if isAdmin() ||
-        (hasEmail() && resource.data.ownerEmail == myEmail());
+        (isAllowed() &&
+          request.resource.data.ownerEmail == myEmail() &&
+          hasSiteAccess(request.resource.data.siteId));
+      allow update: if hasEmail() &&
+        resource.data.ownerEmail == myEmail() &&
+        request.resource.data.ownerEmail == resource.data.ownerEmail &&
+        request.resource.data.siteId == resource.data.siteId &&
+        hasSiteAccess(resource.data.siteId);
+      allow delete: if hasEmail() &&
+        resource.data.ownerEmail == myEmail() &&
+        hasSiteAccess(resource.data.siteId);
     }
 
     // --- Sites & categories: allowed read, admin write ------------------
     match /sites/{siteId} {
-      allow read: if isAllowed() || isAdminViewer();
+      allow read: if isAdmin() || isAdminViewer() ||
+        (isAllowed() && hasSiteAccess(siteId));
       allow write: if isAdmin();
     }
     match /categories/{categoryId} {
@@ -89,8 +106,10 @@ service cloud.firestore {
     // brand-new counter may not start below 1); admins may seed/reset it from
     // Admin → Data Tools.
     match /form_counters/{counterId} {
-      allow read: if isAllowed() || isAdminViewer();
+      allow read: if isAdmin() || isAdminViewer() ||
+        (isAllowed() && hasSiteAccess(resource.data.siteId));
       allow create, update: if isAllowed() &&
+        hasSiteAccess(request.resource.data.siteId) &&
         request.resource.data.lastSheetNo >=
         (resource == null ? 1 : resource.data.lastSheetNo);
       allow create, update, delete: if isAdmin();

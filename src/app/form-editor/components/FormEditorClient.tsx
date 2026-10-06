@@ -61,17 +61,30 @@ export default function FormEditorClient() {
   const router = useRouter();
   const { forms, sites, categories, createForm, updateForm, duplicateForm } =
     useAppStore();
-  const { user } = useAuthStore();
+  const { user, role, assignedSiteIds } = useAuthStore();
   const { toasts, addToast, removeToast } = useToast();
 
   const formId = params.get("formId") ?? "";
   const printMode = params.get("print") === "1";
+  const myEmail = user?.email?.trim().toLowerCase() ?? "";
 
-  const existingForm = forms.find((f) => f.id === formId && !f.isDeleted);
-const site = existingForm ? sites.find((s) => s.id === existingForm.siteId) : undefined;
+  const visibleSiteIds = useMemo(() => new Set(assignedSiteIds), [assignedSiteIds]);
+  const hasSiteAccess = useCallback(
+    (siteId: string) =>
+      role === "admin" || role === "admin_viewer" || visibleSiteIds.has(siteId),
+    [role, visibleSiteIds],
+  );
+
+  const existingFormRaw = forms.find((f) => f.id === formId && !f.isDeleted);
+  const existingForm =
+    existingFormRaw && hasSiteAccess(existingFormRaw.siteId)
+      ? existingFormRaw
+      : undefined;
+  const site = existingForm ? sites.find((s) => s.id === existingForm.siteId) : undefined;
   const category = existingForm
     ? categories.find((c) => c.id === existingForm.categoryId)
     : undefined;
+  const canEditForm = existingForm ? existingForm.ownerEmail === myEmail : true;
 
   // Job-shaped object for PrintLayout/PdfExportLayout — they only read the site/
   // employee header fields, so the denormalized WorkForm fields keep the printed
@@ -151,6 +164,10 @@ const site = existingForm ? sites.find((s) => s.id === existingForm.siteId) : un
     const siteId = params.get("siteId");
     const categoryId = params.get("categoryId");
     if (!siteId || !categoryId || !user?.email) return;
+    if (!hasSiteAccess(siteId)) {
+      addToast("error", "Access denied", "You can only create forms in sites assigned by an admin.");
+      return;
+    }
     const s = sites.find((x) => x.id === siteId);
     const c = categories.find((x) => x.id === categoryId);
     if (!s || !c) return;
@@ -170,7 +187,27 @@ const site = existingForm ? sites.find((s) => s.id === existingForm.siteId) : un
         setCreatingNew(false);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [existingForm, sites, categories, params, router, user, createForm]);
+  }, [existingForm, sites, categories, params, router, user, createForm, hasSiteAccess]);
+
+  if (existingFormRaw && !existingForm) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-6">
+        <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4">
+          <AlertCircle size={28} className="text-muted-foreground" />
+        </div>
+        <h2 className="text-xl font-semibold text-foreground mb-2">Site access restricted</h2>
+        <p className="text-sm text-muted-foreground max-w-md mb-5">
+          This form belongs to a site that is not assigned to your account.
+        </p>
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
+        >
+          <ChevronLeft size={16} /> Back to Sites
+        </Link>
+      </div>
+    );
+  }
 
   // Initialize state from existing or default form
   useEffect(() => {
@@ -698,6 +735,12 @@ const site = existingForm ? sites.find((s) => s.id === existingForm.siteId) : un
             Couldn't save your changes — check your connection, then press "Save Form" to retry.
           </div>
         )}
+        {!canEditForm && (
+          <div className="mb-4 flex items-center gap-2 px-4 py-2.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-800 dark:text-amber-300">
+            <AlertCircle size={15} />
+            Read-only: only the user who created this form can edit or delete it.
+          </div>
+        )}
         {hasUnsavedChanges && saveState === "idle" && (
           <div className="mb-4 flex items-center gap-2 px-4 py-2.5 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg text-sm text-yellow-800 dark:text-yellow-300">
             <AlertCircle size={15} />
@@ -706,6 +749,7 @@ const site = existingForm ? sites.find((s) => s.id === existingForm.siteId) : un
         )}
 
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
+          <fieldset disabled={!canEditForm} className="contents disabled:opacity-80">
           {/* Top Fields */}
           <FormTopFields register={register} errors={errors} />
 
@@ -729,6 +773,7 @@ const site = existingForm ? sites.find((s) => s.id === existingForm.siteId) : un
 
           {/* Signatures */}
           <SignatureSection />
+          </fieldset>
 
           {/* Sticky Save Bar */}
           <div className="fixed bottom-[calc(3.5rem_+_env(safe-area-inset-bottom))] lg:bottom-0 left-0 right-0 lg:left-sidebar lg:left-sidebar-collapsed bg-card border-t border-border px-3 pt-2 pb-2 flex items-center justify-between gap-2 z-20 no-print">
@@ -789,9 +834,11 @@ const site = existingForm ? sites.find((s) => s.id === existingForm.siteId) : un
               </button>
               <button
                 type="submit"
-                disabled={saveState === "saving"}
+                disabled={saveState === "saving" || !canEditForm}
                 title={
-                  saveState === "saving"
+                  !canEditForm
+                    ? "Only the creator can save changes"
+                    : saveState === "saving"
                     ? "Saving..."
                     : saveState === "saved"
                     ? "Saved"
@@ -808,9 +855,11 @@ const site = existingForm ? sites.find((s) => s.id === existingForm.siteId) : un
                 )}
               </button>
             </div>
-          </div>
+                disabled={saveState === "saving" || !canEditForm}
         </form>
-      </div>
+                  !canEditForm
+                    ? "Only the creator can save changes"
+                    : saveState === "saving"
 
       <CopyFormModal
         open={copyModalOpen}
@@ -818,7 +867,7 @@ const site = existingForm ? sites.find((s) => s.id === existingForm.siteId) : un
         formName={existingForm?.formName ?? ""}
         sourceSiteId={existingForm?.siteId ?? ""}
         sourceCategoryId={existingForm?.categoryId ?? ""}
-        sites={sites}
+        sites={sites.filter((s) => hasSiteAccess(s.id))}
         categories={categories}
         onClose={() => setCopyModalOpen(false)}
         onCopied={(targetName, newFormName) => {

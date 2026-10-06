@@ -21,6 +21,8 @@ interface AuthState {
   status: AuthStatus;
   /** Role within the allowlist — null while deciding / unknown. */
   role: UserRole | null;
+  /** Site ids the signed-in user is allowed to access (for non-admin users). */
+  assignedSiteIds: string[];
   /** true if the signed-in email is in the allowlist; null while deciding. */
   authorized: boolean | null;
   allowedUsers: AllowedUser[];
@@ -38,6 +40,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   status: "loading",
   role: null,
+  assignedSiteIds: [],
   authorized: null,
   allowedUsers: [],
   accessError: null,
@@ -49,6 +52,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } else {
       set({
         role: null,
+        assignedSiteIds: [],
         authorized: null,
         allowedUsers: [],
         accessError: null,
@@ -59,7 +63,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   refreshAccess: async () => {
     const user = get().user;
     if (!user?.email) {
-      set({ role: null, authorized: false, accessError: null });
+      set({ role: null, assignedSiteIds: [], authorized: false, accessError: null });
       return;
     }
     set({ accessError: null });
@@ -72,6 +76,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({
         allowedUsers: me ? [me] : [],
         role: me?.role ?? null,
+        assignedSiteIds: me?.assignedSiteIds ?? [],
         authorized: isAuthorized,
         accessError: isAuthorized
           ? null
@@ -99,6 +104,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({
         allowedUsers: [],
         role: null,
+        assignedSiteIds: [],
         authorized: null,
         accessError:
           "Connection to the database was lost. You can keep using the app — everything syncs automatically once you're back online.",
@@ -149,6 +155,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       user: null,
       status: "unauthenticated",
       role: null,
+      assignedSiteIds: [],
       authorized: null,
       allowedUsers: [],
       accessError: null,

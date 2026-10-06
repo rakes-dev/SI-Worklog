@@ -14,14 +14,13 @@ import { useToast } from "@/hooks/useToast";
 
 export default function SitesHome() {
   const { sites, categories, forms, seedDefaults, isLoadingData } = useAppStore();
-  const { user, role } = useAuthStore();
+  const { user, role, assignedSiteIds } = useAuthStore();
   const { toasts, addToast, removeToast } = useToast();
 
   const [showQuickCreate, setShowQuickCreate] = useState(false);
   const [seeding, setSeeding] = useState(false);
 
-  const canCreate =
-    sites.some((s) => s.isActive) && categories.some((c) => c.isActive);
+  const hasAnyActiveSite = sites.some((s) => s.isActive);
 
   const handleSeed = async () => {
     setSeeding(true);
@@ -45,7 +44,22 @@ export default function SitesHome() {
     }
   };
 
-  const activeSites = sites.filter((s) => s.isActive);
+  const visibleSiteIds = useMemo(
+    () => new Set(assignedSiteIds),
+    [assignedSiteIds],
+  );
+
+  const activeSites = useMemo(
+    () =>
+      sites.filter(
+        (s) =>
+          s.isActive &&
+          (role === "admin" || role === "admin_viewer" || visibleSiteIds.has(s.id)),
+      ),
+    [sites, role, visibleSiteIds],
+  );
+  const canCreate =
+    activeSites.length > 0 && categories.some((c) => c.isActive);
   const currentMonthKey = currentMonth();
   const formMonthKey = (f: typeof forms[number]) => {
     const fromWorkDate = (f.workStartDate || "").slice(0, 7);
@@ -151,6 +165,8 @@ export default function SitesHome() {
           <p className="text-muted-foreground text-sm max-w-sm mb-4">
             {role === "admin"
               ? "Push the structure blueprint (ITC ROYAL, ITC SONAR + the 7 work categories) to start creating forms."
+              : hasAnyActiveSite
+              ? "No sites are assigned to your account yet. Ask an admin to assign one or more sites in Admin → Users."
               : "The work structure isn't set up yet. Ask an admin to push it from Admin → Sites & Categories."}
           </p>
           {role === "admin" && (

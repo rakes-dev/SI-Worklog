@@ -60,7 +60,7 @@ export default function FormListClient() {
     permanentlyDeleteForm,
     duplicateForm,
   } = useAppStore();
-  const { user, role } = useAuthStore();
+  const { user, role, assignedSiteIds } = useAuthStore();
   const { toasts, addToast, removeToast } = useToast();
 
   const [search, setSearch] = useState("");
@@ -73,8 +73,15 @@ export default function FormListClient() {
   // Once the user picks a month by hand we stop auto-correcting the selection.
   const [monthPinned, setMonthPinned] = useState(false);
 
-  const site = sites.find((s) => s.id === siteId);
+  const visibleSiteIds = useMemo(() => new Set(assignedSiteIds), [assignedSiteIds]);
+  const hasSiteAccess =
+    role === "admin" || role === "admin_viewer" || visibleSiteIds.has(siteId);
+  const site = hasSiteAccess ? sites.find((s) => s.id === siteId) : undefined;
   const category = categories.find((c) => c.id === categoryId);
+  const myEmail = user?.email?.trim().toLowerCase() ?? "";
+
+  const canManageForm = (form: WorkForm | undefined): boolean =>
+    Boolean(form && myEmail && form.ownerEmail === myEmail);
 
   // Opening a category counts as "working" in it — remember it so this
   // category becomes the default preselect in the New Form modal and floats
@@ -224,6 +231,12 @@ export default function FormListClient() {
 
   const handleSoftDelete = async () => {
     if (!deleteTarget) return;
+    const target = forms.find((f) => f.id === deleteTarget);
+    if (!canManageForm(target)) {
+      addToast("error", "Not allowed", "Only the form creator can delete this form.");
+      setDeleteTarget(null);
+      return;
+    }
     try {
       await softDeleteForm(deleteTarget);
       addToast("success", "Form moved to trash", "It can be restored anytime.");
@@ -236,6 +249,12 @@ export default function FormListClient() {
 
   const handlePermanentDelete = async () => {
     if (!permanentDeleteTarget) return;
+    const target = forms.find((f) => f.id === permanentDeleteTarget);
+    if (!canManageForm(target)) {
+      addToast("error", "Not allowed", "Only the form creator can delete this form.");
+      setPermanentDeleteTarget(null);
+      return;
+    }
     try {
       await permanentlyDeleteForm(permanentDeleteTarget);
       addToast("success", "Form permanently deleted", "");
@@ -247,6 +266,11 @@ export default function FormListClient() {
   };
 
   const handleRestore = async (id: string) => {
+    const target = forms.find((f) => f.id === id);
+    if (!canManageForm(target)) {
+      addToast("error", "Not allowed", "Only the form creator can restore this form.");
+      return;
+    }
     try {
       await restoreForm(id);
       addToast("success", "Form restored", "");
@@ -261,9 +285,13 @@ if (!site || !category) {
         <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4">
           <FileText size={28} className="text-muted-foreground" />
         </div>
-        <h2 className="text-xl font-semibold text-foreground mb-2">Category not found</h2>
+        <h2 className="text-xl font-semibold text-foreground mb-2">
+          {!hasSiteAccess ? "Site access restricted" : "Category not found"}
+        </h2>
         <p className="text-muted-foreground text-sm mb-5">
-          This site/category may have been removed or the link is invalid.
+          {!hasSiteAccess
+            ? "You can only access sites assigned by an admin."
+            : "This site/category may have been removed or the link is invalid."}
         </p>
         <Link
           href="/"
@@ -492,13 +520,15 @@ if (!site || !category) {
                         >
                           <Copy size={14} />
                         </button>
-                        <button
-                          onClick={() => setDeleteTarget(form.id)}
-                          title="Move to trash"
-                          className="p-1.5 rounded text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        {canManageForm(form) && (
+                          <button
+                            onClick={() => setDeleteTarget(form.id)}
+                            title="Move to trash"
+                            className="p-1.5 rounded text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -545,20 +575,26 @@ if (!site || !category) {
                       </td>
                       <td className="px-4 py-2 text-right">
                         <div className="flex items-center justify-end gap-0.5">
-                          <button
-                            onClick={() => handleRestore(form.id)}
-                            title="Restore form"
-                            className="p-1.5 rounded text-muted-foreground hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
-                          >
-                            <RotateCcw size={14} />
-                          </button>
-                          <button
-                            onClick={() => setPermanentDeleteTarget(form.id)}
-                            title="Delete permanently"
-                            className="p-1.5 rounded text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                          {canManageForm(form) ? (
+                            <>
+                              <button
+                                onClick={() => handleRestore(form.id)}
+                                title="Restore form"
+                                className="p-1.5 rounded text-muted-foreground hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
+                              >
+                                <RotateCcw size={14} />
+                              </button>
+                              <button
+                                onClick={() => setPermanentDeleteTarget(form.id)}
+                                title="Delete permanently"
+                                className="p-1.5 rounded text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Creator only</span>
+                          )}
                         </div>
                       </td>
                     </tr>
